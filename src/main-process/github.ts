@@ -115,17 +115,31 @@ export const getGhUser = async (): Promise<GhUser | null> => {
 };
 
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+const GH_CACHE_TTL = `${CACHE_TTL_MS / 1000}s`;
 
-const fetchGraphQL = async (query: string, owner: string, name: string) => {
+const fetchGraphQL = async (
+  query: string,
+  owner: string,
+  name: string,
+  skipCache = false,
+) => {
   if (gh === null) {
     throw new Error('GitHub CLI is not installed or could not be found.');
   }
 
-  return gh(['api', 'graphql', '-f', `query=${query}`, '-f', `owner=${owner}`, '-f', `name=${name}`]);
+  const args = ['api', 'graphql', '-f', `query=${query}`, '-f', `owner=${owner}`, '-f', `name=${name}`];
+
+  if (!skipCache) {
+    args.splice(2, 0, '--cache', GH_CACHE_TTL);
+  }
+
+  return gh(args);
 };
 
 type FeedCache = { feed: ProjectFeed; fetchedAt: number };
 const feedCache = new Map<string, FeedCache>();
+type InFlightFeed = { promise: Promise<ProjectFeed>; skipCache: boolean };
+const inFlightFeedRequests = new Map<string, InFlightFeed>();
 
 const getCacheKey = (projectPath: string, kind: ProjectFeedKind): string =>
   `${projectPath}::${kind}`;
@@ -142,26 +156,46 @@ export const getProjectFeed = async (
     return cached.feed;
   }
 
-  const githubSlug = await resolveGitHubSlugFromProjectPath(projectPath);
-  const { owner, name } = splitSlug(githubSlug);
-  const fetchedAt = Date.now();
+  const inFlight = inFlightFeedRequests.get(cacheKey);
 
-  let items: ProjectFeedItem[];
-
-  if (kind === 'issues') {
-    const response = GqlIssuesResponseSchema.parse(
-      await fetchGraphQL(ISSUES_QUERY, owner, name),
-    );
-    items = response.data.repository.issues.nodes.map(toFeedItem);
-  } else {
-    const response = GqlPullRequestsResponseSchema.parse(
-      await fetchGraphQL(PULL_REQUESTS_QUERY, owner, name),
-    );
-    items = response.data.repository.pullRequests.nodes.map(toPrFeedItem);
+  if (inFlight && (!skipCache || inFlight.skipCache)) {
+    return inFlight.promise;
   }
 
-  const feed: ProjectFeed = { githubSlug, projectPath, fetchedAt, items };
-  feedCache.set(cacheKey, { feed, fetchedAt });
+  const request = (async (): Promise<ProjectFeed> => {
+    const githubSlug = await resolveGitHubSlugFromProjectPath(projectPath);
+    const { owner, name } = splitSlug(githubSlug);
+    const fetchedAt = Date.now();
 
-  return feed;
+    let items: ProjectFeedItem[];
+
+    if (kind === 'issues') {
+      const response = GqlIssuesResponseSchema.parse(
+        await fetchGraphQL(ISSUES_QUERY, owner, name, skipCache),
+      );
+      items = response.data.repository.issues.nodes.map(toFeedItem);
+    } else {
+      const response = GqlPullRequestsResponseSchema.parse(
+        await fetchGraphQL(PULL_REQUESTS_QUERY, owner, name, skipCache),
+      );
+      items = response.data.repository.pullRequests.nodes.map(toPrFeedItem);
+    }
+
+    const feed: ProjectFeed = { githubSlug, projectPath, fetchedAt, items };
+    feedCache.set(cacheKey, { feed, fetchedAt });
+
+    return feed;
+  })();
+
+  const trackedRequest = request.finally(() => {
+    const activeRequest = inFlightFeedRequests.get(cacheKey);
+
+    if (activeRequest?.promise === trackedRequest) {
+      inFlightFeedRequests.delete(cacheKey);
+    }
+  });
+
+  inFlightFeedRequests.set(cacheKey, { promise: trackedRequest, skipCache });
+
+  return trackedRequest;
 };

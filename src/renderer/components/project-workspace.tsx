@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from '@tanstack/react-router';
-import { AnimatePresence, Reorder, motion } from 'motion/react';
+import { AnimatePresence, Reorder } from 'motion/react';
 import {
   FolderOpenIcon,
   GitPullRequestArrowIcon,
@@ -14,10 +14,7 @@ import {
 
 import type { ProjectFeedKind, Repo } from '@/ipc/contracts';
 import { useProjectFeed } from '@/renderer/hooks/use-project-feed';
-import {
-  formatRelativeTime,
-  getProjectLabel,
-} from '@/renderer/lib/projects';
+import { getProjectLabel } from '@/renderer/lib/projects';
 import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';
 import { Button } from '@/shadcn/components/ui/button';
 import {
@@ -386,10 +383,9 @@ export function ProjectWorkspace({ repos }: { repos: Repo[] }) {
                 value={repo}
                 onClick={() => setActiveProjectPath(repo.path)}
                 initial={{ opacity: 0, width: 0 }}
-                animate={{ opacity: 1, width: 'auto', transition: { type: 'spring', bounce: 0, duration: 0.25 } }}
-                exit={{ opacity: 0, width: 0, transition: { type: 'tween', ease: 'easeOut', duration: 0.15 } }}
+                animate={{ opacity: 1, width: 'auto', transition: { type: 'spring', bounce: 0, duration: 0.2 } }}
+                exit={{ opacity: 0, width: 0, transition: { type: 'tween', ease: 'easeOut', duration: 0.2 } }}
                 layout
-                layoutTransition={{ type: 'spring', bounce: 0, duration: 0.25 }}
                 className={cn(
                   'group relative flex max-w-50 cursor-default items-center gap-1 overflow-hidden rounded-t-lg px-3 py-1.5 text-[13px]',
                   isActive
@@ -421,15 +417,13 @@ export function ProjectWorkspace({ repos }: { repos: Repo[] }) {
           })}
         </AnimatePresence>
 
-        <motion.button
-          layout
-          layoutTransition={{ type: 'spring', bounce: 0, duration: 0.25 }}
+        <button
           onClick={() => setIsAddDialogOpen(true)}
           className="mb-0.5 ml-0.5 flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
           type="button"
         >
           <PlusIcon className="size-3.5" />
-        </motion.button>
+        </button>
       </Reorder.Group>
 
       {/* Content area connected to active tab */}
