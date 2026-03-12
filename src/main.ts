@@ -1,0 +1,164 @@
+import { app, BrowserWindow, session } from 'electron';
+import path from 'node:path';
+import started from 'electron-squirrel-startup';
+
+// Handle creating/removing shortcuts on Windows when installing/uninstalling.
+if (started) {
+  app.quit();
+}
+
+const isDevelopment = MAIN_WINDOW_VITE_DEV_SERVER_URL !== undefined;
+const devServerOrigin = MAIN_WINDOW_VITE_DEV_SERVER_URL
+  ? new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL).origin
+  : null;
+const developmentContentSecurityPolicy = [
+  "default-src 'self'",
+  "script-src 'self' 'sha256-Z2/iFzh9VMlVkEOar1f/oSHWwQk3ve1qk/C2WdsC4Xk='",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data:",
+  "font-src 'self' data:",
+  `connect-src 'self' ${devServerOrigin} ${
+    devServerOrigin?.replace(/^http/, 'ws') ?? ''
+  }`,
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join('; ');
+
+let mainWindow: BrowserWindow | null = null;
+
+const isAppUrl = (targetUrl: string): boolean => {
+  if (targetUrl.startsWith('file://')) {
+    return true;
+  }
+
+  if (!devServerOrigin) {
+    return false;
+  }
+
+  return new URL(targetUrl).origin === devServerOrigin;
+};
+
+const configureSessionSecurity = (): void => {
+  session.defaultSession.setPermissionCheckHandler(() => false);
+  session.defaultSession.setPermissionRequestHandler(
+    (_webContents, _permission, callback) => {
+      callback(false);
+    },
+  );
+
+  if (!isDevelopment || !devServerOrigin) {
+    return;
+  }
+
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    const responseHeaders = details.responseHeaders ?? {};
+
+    if (!details.url.startsWith(devServerOrigin)) {
+      callback({ responseHeaders });
+      return;
+    }
+
+    callback({
+      responseHeaders: {
+        ...responseHeaders,
+        'Content-Security-Policy': [developmentContentSecurityPolicy],
+      },
+    });
+  });
+};
+
+const createWindow = async (): Promise<BrowserWindow> => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    return mainWindow;
+  }
+
+  mainWindow = new BrowserWindow({
+    width: 1200,
+    height: 760,
+    minWidth: 960,
+    minHeight: 640,
+    show: false,
+    backgroundColor: '#09111f',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+      devTools: isDevelopment,
+    },
+  });
+
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  mainWindow.webContents.on('will-navigate', (event, navigationUrl) => {
+    if (isAppUrl(navigationUrl)) {
+      return;
+    }
+
+    event.preventDefault();
+  });
+
+  mainWindow.once('ready-to-show', () => {
+    mainWindow?.show();
+  });
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
+
+  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+    await mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+  } else {
+    await mainWindow.loadFile(
+      path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
+    );
+  }
+
+  return mainWindow;
+};
+
+const focusMainWindow = (): void => {
+  if (!mainWindow) {
+    return;
+  }
+
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore();
+  }
+
+  mainWindow.focus();
+};
+
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+}
+
+app.on('second-instance', () => {
+  focusMainWindow();
+});
+
+app.whenReady().then(async () => {
+  app.setAppUserModelId(app.name);
+  configureSessionSecurity();
+  await createWindow();
+});
+
+// Quit when all windows are closed, except on macOS. There, it's common
+// for applications and their menu bar to stay active until the user quits
+// explicitly with Cmd + Q.
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
+});
+
+app.on('activate', () => {
+  // On OS X it's common to re-create a window in the app when the
+  // dock icon is clicked and there are no other windows open.
+  if (BrowserWindow.getAllWindows().length === 0) {
+    void createWindow();
+  } else {
+    focusMainWindow();
+  }
+});
