@@ -53,6 +53,7 @@ import {
   TooltipTrigger,
 } from '@/shadcn/components/ui/tooltip';
 import { cn } from '@/shadcn/lib/utils';
+import { RelativeTime } from '@/ui/relative-time';
 
 const SUBTAB_OPTIONS = [
   { value: 'issues', label: 'Issues', icon: MessageSquareDotIcon },
@@ -460,7 +461,7 @@ export function ProjectWorkspace({ repos }: { repos: Repo[] }) {
               <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 {feedState.data.items.length} open
                 {' \u00b7 '}
-                refreshed {formatRelativeTime(feedState.data.fetchedAt)}
+                refreshed <RelativeTime value={feedState.data.fetchedAt} />
                 <button
                   className="inline-flex size-5 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
                   disabled={isRefetching}
@@ -531,7 +532,7 @@ export function ProjectWorkspace({ repos }: { repos: Repo[] }) {
                       </a>
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                         <span>{item.authorLogin}</span>
-                        <span>{formatRelativeTime(item.updatedAt)}</span>
+                        <RelativeTime value={item.updatedAt} />
                         <span className="text-border">|</span>
                         <FeedCommentCount count={item.commentCount} authors={item.commentAuthors} />
                       </div>
