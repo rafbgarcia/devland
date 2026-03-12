@@ -1,4 +1,4 @@
-* project tags: ElectronJS; TailwindCSS; Shadcn; BunJS; clean design; great UX;
+* project tags: ElectronJS; TailwindCSS; Shadcn; BunJS; clean design; great UX; motion/react;
 * project stage: greenfield; not live; no users; no backwards compatibility;
 * behaviors: think first principles; write production-grade code;
 

@@ -5,6 +5,8 @@ import {
   GET_PROJECT_ISSUES_CHANNEL,
   GET_PROJECT_PULL_REQUESTS_CHANNEL,
   PICK_REPO_DIRECTORY_CHANNEL,
+  REMOVE_REPO_CHANNEL,
+  REORDER_REPOS_CHANNEL,
   SAVE_REPO_CHANNEL,
   type ElectronApi,
 } from '@/ipc/contracts';
@@ -18,6 +20,8 @@ export const electronApi: ElectronApi = {
   },
   getAppBootstrap: () => ipcRenderer.invoke(GET_APP_BOOTSTRAP_CHANNEL),
   saveRepo: (path) => ipcRenderer.invoke(SAVE_REPO_CHANNEL, path),
+  removeRepo: (path) => ipcRenderer.invoke(REMOVE_REPO_CHANNEL, path),
+  reorderRepos: (orderedPaths) => ipcRenderer.invoke(REORDER_REPOS_CHANNEL, orderedPaths),
   pickRepoDirectory: () => ipcRenderer.invoke(PICK_REPO_DIRECTORY_CHANNEL),
   getProjectIssues: (projectPath, skipCache) =>
     ipcRenderer.invoke(GET_PROJECT_ISSUES_CHANNEL, projectPath, skipCache),

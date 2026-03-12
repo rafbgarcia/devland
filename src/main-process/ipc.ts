@@ -5,12 +5,14 @@ import {
   GET_PROJECT_ISSUES_CHANNEL,
   GET_PROJECT_PULL_REQUESTS_CHANNEL,
   PICK_REPO_DIRECTORY_CHANNEL,
+  REMOVE_REPO_CHANNEL,
+  REORDER_REPOS_CHANNEL,
   SAVE_REPO_CHANNEL,
   type AppBootstrap,
 } from '../ipc/contracts';
 import { getGhUser, getProjectFeed } from './github';
 import { getSavedRepos } from './repo-store';
-import { addRepo } from './repo-service';
+import { addRepo, removeRepo, reorderRepos } from './repo-service';
 
 const getAppBootstrap = async (): Promise<AppBootstrap> => {
   const [ghUser, repos] = await Promise.all([getGhUser(), getSavedRepos()]);
@@ -42,6 +44,8 @@ export const registerAppIpcHandlers = (
 ): void => {
   ipcMain.handle(GET_APP_BOOTSTRAP_CHANNEL, () => getAppBootstrap());
   ipcMain.handle(SAVE_REPO_CHANNEL, (_event, repoPath: string) => addRepo(repoPath));
+  ipcMain.handle(REMOVE_REPO_CHANNEL, (_event, repoPath: string) => removeRepo(repoPath));
+  ipcMain.handle(REORDER_REPOS_CHANNEL, (_event, orderedPaths: string[]) => reorderRepos(orderedPaths));
   ipcMain.handle(PICK_REPO_DIRECTORY_CHANNEL, () =>
     pickRepoDirectory(getMainWindow()),
   );

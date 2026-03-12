@@ -102,6 +102,23 @@ const writePersistedRepoState = async (
 export const getSavedRepos = async (): Promise<Repo[]> =>
   (await readPersistedRepoState()).repos;
 
+export const removeRepoPath = async (repoPath: string): Promise<void> => {
+  const persistedState = await readPersistedRepoState();
+  const repoKey = getRepoKey(repoPath);
+
+  await writePersistedRepoState({
+    version: 1,
+    repos: persistedState.repos.filter((repo) => getRepoKey(repo.path) !== repoKey),
+  });
+};
+
+export const reorderRepoPaths = async (orderedPaths: string[]): Promise<void> => {
+  await writePersistedRepoState({
+    version: 1,
+    repos: orderedPaths.map((p) => ({ path: p })),
+  });
+};
+
 export const saveRepoPath = async (repoPath: string): Promise<Repo> => {
   const persistedState = await readPersistedRepoState();
   const repoKey = getRepoKey(repoPath);
@@ -117,7 +134,7 @@ export const saveRepoPath = async (repoPath: string): Promise<Repo> => {
 
   await writePersistedRepoState({
     version: 1,
-    repos: [repo, ...persistedState.repos],
+    repos: [...persistedState.repos, repo],
   });
 
   return repo;

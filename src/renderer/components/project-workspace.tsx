@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from '@tanstack/react-router';
+import { AnimatePresence, Reorder, motion } from 'motion/react';
 import {
   FolderOpenIcon,
   GitPullRequestArrowIcon,
@@ -8,6 +9,7 @@ import {
   MoreHorizontalIcon,
   PlusIcon,
   RefreshCwIcon,
+  XIcon,
 } from 'lucide-react';
 
 import type { ProjectFeedKind, Repo } from '@/ipc/contracts';
@@ -79,7 +81,6 @@ function AddProjectDialog({
   onOpenChange: (open: boolean) => void;
   onProjectAdded: (projectPath: string) => void;
 }) {
-  const router = useRouter();
   const [repoInput, setRepoInput] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -115,7 +116,6 @@ function AddProjectDialog({
       setFormError(null);
       onOpenChange(false);
       onProjectAdded(repo.path);
-      await router.invalidate();
     } catch (error) {
       setFormError(
         error instanceof Error ? error.message : 'Could not add that repository.',
@@ -236,7 +236,7 @@ function FeedCommentCount({ count, authors }: { count: number; authors: string[]
     <span className="inline-flex items-center gap-1">
       <span>
         {count} {count === 1 ? 'comment' : 'comments'}
-        {visible.length > 0 ? ` (${visible.join(', ')}` : ''}
+        {visible.length > 0 ? ` by ${visible.join(', ')}` : ''}
       </span>
       {remaining.length > 0 ? (
         <Tooltip>
@@ -249,7 +249,6 @@ function FeedCommentCount({ count, authors }: { count: number; authors: string[]
           <TooltipContent>{remaining.join(', ')}</TooltipContent>
         </Tooltip>
       ) : null}
-      {visible.length > 0 ? <span>)</span> : null}
     </span>
   );
 }
@@ -279,6 +278,8 @@ function FeedLabels({ labels }: { labels: Array<{ name: string; color: string }>
 }
 
 export function ProjectWorkspace({ repos }: { repos: Repo[] }) {
+  const router = useRouter();
+  const [localRepos, setLocalRepos] = useState(repos);
   const [activeProjectPath, setActiveProjectPath] = useState<string | null>(
     repos[0]?.path ?? null,
   );
@@ -286,19 +287,51 @@ export function ProjectWorkspace({ repos }: { repos: Repo[] }) {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(repos.length === 0);
   const { refetch, isRefetching, ...feedState } = useProjectFeed(activeProjectPath, activeSubtab);
 
+  // Sync local state when props change (e.g. after router invalidation from AddProjectDialog)
   useEffect(() => {
-    if (repos.length === 0) {
+    setLocalRepos(repos);
+  }, [repos]);
+
+  useEffect(() => {
+    if (localRepos.length === 0) {
       setActiveProjectPath(null);
       setIsAddDialogOpen(true);
       return;
     }
 
-    if (activeProjectPath === null || !repos.some((repo) => repo.path === activeProjectPath)) {
-      setActiveProjectPath(repos[0]?.path ?? null);
-    }
-  }, [activeProjectPath, repos]);
+    setActiveProjectPath((current) => {
+      if (current === null || !localRepos.some((repo) => repo.path === current)) {
+        return localRepos[0]?.path ?? null;
+      }
+      return current;
+    });
+  }, [localRepos]);
 
-  if (repos.length === 0) {
+  const handleRemoveRepo = (repoPath: string) => {
+    setLocalRepos((prev) => {
+      const next = prev.filter((r) => r.path !== repoPath);
+      if (repoPath === activeProjectPath) {
+        setActiveProjectPath(next[0]?.path ?? null);
+      }
+      return next;
+    });
+    void window.electronAPI.removeRepo(repoPath);
+  };
+
+  const handleReorder = (reordered: Repo[]) => {
+    setLocalRepos(reordered);
+    void window.electronAPI.reorderRepos(reordered.map((r) => r.path));
+  };
+
+  const handleProjectAdded = (projectPath: string) => {
+    setLocalRepos((prev) =>
+      prev.some((r) => r.path === projectPath) ? prev : [...prev, { path: projectPath }],
+    );
+    setActiveProjectPath(projectPath);
+    void router.invalidate();
+  };
+
+  if (localRepos.length === 0) {
     return (
       <section className="flex w-full flex-col gap-6">
         <div className="rounded-xl border bg-card shadow-sm">
@@ -327,7 +360,7 @@ export function ProjectWorkspace({ repos }: { repos: Repo[] }) {
         <AddProjectDialog
           open={isAddDialogOpen}
           onOpenChange={setIsAddDialogOpen}
-          onProjectAdded={setActiveProjectPath}
+          onProjectAdded={handleProjectAdded}
         />
       </section>
     );
@@ -335,37 +368,72 @@ export function ProjectWorkspace({ repos }: { repos: Repo[] }) {
 
   return (
     <section className="flex w-full flex-col">
-      {/* Chrome-like tab bar */}
-      <div className="flex items-end gap-px px-2">
-        {repos.map((repo) => {
-          const isActive = repo.path === activeProjectPath;
+      {/* Tab bar */}
+      <Reorder.Group
+        axis="x"
+        values={localRepos}
+        onReorder={handleReorder}
+        className="flex items-end gap-px bg-muted/40 px-2 pt-1.5"
+        as="div"
+      >
+        <AnimatePresence initial={false}>
+          {localRepos.map((repo) => {
+            const isActive = repo.path === activeProjectPath;
 
-          return (
-            <button
-              key={repo.path}
-              onClick={() => setActiveProjectPath(repo.path)}
-              className={cn(
-                'relative flex items-center gap-2 rounded-t-lg px-4 py-2 text-sm font-medium transition-colors',
-                isActive
-                  ? '-mb-px border border-b-0 border-border bg-card text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
-              )}
-            >
-              {getProjectLabel(repo.path)}
-            </button>
-          );
-        })}
+            return (
+              <Reorder.Item
+                key={repo.path}
+                value={repo}
+                onClick={() => setActiveProjectPath(repo.path)}
+                initial={{ opacity: 0, width: 0 }}
+                animate={{ opacity: 1, width: 'auto', transition: { type: 'spring', bounce: 0, duration: 0.25 } }}
+                exit={{ opacity: 0, width: 0, transition: { type: 'tween', ease: 'easeOut', duration: 0.15 } }}
+                layout
+                layoutTransition={{ type: 'spring', bounce: 0, duration: 0.25 }}
+                className={cn(
+                  'group relative flex max-w-50 cursor-default items-center gap-1 overflow-hidden rounded-t-lg px-3 py-1.5 text-[13px]',
+                  isActive
+                    ? 'bg-card text-foreground shadow-[0_-1px_3px_-1px_rgba(0,0,0,0.08)]'
+                    : 'cursor-pointer text-muted-foreground hover:bg-muted/80 hover:text-foreground',
+                )}
+                as="div"
+                whileDrag={{ scale: 1.03, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
+              >
+                <span className="truncate select-none whitespace-nowrap">{getProjectLabel(repo.path)}</span>
+                <button
+                  className={cn(
+                    'ml-0.5 flex size-4 shrink-0 items-center justify-center rounded-sm transition-colors',
+                    isActive
+                      ? 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                      : 'opacity-0 group-hover:opacity-100 hover:bg-muted hover:text-foreground',
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleRemoveRepo(repo.path);
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  type="button"
+                >
+                  <XIcon className="size-3" />
+                </button>
+              </Reorder.Item>
+            );
+          })}
+        </AnimatePresence>
 
-        <button
+        <motion.button
+          layout
+          layoutTransition={{ type: 'spring', bounce: 0, duration: 0.25 }}
           onClick={() => setIsAddDialogOpen(true)}
-          className="mb-px ml-1 flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+          className="mb-0.5 ml-0.5 flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+          type="button"
         >
           <PlusIcon className="size-3.5" />
-        </button>
-      </div>
+        </motion.button>
+      </Reorder.Group>
 
       {/* Content area connected to active tab */}
-      <div className="rounded-xl rounded-tl-none border border-border bg-card shadow-sm">
+      <div className="rounded-b-xl border border-border bg-card shadow-sm">
         {/* Subtab toggle */}
         <div className="flex items-center justify-between border-b border-border px-5 py-3">
           <div className="flex items-center gap-3">
@@ -494,7 +562,7 @@ export function ProjectWorkspace({ repos }: { repos: Repo[] }) {
       <AddProjectDialog
         open={isAddDialogOpen}
         onOpenChange={setIsAddDialogOpen}
-        onProjectAdded={setActiveProjectPath}
+        onProjectAdded={handleProjectAdded}
       />
     </section>
   );

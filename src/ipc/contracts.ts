@@ -1,5 +1,7 @@
 export const GET_APP_BOOTSTRAP_CHANNEL = 'app:get-app-bootstrap';
 export const SAVE_REPO_CHANNEL = 'app:save-repo';
+export const REMOVE_REPO_CHANNEL = 'app:remove-repo';
+export const REORDER_REPOS_CHANNEL = 'app:reorder-repos';
 export const PICK_REPO_DIRECTORY_CHANNEL = 'app:pick-repo-directory';
 export const GET_PROJECT_ISSUES_CHANNEL = 'app:get-project-issues';
 export const GET_PROJECT_PULL_REQUESTS_CHANNEL = 'app:get-project-pull-requests';
@@ -56,6 +58,8 @@ export interface ElectronApi {
   };
   getAppBootstrap: () => Promise<AppBootstrap>;
   saveRepo: (path: string) => Promise<Repo>;
+  removeRepo: (path: string) => Promise<void>;
+  reorderRepos: (orderedPaths: string[]) => Promise<void>;
   pickRepoDirectory: () => Promise<string | null>;
   getProjectIssues: (projectPath: string, skipCache?: boolean) => Promise<ProjectFeed>;
   getProjectPullRequests: (projectPath: string, skipCache?: boolean) => Promise<ProjectFeed>;
