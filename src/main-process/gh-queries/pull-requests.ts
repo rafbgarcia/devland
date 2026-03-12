@@ -11,6 +11,7 @@ query($owner: String!, $name: String!) {
         number
         title
         url
+        isDraft
         state
         author {
           login
@@ -29,7 +30,7 @@ query($owner: String!, $name: String!) {
             color
           }
         }
-        updatedAt
+        createdAt
         commits {
           totalCount
         }

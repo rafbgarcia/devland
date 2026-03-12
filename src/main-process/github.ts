@@ -1,6 +1,14 @@
 import { z } from 'zod';
 
-import type { GhUser, ProjectFeedKind, ProjectFeedItem, ProjectFeed } from '../ipc/contracts';
+import type {
+  GhUser,
+  ProjectFeed,
+  ProjectFeedKind,
+  ProjectIssueFeed,
+  ProjectIssueFeedItem,
+  ProjectPullRequestFeed,
+  ProjectPullRequestFeedItem,
+} from '../ipc/contracts';
 import { resolveGitHubSlugFromProjectPath } from './git';
 import { gh } from './gh';
 import { ISSUES_QUERY } from './gh-queries/issues';
@@ -33,10 +41,11 @@ const GqlIssueNodeSchema = z.object({
   labels: z.object({
     nodes: z.array(GqlLabelSchema),
   }),
-  updatedAt: z.string().min(1),
+  createdAt: z.string().min(1),
 });
 
 const GqlPrNodeSchema = GqlIssueNodeSchema.extend({
+  isDraft: z.boolean(),
   commits: z.object({ totalCount: z.number().int().nonnegative() }),
   additions: z.number().int().nonnegative(),
   deletions: z.number().int().nonnegative(),
@@ -77,7 +86,9 @@ const uniqueCommentAuthors = (nodes: z.infer<typeof GqlCommentNodeSchema>[]): st
   return result;
 };
 
-const toFeedItem = (node: z.infer<typeof GqlIssueNodeSchema>): ProjectFeedItem => ({
+const toIssueFeedItem = (
+  node: z.infer<typeof GqlIssueNodeSchema>,
+): ProjectIssueFeedItem => ({
   id: String(node.id),
   number: node.number,
   title: node.title,
@@ -87,11 +98,14 @@ const toFeedItem = (node: z.infer<typeof GqlIssueNodeSchema>): ProjectFeedItem =
   commentCount: node.comments.totalCount,
   commentAuthors: uniqueCommentAuthors(node.comments.nodes),
   labels: node.labels.nodes.map((label) => ({ name: label.name, color: label.color })),
-  updatedAt: node.updatedAt,
+  createdAt: node.createdAt,
 });
 
-const toPrFeedItem = (node: z.infer<typeof GqlPrNodeSchema>): ProjectFeedItem => ({
-  ...toFeedItem(node),
+const toPullRequestFeedItem = (
+  node: z.infer<typeof GqlPrNodeSchema>,
+): ProjectPullRequestFeedItem => ({
+  ...toIssueFeedItem(node),
+  isDraft: node.isDraft,
   commitCount: node.commits.totalCount,
   additions: node.additions,
   deletions: node.deletions,
@@ -144,11 +158,21 @@ const inFlightFeedRequests = new Map<string, InFlightFeed>();
 const getCacheKey = (projectPath: string, kind: ProjectFeedKind): string =>
   `${projectPath}::${kind}`;
 
-export const getProjectFeed = async (
+export function getProjectFeed(
+  projectPath: string,
+  kind: 'issues',
+  skipCache?: boolean,
+): Promise<ProjectIssueFeed>;
+export function getProjectFeed(
+  projectPath: string,
+  kind: 'pull-requests',
+  skipCache?: boolean,
+): Promise<ProjectPullRequestFeed>;
+export async function getProjectFeed(
   projectPath: string,
   kind: ProjectFeedKind,
   skipCache = false,
-): Promise<ProjectFeed> => {
+): Promise<ProjectFeed> {
   const cacheKey = getCacheKey(projectPath, kind);
   const cached = feedCache.get(cacheKey);
 
@@ -167,23 +191,34 @@ export const getProjectFeed = async (
     const { owner, name } = splitSlug(githubSlug);
     const fetchedAt = Date.now();
 
-    let items: ProjectFeedItem[];
-
     if (kind === 'issues') {
       const response = GqlIssuesResponseSchema.parse(
         await fetchGraphQL(ISSUES_QUERY, owner, name, skipCache),
       );
-      items = response.data.repository.issues.nodes.map(toFeedItem);
-    } else {
-      const response = GqlPullRequestsResponseSchema.parse(
-        await fetchGraphQL(PULL_REQUESTS_QUERY, owner, name, skipCache),
-      );
-      items = response.data.repository.pullRequests.nodes.map(toPrFeedItem);
+      const feed: ProjectIssueFeed = {
+        kind,
+        githubSlug,
+        projectPath,
+        fetchedAt,
+        items: response.data.repository.issues.nodes.map(toIssueFeedItem),
+      };
+
+      feedCache.set(cacheKey, { feed, fetchedAt });
+      return feed;
     }
 
-    const feed: ProjectFeed = { githubSlug, projectPath, fetchedAt, items };
-    feedCache.set(cacheKey, { feed, fetchedAt });
+    const response = GqlPullRequestsResponseSchema.parse(
+      await fetchGraphQL(PULL_REQUESTS_QUERY, owner, name, skipCache),
+    );
+    const feed: ProjectPullRequestFeed = {
+      kind,
+      githubSlug,
+      projectPath,
+      fetchedAt,
+      items: response.data.repository.pullRequests.nodes.map(toPullRequestFeedItem),
+    };
 
+    feedCache.set(cacheKey, { feed, fetchedAt });
     return feed;
   })();
 
@@ -198,4 +233,4 @@ export const getProjectFeed = async (
   inFlightFeedRequests.set(cacheKey, { promise: trackedRequest, skipCache });
 
   return trackedRequest;
-};
+}

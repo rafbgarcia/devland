@@ -29,7 +29,7 @@ query($owner: String!, $name: String!) {
             color
           }
         }
-        updatedAt
+        createdAt
       }
     }
   }

@@ -1,14 +1,9 @@
-import { createFileRoute } from '@tanstack/react-router';
-
-import { ProjectWorkspace } from '@/renderer/components/project-workspace';
-import { useAppBootstrap } from '@/renderer/hooks/use-app-bootstrap';
+import { Navigate, createFileRoute } from '@tanstack/react-router';
 
 export const Route = createFileRoute('/')({
   component: HomeRoute,
 });
 
 function HomeRoute() {
-  const { repos } = useAppBootstrap();
-
-  return <ProjectWorkspace repos={repos} />;
+  return <Navigate replace to="/projects" />;
 }

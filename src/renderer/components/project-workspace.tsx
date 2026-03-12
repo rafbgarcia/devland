@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from '@tanstack/react-router';
 import { AnimatePresence, Reorder } from 'motion/react';
 import {
@@ -8,16 +8,12 @@ import {
   GithubIcon,
   HashIcon,
   MessageSquareDotIcon,
-  MoreHorizontalIcon,
   PlusIcon,
-  RefreshCwIcon,
   XIcon,
 } from 'lucide-react';
 
-import type { Repo } from '@/ipc/contracts';
-import { useProjectFeed } from '@/renderer/hooks/use-project-feed';
-import { getProjectLabel } from '@/renderer/lib/projects';
-import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';
+import type { ProjectViewTab, Repo } from '@/ipc/contracts';
+import { getProjectLabel, getProjectTabRouteTo, type ProjectTabRouteTo } from '@/renderer/lib/projects';
 import { Button } from '@/shadcn/components/ui/button';
 import {
   Dialog,
@@ -43,30 +39,25 @@ import {
   FieldLabel,
 } from '@/shadcn/components/ui/field';
 import { Input } from '@/shadcn/components/ui/input';
-import { Separator } from '@/shadcn/components/ui/separator';
 import { Spinner } from '@/shadcn/components/ui/spinner';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/shadcn/components/ui/tooltip';
 import { cn } from '@/shadcn/lib/utils';
-import { RelativeTime } from '@/ui/relative-time';
-
-type ViewTab = 'code' | 'pull-requests' | 'issues' | 'channels';
 
 const VIEW_TABS = [
-  { value: 'code', label: 'Code', icon: CodeIcon },
-  { value: 'pull-requests', label: 'Pull requests', icon: GitPullRequestArrowIcon },
-  { value: 'issues', label: 'Issues', icon: MessageSquareDotIcon },
-  { value: 'channels', label: 'Channels', icon: HashIcon },
+  { value: 'code', label: 'Code', icon: CodeIcon, to: '/projects/$repoId/code' },
+  {
+    value: 'pull-requests',
+    label: 'Pull requests',
+    icon: GitPullRequestArrowIcon,
+    to: '/projects/$repoId/pull-requests',
+  },
+  { value: 'issues', label: 'Issues', icon: MessageSquareDotIcon, to: '/projects/$repoId/issues' },
+  { value: 'channels', label: 'Channels', icon: HashIcon, to: '/projects/$repoId/channels' },
 ] as const satisfies ReadonlyArray<{
-  value: ViewTab;
+  value: ProjectViewTab;
   label: string;
   icon: typeof CodeIcon;
+  to: ProjectTabRouteTo;
 }>;
-
-const VISIBLE_AUTHORS_LIMIT = 3;
 
 function AddProjectDialog({
   open,
@@ -75,7 +66,7 @@ function AddProjectDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onProjectAdded: (projectPath: string) => void;
+  onProjectAdded: (repo: Repo) => void;
 }) {
   const [repoInput, setRepoInput] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
@@ -111,7 +102,7 @@ function AddProjectDialog({
       setRepoInput('');
       setFormError(null);
       onOpenChange(false);
-      onProjectAdded(repo.path);
+      onProjectAdded(repo);
     } catch (error) {
       setFormError(
         error instanceof Error ? error.message : 'Could not add that repository.',
@@ -202,132 +193,81 @@ function AddProjectDialog({
   );
 }
 
-function FeedDiffStats({
-  commitCount,
-  additions,
-  deletions,
+export function ProjectWorkspace({
+  repos,
+  activeRepoId,
+  activeView,
+  headerAccessory,
+  children,
 }: {
-  commitCount: number;
-  additions: number;
-  deletions: number;
+  repos: Repo[];
+  activeRepoId: string | null;
+  activeView: ProjectViewTab;
+  headerAccessory?: ReactNode;
+  children?: ReactNode;
 }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
-      <span>{commitCount} {commitCount === 1 ? 'commit' : 'commits'}</span>
-      <span className="text-emerald-600 dark:text-emerald-400">+{additions.toLocaleString()}</span>
-      <span className="text-red-500 dark:text-red-400">-{deletions.toLocaleString()}</span>
-    </span>
-  );
-}
-
-function FeedCommentCount({ count, authors }: { count: number; authors: string[] }) {
-  if (count === 0) {
-    return <span>0 comments</span>;
-  }
-
-  const visible = authors.slice(0, VISIBLE_AUTHORS_LIMIT);
-  const remaining = authors.slice(VISIBLE_AUTHORS_LIMIT);
-
-  return (
-    <span className="inline-flex items-center gap-1">
-      <span>
-        {count} {count === 1 ? 'comment' : 'comments'}
-        {visible.length > 0 ? ` by ${visible.join(', ')}` : ''}
-      </span>
-      {remaining.length > 0 ? (
-        <Tooltip>
-          <TooltipTrigger
-            className="inline-flex cursor-default items-center rounded-full bg-muted px-1 py-px text-[0.6rem] font-medium text-muted-foreground"
-          >
-            <MoreHorizontalIcon className="mr-0.5 size-2.5" />
-            +{remaining.length}
-          </TooltipTrigger>
-          <TooltipContent>{remaining.join(', ')}</TooltipContent>
-        </Tooltip>
-      ) : null}
-    </span>
-  );
-}
-
-function FeedLabels({ labels }: { labels: Array<{ name: string; color: string }> }) {
-  if (labels.length === 0) {
-    return null;
-  }
-
-  return (
-    <span className="inline-flex flex-wrap gap-1">
-      {labels.map((label) => (
-        <span
-          key={label.name}
-          className="inline-flex items-center rounded-full px-2 py-0.5 text-[0.65rem] font-medium leading-none"
-          style={{
-            backgroundColor: `#${label.color}20`,
-            color: `#${label.color}`,
-            border: `1px solid #${label.color}40`,
-          }}
-        >
-          {label.name}
-        </span>
-      ))}
-    </span>
-  );
-}
-
-export function ProjectWorkspace({ repos }: { repos: Repo[] }) {
   const router = useRouter();
   const [localRepos, setLocalRepos] = useState(repos);
-  const [activeProjectPath, setActiveProjectPath] = useState<string | null>(
-    repos[0]?.path ?? null,
-  );
-  const [activeView, setActiveView] = useState<ViewTab>('code');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(repos.length === 0);
-  const feedKind = activeView === 'issues' || activeView === 'pull-requests' ? activeView : null;
-  const { refetch, isRefetching, ...feedState } = useProjectFeed(
-    feedKind ? activeProjectPath : null,
-    feedKind ?? 'issues',
-  );
 
-  // Sync local state when props change (e.g. after router invalidation from AddProjectDialog)
   useEffect(() => {
     setLocalRepos(repos);
   }, [repos]);
 
   useEffect(() => {
     if (localRepos.length === 0) {
-      setActiveProjectPath(null);
       setIsAddDialogOpen(true);
-      return;
     }
-
-    setActiveProjectPath((current) => {
-      if (current === null || !localRepos.some((repo) => repo.path === current)) {
-        return localRepos[0]?.path ?? null;
-      }
-      return current;
-    });
   }, [localRepos]);
 
-  const handleRemoveRepo = (repoPath: string) => {
-    setLocalRepos((prev) => {
-      const next = prev.filter((r) => r.path !== repoPath);
-      if (repoPath === activeProjectPath) {
-        setActiveProjectPath(next[0]?.path ?? null);
-      }
-      return next;
+  useEffect(() => {
+    void window.electronAPI.setWorkspacePreferences({
+      lastRepoId: activeRepoId,
+      lastTab: activeView,
     });
-    void window.electronAPI.removeRepo(repoPath);
+  }, [activeRepoId, activeView]);
+
+  const navigateToTab = (
+    repoId: string,
+    to: ProjectTabRouteTo,
+  ) => {
+    void router.navigate({
+      to,
+      params: { repoId },
+    });
+  };
+
+  const handleRemoveRepo = (repoId: string) => {
+    const nextRepos = localRepos.filter((repo) => repo.id !== repoId);
+
+    setLocalRepos(nextRepos);
+
+    if (repoId === activeRepoId) {
+      const nextRepoId = nextRepos[0]?.id ?? null;
+
+      if (nextRepoId === null) {
+        void router.navigate({ to: '/projects', replace: true });
+      } else {
+        navigateToTab(nextRepoId, getProjectTabRouteTo(activeView));
+      }
+    }
+
+    void window.electronAPI.removeRepo(repoId).then(() => router.invalidate());
   };
 
   const handleReorder = (reordered: Repo[]) => {
     setLocalRepos(reordered);
-    void window.electronAPI.reorderRepos(reordered.map((r) => r.path));
+    void window.electronAPI
+      .reorderRepos(reordered.map((repo) => repo.id))
+      .then(() => router.invalidate());
   };
 
-  const handleProjectAdded = (projectPath: string) => {
+  const handleProjectAdded = (repo: Repo) => {
     setLocalRepos((prev) =>
-      prev.some((r) => r.path === projectPath) ? prev : [...prev, { path: projectPath }],
+      prev.some((existingRepo) => existingRepo.id === repo.id) ? prev : [...prev, repo],
     );
-    setActiveProjectPath(projectPath);
+    navigateToTab(repo.id, getProjectTabRouteTo(activeView));
+
     void router.invalidate();
   };
 
@@ -335,7 +275,7 @@ export function ProjectWorkspace({ repos }: { repos: Repo[] }) {
     return (
       <section className="flex w-full flex-col gap-6">
         <div className="rounded-xl border bg-card shadow-sm">
-          <div className="py-16 px-6">
+          <div className="px-6 py-16">
             <Empty>
               <EmptyHeader>
                 <EmptyMedia variant="icon">
@@ -368,26 +308,35 @@ export function ProjectWorkspace({ repos }: { repos: Repo[] }) {
 
   return (
     <section className="flex w-full flex-col">
-      {/* Tab bar */}
       <Reorder.Group
         axis="x"
         values={localRepos}
         onReorder={handleReorder}
-        className="flex items-end gap-px bg-muted/40 px-2 pt-1.5"
+        className="flex items-end gap-px bg-muted px-2 pt-1.5"
         as="div"
       >
         <AnimatePresence initial={false}>
           {localRepos.map((repo) => {
-            const isActive = repo.path === activeProjectPath;
+            const isActive = repo.id === activeRepoId;
 
             return (
               <Reorder.Item
-                key={repo.path}
+                key={repo.id}
                 value={repo}
-                onClick={() => setActiveProjectPath(repo.path)}
+                onClick={() => {
+                  navigateToTab(repo.id, getProjectTabRouteTo(activeView));
+                }}
                 initial={{ opacity: 0, width: 0 }}
-                animate={{ opacity: 1, width: 'auto', transition: { type: 'spring', bounce: 0, duration: 0.2 } }}
-                exit={{ opacity: 0, width: 0, transition: { type: 'tween', ease: 'easeOut', duration: 0.2 } }}
+                animate={{
+                  opacity: 1,
+                  width: 'auto',
+                  transition: { type: 'spring', bounce: 0, duration: 0.2 },
+                }}
+                exit={{
+                  opacity: 0,
+                  width: 0,
+                  transition: { type: 'tween', ease: 'easeOut', duration: 0.2 },
+                }}
                 layout
                 className={cn(
                   'group relative flex max-w-50 cursor-default items-center gap-1 overflow-hidden rounded-t-lg px-3 py-1.5 text-[13px]',
@@ -398,7 +347,9 @@ export function ProjectWorkspace({ repos }: { repos: Repo[] }) {
                 as="div"
                 whileDrag={{ scale: 1.03, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
               >
-                <span className="truncate select-none whitespace-nowrap">{getProjectLabel(repo.path)}</span>
+                <span className="truncate select-none whitespace-nowrap">
+                  {getProjectLabel(repo.path)}
+                </span>
                 <button
                   className={cn(
                     'ml-0.5 flex size-4 shrink-0 items-center justify-center rounded-sm transition-colors',
@@ -406,11 +357,11 @@ export function ProjectWorkspace({ repos }: { repos: Repo[] }) {
                       ? 'text-muted-foreground hover:bg-muted hover:text-foreground'
                       : 'opacity-0 group-hover:opacity-100 hover:bg-muted hover:text-foreground',
                   )}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleRemoveRepo(repo.path);
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleRemoveRepo(repo.id);
                   }}
-                  onPointerDown={(e) => e.stopPropagation()}
+                  onPointerDown={(event) => event.stopPropagation()}
                   type="button"
                 >
                   <XIcon className="size-3" />
@@ -429,9 +380,7 @@ export function ProjectWorkspace({ repos }: { repos: Repo[] }) {
         </button>
       </Reorder.Group>
 
-      {/* Content area connected to active tab */}
       <div className="rounded-b-xl border border-border bg-card shadow-sm">
-        {/* View tab bar */}
         <div className="flex items-center justify-between border-b border-border px-5">
           <nav className="-mb-px flex gap-1">
             {VIEW_TABS.map((tab) => {
@@ -447,7 +396,11 @@ export function ProjectWorkspace({ repos }: { repos: Repo[] }) {
                       ? 'border-foreground text-foreground'
                       : 'border-transparent text-muted-foreground hover:text-foreground',
                   )}
-                  onClick={() => setActiveView(tab.value)}
+                  onClick={() => {
+                    if (activeRepoId !== null) {
+                      navigateToTab(activeRepoId, tab.to);
+                    }
+                  }}
                   type="button"
                 >
                   <Icon className="size-3.5" />
@@ -457,132 +410,10 @@ export function ProjectWorkspace({ repos }: { repos: Repo[] }) {
             })}
           </nav>
 
-          {feedKind && feedState.status === 'ready' ? (
-            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              {feedState.data.items.length} open
-              {' \u00b7 '}
-              refreshed <RelativeTime value={feedState.data.fetchedAt} />
-              <button
-                className="inline-flex size-5 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
-                disabled={isRefetching}
-                onClick={refetch}
-                title="Refresh"
-                type="button"
-              >
-                <RefreshCwIcon className={cn('size-3', isRefetching && 'animate-spin')} />
-              </button>
-            </span>
-          ) : null}
+          {headerAccessory ?? <span />}
         </div>
 
-        {/* View content */}
-        <div className="min-h-96">
-          {activeView === 'code' ? (
-            <div className="py-16 px-6">
-              <Empty>
-                <EmptyHeader>
-                  <EmptyMedia variant="icon">
-                    <CodeIcon />
-                  </EmptyMedia>
-                  <EmptyTitle>Code</EmptyTitle>
-                  <EmptyDescription>
-                    Browse source code, branches, and recent commits.
-                  </EmptyDescription>
-                </EmptyHeader>
-              </Empty>
-            </div>
-          ) : null}
-
-          {activeView === 'channels' ? (
-            <div className="py-16 px-6">
-              <Empty>
-                <EmptyHeader>
-                  <EmptyMedia variant="icon">
-                    <HashIcon />
-                  </EmptyMedia>
-                  <EmptyTitle>Channels</EmptyTitle>
-                  <EmptyDescription>
-                    Team conversations and updates for this project.
-                  </EmptyDescription>
-                </EmptyHeader>
-              </Empty>
-            </div>
-          ) : null}
-
-          {feedKind && feedState.status === 'loading' ? (
-            <div className="flex min-h-96 items-center justify-center">
-              <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                <Spinner />
-                Fetching {feedKind === 'issues' ? 'issues' : 'pull requests'} from GitHub
-              </div>
-            </div>
-          ) : null}
-
-          {feedKind && feedState.status === 'error' ? (
-            <div className="p-5">
-              <Alert variant="destructive">
-                <GithubIcon />
-                <AlertTitle>Could not load project data</AlertTitle>
-                <AlertDescription>{feedState.error}</AlertDescription>
-              </Alert>
-            </div>
-          ) : null}
-
-          {feedKind && feedState.status === 'ready' && feedState.data.items.length === 0 ? (
-            <div className="py-16 px-6">
-              <Empty>
-                <EmptyHeader>
-                  <EmptyMedia variant="icon">
-                    {feedKind === 'issues' ? <MessageSquareDotIcon /> : <GitPullRequestArrowIcon />}
-                  </EmptyMedia>
-                  <EmptyTitle>
-                    No open {feedKind === 'issues' ? 'issues' : 'pull requests'}
-                  </EmptyTitle>
-                  <EmptyDescription>
-                    This project has no open {feedKind === 'issues' ? 'issues' : 'pull requests'} right now.
-                  </EmptyDescription>
-                </EmptyHeader>
-              </Empty>
-            </div>
-          ) : null}
-
-          {feedKind && feedState.status === 'ready' && feedState.data.items.length > 0 ? (
-            <div>
-              {feedState.data.items.map((item, index) => (
-                <div key={item.id}>
-                  <div className="flex items-start justify-between gap-4 px-5 py-3.5">
-                    {/* Left: title + meta */}
-                    <div className="flex min-w-0 flex-1 flex-col gap-1">
-                      <a
-                        className="truncate text-sm font-medium text-foreground underline-offset-4 hover:underline"
-                        href={item.url}
-                        rel="noreferrer"
-                        target="_blank"
-                      >
-                        {item.title} <span className="font-normal text-muted-foreground">(#{item.number})</span>
-                      </a>
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                        <span>{item.authorLogin}</span>
-                        <RelativeTime value={item.updatedAt} />
-                        <span className="text-border">|</span>
-                        <FeedCommentCount count={item.commentCount} authors={item.commentAuthors} />
-                      </div>
-                    </div>
-
-                    {/* Right: labels + stats */}
-                    <div className="flex shrink-0 flex-col items-end gap-1.5">
-                      <FeedLabels labels={item.labels} />
-                      {item.commitCount !== undefined && item.additions !== undefined && item.deletions !== undefined ? (
-                        <FeedDiffStats commitCount={item.commitCount} additions={item.additions} deletions={item.deletions} />
-                      ) : null}
-                    </div>
-                  </div>
-                  {index < feedState.data.items.length - 1 ? <Separator /> : null}
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </div>
+        <div className="min-h-96">{children}</div>
       </div>
 
       <AddProjectDialog

@@ -2,11 +2,6 @@ import { useSyncExternalStore } from 'react';
 
 import { dayjs } from '@/lib/dayjs';
 import { formatRelativeTime } from '@/renderer/lib/projects';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/shadcn/components/ui/tooltip';
 
 const SECONDS_30 = 30_000;
 
