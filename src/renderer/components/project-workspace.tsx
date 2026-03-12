@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react';
 import { useRouter } from '@tanstack/react-router';
 import { AnimatePresence, Reorder } from 'motion/react';
 import {
+  CodeIcon,
   FolderOpenIcon,
   GitPullRequestArrowIcon,
   GithubIcon,
+  HashIcon,
   MessageSquareDotIcon,
   MoreHorizontalIcon,
   PlusIcon,
@@ -12,7 +14,7 @@ import {
   XIcon,
 } from 'lucide-react';
 
-import type { ProjectFeedKind, Repo } from '@/ipc/contracts';
+import type { Repo } from '@/ipc/contracts';
 import { useProjectFeed } from '@/renderer/hooks/use-project-feed';
 import { getProjectLabel } from '@/renderer/lib/projects';
 import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';
@@ -44,10 +46,6 @@ import { Input } from '@/shadcn/components/ui/input';
 import { Separator } from '@/shadcn/components/ui/separator';
 import { Spinner } from '@/shadcn/components/ui/spinner';
 import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from '@/shadcn/components/ui/toggle-group';
-import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -55,17 +53,17 @@ import {
 import { cn } from '@/shadcn/lib/utils';
 import { RelativeTime } from '@/ui/relative-time';
 
-const SUBTAB_OPTIONS = [
+type ViewTab = 'code' | 'pull-requests' | 'issues' | 'channels';
+
+const VIEW_TABS = [
+  { value: 'code', label: 'Code', icon: CodeIcon },
+  { value: 'pull-requests', label: 'Pull requests', icon: GitPullRequestArrowIcon },
   { value: 'issues', label: 'Issues', icon: MessageSquareDotIcon },
-  {
-    value: 'pull-requests',
-    label: 'Pull requests',
-    icon: GitPullRequestArrowIcon,
-  },
+  { value: 'channels', label: 'Channels', icon: HashIcon },
 ] as const satisfies ReadonlyArray<{
-  value: ProjectFeedKind;
+  value: ViewTab;
   label: string;
-  icon: typeof MessageSquareDotIcon;
+  icon: typeof CodeIcon;
 }>;
 
 const VISIBLE_AUTHORS_LIMIT = 3;
@@ -281,9 +279,13 @@ export function ProjectWorkspace({ repos }: { repos: Repo[] }) {
   const [activeProjectPath, setActiveProjectPath] = useState<string | null>(
     repos[0]?.path ?? null,
   );
-  const [activeSubtab, setActiveSubtab] = useState<ProjectFeedKind>('issues');
+  const [activeView, setActiveView] = useState<ViewTab>('code');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(repos.length === 0);
-  const { refetch, isRefetching, ...feedState } = useProjectFeed(activeProjectPath, activeSubtab);
+  const feedKind = activeView === 'issues' || activeView === 'pull-requests' ? activeView : null;
+  const { refetch, isRefetching, ...feedState } = useProjectFeed(
+    feedKind ? activeProjectPath : null,
+    feedKind ?? 'issues',
+  );
 
   // Sync local state when props change (e.g. after router invalidation from AddProjectDialog)
   useEffect(() => {
@@ -429,65 +431,94 @@ export function ProjectWorkspace({ repos }: { repos: Repo[] }) {
 
       {/* Content area connected to active tab */}
       <div className="rounded-b-xl border border-border bg-card shadow-sm">
-        {/* Subtab toggle */}
-        <div className="flex items-center justify-between border-b border-border px-5 py-3">
-          <div className="flex items-center gap-3">
-            <ToggleGroup
-              onValueChange={(value) => {
-                const nextSubtab = value.at(-1);
+        {/* View tab bar */}
+        <div className="flex items-center justify-between border-b border-border px-5">
+          <nav className="-mb-px flex gap-1">
+            {VIEW_TABS.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = tab.value === activeView;
 
-                if (nextSubtab === 'issues' || nextSubtab === 'pull-requests') {
-                  setActiveSubtab(nextSubtab);
-                }
-              }}
-              size="sm"
-              spacing={1}
-              value={[activeSubtab]}
-              variant="outline"
-            >
-              {SUBTAB_OPTIONS.map((subtab) => {
-                const Icon = subtab.icon;
-
-                return (
-                  <ToggleGroupItem key={subtab.value} value={subtab.value}>
-                    <Icon />
-                    {subtab.label}
-                  </ToggleGroupItem>
-                );
-              })}
-            </ToggleGroup>
-
-            {feedState.status === 'ready' ? (
-              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                {feedState.data.items.length} open
-                {' \u00b7 '}
-                refreshed <RelativeTime value={feedState.data.fetchedAt} />
+              return (
                 <button
-                  className="inline-flex size-5 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
-                  disabled={isRefetching}
-                  onClick={refetch}
-                  title="Refresh"
+                  key={tab.value}
+                  className={cn(
+                    'relative flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-[13px] font-medium transition-colors',
+                    isActive
+                      ? 'border-foreground text-foreground'
+                      : 'border-transparent text-muted-foreground hover:text-foreground',
+                  )}
+                  onClick={() => setActiveView(tab.value)}
                   type="button"
                 >
-                  <RefreshCwIcon className={cn('size-3', isRefetching && 'animate-spin')} />
+                  <Icon className="size-3.5" />
+                  {tab.label}
                 </button>
-              </span>
-            ) : null}
-          </div>
+              );
+            })}
+          </nav>
+
+          {feedKind && feedState.status === 'ready' ? (
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              {feedState.data.items.length} open
+              {' \u00b7 '}
+              refreshed <RelativeTime value={feedState.data.fetchedAt} />
+              <button
+                className="inline-flex size-5 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                disabled={isRefetching}
+                onClick={refetch}
+                title="Refresh"
+                type="button"
+              >
+                <RefreshCwIcon className={cn('size-3', isRefetching && 'animate-spin')} />
+              </button>
+            </span>
+          ) : null}
         </div>
 
-        {/* Feed content */}
+        {/* View content */}
         <div className="min-h-96">
-          {feedState.status === 'loading' ? (
+          {activeView === 'code' ? (
+            <div className="py-16 px-6">
+              <Empty>
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <CodeIcon />
+                  </EmptyMedia>
+                  <EmptyTitle>Code</EmptyTitle>
+                  <EmptyDescription>
+                    Browse source code, branches, and recent commits.
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            </div>
+          ) : null}
+
+          {activeView === 'channels' ? (
+            <div className="py-16 px-6">
+              <Empty>
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <HashIcon />
+                  </EmptyMedia>
+                  <EmptyTitle>Channels</EmptyTitle>
+                  <EmptyDescription>
+                    Team conversations and updates for this project.
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            </div>
+          ) : null}
+
+          {feedKind && feedState.status === 'loading' ? (
             <div className="flex min-h-96 items-center justify-center">
               <div className="flex items-center gap-3 text-sm text-muted-foreground">
                 <Spinner />
-                Fetching {activeSubtab === 'issues' ? 'issues' : 'pull requests'} from GitHub
+                Fetching {feedKind === 'issues' ? 'issues' : 'pull requests'} from GitHub
               </div>
             </div>
           ) : null}
 
-          {feedState.status === 'error' ? (
+          {feedKind && feedState.status === 'error' ? (
             <div className="p-5">
               <Alert variant="destructive">
                 <GithubIcon />
@@ -497,25 +528,25 @@ export function ProjectWorkspace({ repos }: { repos: Repo[] }) {
             </div>
           ) : null}
 
-          {feedState.status === 'ready' && feedState.data.items.length === 0 ? (
+          {feedKind && feedState.status === 'ready' && feedState.data.items.length === 0 ? (
             <div className="py-16 px-6">
               <Empty>
                 <EmptyHeader>
                   <EmptyMedia variant="icon">
-                    {activeSubtab === 'issues' ? <MessageSquareDotIcon /> : <GitPullRequestArrowIcon />}
+                    {feedKind === 'issues' ? <MessageSquareDotIcon /> : <GitPullRequestArrowIcon />}
                   </EmptyMedia>
                   <EmptyTitle>
-                    No open {activeSubtab === 'issues' ? 'issues' : 'pull requests'}
+                    No open {feedKind === 'issues' ? 'issues' : 'pull requests'}
                   </EmptyTitle>
                   <EmptyDescription>
-                    This project has no open {activeSubtab === 'issues' ? 'issues' : 'pull requests'} right now.
+                    This project has no open {feedKind === 'issues' ? 'issues' : 'pull requests'} right now.
                   </EmptyDescription>
                 </EmptyHeader>
               </Empty>
             </div>
           ) : null}
 
-          {feedState.status === 'ready' && feedState.data.items.length > 0 ? (
+          {feedKind && feedState.status === 'ready' && feedState.data.items.length > 0 ? (
             <div>
               {feedState.data.items.map((item, index) => (
                 <div key={item.id}>
