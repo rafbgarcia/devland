@@ -1,6 +1,13 @@
-import { app, BrowserWindow, session } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  session,
+  shell,
+} from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
+
+import { registerAppIpcHandlers } from './main-process/ipc';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -38,6 +45,20 @@ const isAppUrl = (targetUrl: string): boolean => {
   }
 
   return new URL(targetUrl).origin === devServerOrigin;
+};
+
+const openExternalUrl = (targetUrl: string): void => {
+  try {
+    const parsedUrl = new URL(targetUrl);
+
+    if (parsedUrl.protocol !== 'https:') {
+      return;
+    }
+
+    void shell.openExternal(targetUrl);
+  } catch {
+    return;
+  }
 };
 
 const configureSessionSecurity = (): void => {
@@ -80,7 +101,7 @@ const createWindow = async (): Promise<BrowserWindow> => {
     minWidth: 960,
     minHeight: 640,
     show: false,
-    backgroundColor: '#09111f',
+    backgroundColor: '#e9e1d3',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -90,13 +111,20 @@ const createWindow = async (): Promise<BrowserWindow> => {
     },
   });
 
-  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (!isAppUrl(url)) {
+      openExternalUrl(url);
+    }
+
+    return { action: 'deny' };
+  });
   mainWindow.webContents.on('will-navigate', (event, navigationUrl) => {
     if (isAppUrl(navigationUrl)) {
       return;
     }
 
     event.preventDefault();
+    openExternalUrl(navigationUrl);
   });
 
   mainWindow.once('ready-to-show', () => {
@@ -141,6 +169,7 @@ app.on('second-instance', () => {
 app.whenReady().then(async () => {
   app.setAppUserModelId(app.name);
   configureSessionSecurity();
+  registerAppIpcHandlers(() => mainWindow);
   await createWindow();
 });
 

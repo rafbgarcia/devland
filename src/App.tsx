@@ -1,11 +1,26 @@
-import { Button } from "@/shadcn/components/ui/button";
-import "./styles/global.css"
+import './styles/global.css';
+
+import { createRouter, RouterProvider } from '@tanstack/react-router';
+
+import { TooltipProvider } from '@/shadcn/components/ui/tooltip';
+
+import { routeTree } from './routeTree.gen';
+
+const router = createRouter({
+  routeTree,
+  defaultPreload: 'intent',
+});
+
+declare module '@tanstack/react-router' {
+  interface Register {
+    router: typeof router;
+  }
+}
 
 export function App() {
   return (
-    <main>
-      <h1 className="text-3xl text-white">Hello world</h1>
-      <Button>Hello world</Button>
-    </main>
+    <TooltipProvider>
+      <RouterProvider router={router} />
+    </TooltipProvider>
   );
 }
