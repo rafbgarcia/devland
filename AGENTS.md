@@ -1,7 +1,8 @@
-* project tags: Electron; Convex; WorkOS authkit;
+* project tags: Electron; TailwindCSS; Shadcn;
 * project stage: greenfield; not live; no users; no backwards compatibility;
-* behaviors:
-- first principles; production-grade code;
+* behaviors: think first principles; write production-grade code;
+
+HARD STOP RULES:
 - HARD STOP on ambiguious decisions; design choices; compromises;
 - HARD STOP when you notice design flaws, inappropriate production code or tests;
-- Follow the UI design rules in `AGENTS_UI.md` when generating frontend code.
+- HARD STOP before any UI changes load the shadcn skill and read designing guidelines;
