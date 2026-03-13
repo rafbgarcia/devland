@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 export const GET_APP_BOOTSTRAP_CHANNEL = 'app:get-app-bootstrap';
 export const SAVE_REPO_CHANNEL = 'app:save-repo';
 export const REMOVE_REPO_CHANNEL = 'app:remove-repo';
@@ -16,104 +18,124 @@ export const PROJECT_VIEW_TABS = [
   'channels',
 ] as const;
 
+export const ProjectViewTabSchema = z.enum(PROJECT_VIEW_TABS);
 export type ProjectViewTab = (typeof PROJECT_VIEW_TABS)[number];
 
 export const DEFAULT_PROJECT_VIEW_TAB: ProjectViewTab = 'code';
 
-export type Repo = {
-  id: string;
-  path: string;
-};
+export const RepoSchema = z.object({
+  id: z.string().min(1),
+  path: z.string().min(1),
+});
+export type Repo = z.infer<typeof RepoSchema>;
 
-export type GhUser = {
-  login: string;
-};
+export const GhUserSchema = z.object({
+  login: z.string().min(1),
+});
+export type GhUser = z.infer<typeof GhUserSchema>;
 
-export type AppBootstrap = {
-  ghUser: GhUser | null;
-  repos: Repo[];
-};
+export const AppBootstrapSchema = z.object({
+  ghUser: GhUserSchema.nullable(),
+  repos: z.array(RepoSchema),
+});
+export type AppBootstrap = z.infer<typeof AppBootstrapSchema>;
 
-export type WorkspacePreferences = {
-  lastRepoId: string | null;
-  lastTab: ProjectViewTab;
-};
+export const WorkspacePreferencesSchema = z.object({
+  lastRepoId: z.string().min(1).nullable(),
+  lastTab: ProjectViewTabSchema,
+});
+export type WorkspacePreferences = z.infer<typeof WorkspacePreferencesSchema>;
 
-export type ProjectFeedKind = 'issues' | 'pull-requests';
+export const ProjectFeedKindSchema = z.enum(['issues', 'pull-requests']);
+export type ProjectFeedKind = z.infer<typeof ProjectFeedKindSchema>;
 
-export type GitHubUser = {
-  login: string;
-};
+export const GitHubUserSchema = z.object({
+  login: z.string().min(1),
+});
+export type GitHubUser = z.infer<typeof GitHubUserSchema>;
 
-export type GitHubUserWithAvatar = GitHubUser & {
-  avatarUrl: string;
-};
+export const GitHubUserWithAvatarSchema = GitHubUserSchema.extend({
+  avatarUrl: z.string().url(),
+});
+export type GitHubUserWithAvatar = z.infer<typeof GitHubUserWithAvatarSchema>;
 
-export type GitHubLabel = {
-  name: string;
-  color: string;
-};
+export const GitHubLabelSchema = z.object({
+  name: z.string().min(1),
+  color: z.string().min(1),
+});
+export type GitHubLabel = z.infer<typeof GitHubLabelSchema>;
 
-export type ProjectFeedItemBase = {
-  id: string;
-  number: number;
-  title: string;
-  url: string;
-  state: string;
-  author: GitHubUser | null;
-  commentCount: number;
-  commentAuthors: Array<GitHubUser | null>;
-  labels: GitHubLabel[];
-  createdAt: string;
-};
+export const ProjectFeedItemBaseSchema = z.object({
+  id: z.string().min(1),
+  number: z.number().int().positive(),
+  title: z.string().min(1),
+  url: z.string().url(),
+  state: z.string().min(1),
+  author: GitHubUserSchema.nullable(),
+  commentCount: z.number().int().nonnegative(),
+  commentAuthors: z.array(GitHubUserSchema.nullable()),
+  labels: z.array(GitHubLabelSchema),
+  createdAt: z.string().min(1),
+});
+export type ProjectFeedItemBase = z.infer<typeof ProjectFeedItemBaseSchema>;
 
-export type ProjectIssueFeedItem = ProjectFeedItemBase;
+export const ProjectIssueFeedItemSchema = ProjectFeedItemBaseSchema;
+export type ProjectIssueFeedItem = z.infer<typeof ProjectIssueFeedItemSchema>;
 
-export type ProjectPullRequestFeedItem = ProjectFeedItemBase & {
-  isDraft: boolean;
-  commitCount: number;
-  additions: number;
-  deletions: number;
-};
+export const ProjectPullRequestFeedItemSchema = ProjectFeedItemBaseSchema.extend({
+  isDraft: z.boolean(),
+  commitCount: z.number().int().nonnegative(),
+  additions: z.number().int().nonnegative(),
+  deletions: z.number().int().nonnegative(),
+});
+export type ProjectPullRequestFeedItem = z.infer<typeof ProjectPullRequestFeedItemSchema>;
 
-type ProjectFeedBase<TItem> = {
-  kind: ProjectFeedKind;
-  githubSlug: string;
-  projectPath: string;
-  fetchedAt: number;
-  items: TItem[];
-};
+const ProjectFeedBaseSchema = z.object({
+  githubSlug: z.string().min(1),
+  projectPath: z.string().min(1),
+  fetchedAt: z.number().int().nonnegative(),
+});
 
-export type ProjectIssueFeed = ProjectFeedBase<ProjectIssueFeedItem> & {
-  kind: 'issues';
-};
+export const ProjectIssueFeedSchema = ProjectFeedBaseSchema.extend({
+  kind: z.literal('issues'),
+  items: z.array(ProjectIssueFeedItemSchema),
+});
+export type ProjectIssueFeed = z.infer<typeof ProjectIssueFeedSchema>;
 
-export type ProjectPullRequestFeed = ProjectFeedBase<ProjectPullRequestFeedItem> & {
-  kind: 'pull-requests';
-};
+export const ProjectPullRequestFeedSchema = ProjectFeedBaseSchema.extend({
+  kind: z.literal('pull-requests'),
+  items: z.array(ProjectPullRequestFeedItemSchema),
+});
+export type ProjectPullRequestFeed = z.infer<typeof ProjectPullRequestFeedSchema>;
 
-export type ProjectFeed = ProjectIssueFeed | ProjectPullRequestFeed;
+export const ProjectFeedSchema = z.discriminatedUnion('kind', [
+  ProjectIssueFeedSchema,
+  ProjectPullRequestFeedSchema,
+]);
+export type ProjectFeed = z.infer<typeof ProjectFeedSchema>;
 
-export type IssueDetailComment = {
-  id: string;
-  bodyHTML: string;
-  createdAt: string;
-  author: GitHubUserWithAvatar | null;
-};
+export const IssueDetailCommentSchema = z.object({
+  id: z.string().min(1),
+  bodyHTML: z.string(),
+  createdAt: z.string().min(1),
+  author: GitHubUserWithAvatarSchema.nullable(),
+});
+export type IssueDetailComment = z.infer<typeof IssueDetailCommentSchema>;
 
-export type IssueDetail = {
-  id: string;
-  number: number;
-  title: string;
-  url: string;
-  state: string;
-  bodyHTML: string;
-  author: GitHubUserWithAvatar | null;
-  labels: GitHubLabel[];
-  comments: IssueDetailComment[];
-  commentCount: number;
-  createdAt: string;
-};
+export const IssueDetailSchema = z.object({
+  id: z.string().min(1),
+  number: z.number().int().positive(),
+  title: z.string().min(1),
+  url: z.string().url(),
+  state: z.string().min(1),
+  bodyHTML: z.string(),
+  author: GitHubUserWithAvatarSchema.nullable(),
+  labels: z.array(GitHubLabelSchema),
+  comments: z.array(IssueDetailCommentSchema),
+  commentCount: z.number().int().nonnegative(),
+  createdAt: z.string().min(1),
+});
+export type IssueDetail = z.infer<typeof IssueDetailSchema>;
 
 export interface ElectronApi {
   readonly platform: NodeJS.Platform;

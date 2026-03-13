@@ -1,9 +1,11 @@
-import type {
-  IssueDetail,
-  ProjectFeed,
-  ProjectFeedKind,
-  ProjectIssueFeed,
-  ProjectPullRequestFeed,
+import {
+  ProjectIssueFeedSchema,
+  ProjectPullRequestFeedSchema,
+  type IssueDetail,
+  type ProjectFeed,
+  type ProjectFeedKind,
+  type ProjectIssueFeed,
+  type ProjectPullRequestFeed,
 } from '../ipc/contracts';
 import { resolveGitHubSlugFromProjectPath } from './git';
 import { getRepositoryIssueDetail } from './gh-queries/issue-detail';
@@ -36,25 +38,23 @@ export async function getProjectFeed(
 
   if (kind === 'issues') {
     const { items, fetchedAt } = await getRepositoryIssues(owner, name, skipCache);
-    const feed: ProjectIssueFeed = {
+    return ProjectIssueFeedSchema.parse({
       kind,
       githubSlug,
       projectPath,
       fetchedAt,
       items,
-    };
-    return feed;
+    });
   }
 
   const { items, fetchedAt } = await getRepositoryPullRequests(owner, name, skipCache);
-  const feed: ProjectPullRequestFeed = {
+  return ProjectPullRequestFeedSchema.parse({
     kind,
     githubSlug,
     projectPath,
     fetchedAt,
     items,
-  };
-  return feed;
+  });
 }
 
 export async function getIssueDetail(

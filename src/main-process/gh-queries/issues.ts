@@ -1,56 +1,49 @@
 import { z } from 'zod';
 
-import type { ProjectIssueFeedItem } from '../../ipc/contracts';
+import {
+  GitHubLabelSchema,
+  GitHubUserSchema,
+  ProjectIssueFeedItemSchema,
+  type ProjectIssueFeedItem,
+} from '../../ipc/contracts';
 import { graphql } from '../gh-graphql';
 
-const GitHubUserSchema = z.object({
-  login: z.string().min(1),
-});
-
-const GitHubLabelSchema = z.object({
-  name: z.string().min(1),
-  color: z.string().min(1),
-});
+const GitHubNodeIdSchema = z.union([z.string(), z.number()]).transform(String);
 
 const IssueCommentAuthorSchema = z.object({
   author: GitHubUserSchema.nullable(),
 });
 
-const ProjectIssueFeedItemSchema: z.ZodType<ProjectIssueFeedItem> = z.object({
-  id: z.string(),
-  number: z.number().int().positive(),
-  title: z.string().min(1),
-  url: z.string().url(),
-  state: z.string().min(1),
-  author: GitHubUserSchema.nullable(),
-  commentCount: z.number().int().nonnegative(),
-  commentAuthors: z.array(GitHubUserSchema.nullable()),
-  labels: z.array(GitHubLabelSchema),
-  createdAt: z.string().min(1),
-});
+const IssueResponseNodeSchema = z
+  .object({
+    id: GitHubNodeIdSchema,
+    number: z.number().int().positive(),
+    title: z.string().min(1),
+    url: z.string().url(),
+    state: z.string().min(1),
+    author: GitHubUserSchema.nullable(),
+    comments: z.object({
+      totalCount: z.number().int().nonnegative(),
+      nodes: z.array(IssueCommentAuthorSchema),
+    }),
+    labels: z.object({
+      nodes: z.array(GitHubLabelSchema),
+    }),
+    createdAt: z.string().min(1),
+  })
+  .transform(({ comments, labels, ...issue }) => ({
+    ...issue,
+    commentCount: comments.totalCount,
+    commentAuthors: comments.nodes.map(({ author }) => author),
+    labels: labels.nodes,
+  }))
+  .pipe(ProjectIssueFeedItemSchema);
 
 const IssuesResponseSchema = z.object({
   data: z.object({
     repository: z.object({
       issues: z.object({
-        nodes: z.array(
-          z.object({
-            id: z.union([z.string(), z.number()]),
-            number: z.number().int().positive(),
-            title: z.string().min(1),
-            url: z.string().url(),
-            state: z.string().min(1),
-            author: GitHubUserSchema.nullable(),
-            comments: z.object({
-              totalCount: z.number().int().nonnegative(),
-              nodes: z.array(IssueCommentAuthorSchema),
-            }),
-            labels: z.object({
-              nodes: z.array(GitHubLabelSchema),
-            }),
-            createdAt: z.string().min(1),
-          }),
-        ),
+        nodes: z.array(IssueResponseNodeSchema),
       }),
     }),
   }),
@@ -66,20 +59,7 @@ export async function getRepositoryIssues(
 
   return {
     fetchedAt: result.fetchedAt,
-    items: response.data.repository.issues.nodes.map((node) =>
-      ProjectIssueFeedItemSchema.parse({
-        id: String(node.id),
-        number: node.number,
-        title: node.title,
-        url: node.url,
-        state: node.state,
-        author: node.author,
-        commentCount: node.comments.totalCount,
-        commentAuthors: node.comments.nodes.map((comment) => comment.author),
-        labels: node.labels.nodes,
-        createdAt: node.createdAt,
-      }),
-    ),
+    items: response.data.repository.issues.nodes,
   };
 }
 
