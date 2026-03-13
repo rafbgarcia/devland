@@ -41,80 +41,89 @@ function IssueDetailContent({ issue }: { issue: IssueDetail }) {
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
       <div className="flex flex-col gap-3 p-4">
-        <div className="flex items-start justify-between gap-2">
-          <h2 className="text-base font-semibold leading-snug">
+        <a
+          href={issue.url}
+          target="_blank"
+          rel="noreferrer"
+          className="group/title flex items-center gap-1.5"
+        >
+          <h2 className="text-base font-semibold leading-snug group-hover/title:underline">
             {issue.title}{' '}
-            <span className="font-normal text-muted-foreground">#{issue.number}</span>
+            <span className="font-normal text-muted-foreground">({issue.number})</span>
           </h2>
-          <a
-            href={issue.url}
-            target="_blank"
-            rel="noreferrer"
-            className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <ExternalLinkIcon className="size-4" />
-          </a>
-        </div>
+          <ExternalLinkIcon className="size-3 shrink-0 text-muted-foreground transition-colors group-hover/title:text-foreground" />
+        </a>
 
-        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <span>{getAuthorLogin(issue.author)}</span>
-          <RelativeTime value={issue.createdAt} />
-          {issue.labels.length > 0 && (
-            <span className="inline-flex flex-wrap gap-1">
-              {issue.labels.map((label) => (
-                <Badge
-                  key={label.name}
-                  variant="outline"
-                  className="px-2 py-0.5 text-[0.65rem]"
-                  style={{
-                    backgroundColor: `#${label.color}20`,
-                    color: `#${label.color}`,
-                    border: `1px solid #${label.color}40`,
-                  }}
-                >
-                  {label.name}
-                </Badge>
-              ))}
+        {issue.labels.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {issue.labels.map((label) => (
+              <Badge
+                key={label.name}
+                variant="outline"
+                className="px-2 py-0.5 text-[0.65rem]"
+                style={{
+                  backgroundColor: `#${label.color}20`,
+                  color: `#${label.color}`,
+                  border: `1px solid #${label.color}40`,
+                }}
+              >
+                {label.name}
+              </Badge>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="px-4 pt-1">
+        <div className="rounded-lg border border-border bg-muted/30">
+          <div className="flex items-center gap-2 rounded-t-lg border-b border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+              {issue.author?.avatarUrl && (
+                <img src={issue.author.avatarUrl} alt="" className="size-5 rounded" />
+              )}
+              {getAuthorLogin(issue.author)}
             </span>
+            <RelativeTime value={issue.createdAt} />
+          </div>
+          {issue.bodyHTML ? (
+            <div
+              className="prose prose-sm dark:prose-invert max-w-none px-3 py-3 [&_img]:max-w-full [&_img]:rounded-md [&_pre]:overflow-x-auto"
+              // biome-ignore lint/security/noDangerouslySetInnerHtml: GitHub-sanitized HTML
+              dangerouslySetInnerHTML={{ __html: issue.bodyHTML }}
+            />
+          ) : (
+            <p className="px-3 py-3 text-sm italic text-muted-foreground">No description provided.</p>
           )}
         </div>
       </div>
 
-      <Separator />
-
-      {issue.bodyHTML ? (
-        <div
-          className="prose prose-sm dark:prose-invert max-w-none px-4 py-4 [&_img]:max-w-full [&_img]:rounded-md [&_pre]:overflow-x-auto"
-          // biome-ignore lint/security/noDangerouslySetInnerHtml: GitHub-sanitized HTML
-          dangerouslySetInnerHTML={{ __html: issue.bodyHTML }}
-        />
-      ) : (
-        <p className="px-4 py-4 text-sm italic text-muted-foreground">No description provided.</p>
-      )}
-
       {issue.comments.length > 0 && (
         <>
-          <Separator />
-          <div className="px-4 py-3">
+          <div className="px-4 pt-4 pb-2">
             <h3 className="text-xs font-medium text-muted-foreground">
               {issue.commentCount} {issue.commentCount === 1 ? 'comment' : 'comments'}
             </h3>
           </div>
-          {issue.comments.map((comment) => (
-            <div key={comment.id} className="border-t border-border px-4 py-3">
-              <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="font-medium text-foreground">
-                  {getAuthorLogin(comment.author)}
-                </span>
-                <RelativeTime value={comment.createdAt} />
+          <div className="flex flex-col gap-3 px-4 pb-4">
+            {issue.comments.map((comment) => (
+              <div key={comment.id} className="rounded-lg border border-border bg-muted/30">
+                <div className="flex items-center gap-2 rounded-t-lg border-b border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+                    {comment.author?.avatarUrl && (
+                      <img src={comment.author.avatarUrl} alt="" className="size-5 rounded" />
+                    )}
+                    {getAuthorLogin(comment.author)}
+                  </span>
+                  <RelativeTime value={comment.createdAt} />
+                </div>
+                <div
+                  className="prose prose-sm dark:prose-invert max-w-none px-3 py-3 [&_img]:max-w-full [&_img]:rounded-md [&_pre]:overflow-x-auto"
+                  // biome-ignore lint/security/noDangerouslySetInnerHtml: GitHub-sanitized HTML
+                  dangerouslySetInnerHTML={{ __html: comment.bodyHTML }}
+                />
               </div>
-              <div
-                className="prose prose-sm dark:prose-invert max-w-none [&_img]:max-w-full [&_img]:rounded-md [&_pre]:overflow-x-auto"
-                // biome-ignore lint/security/noDangerouslySetInnerHtml: GitHub-sanitized HTML
-                dangerouslySetInnerHTML={{ __html: comment.bodyHTML }}
-              />
-            </div>
-          ))}
+            ))}
+          </div>
         </>
       )}
     </div>
