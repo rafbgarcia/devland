@@ -36,7 +36,7 @@ const loadRepoMetadataAtom = atom(null, async (get, set, repo: Repo) => {
   });
 
   try {
-    const { githubSlug, owner, name } = await window.electronAPI.getRepoDetails(repo.path);
+    const { githubSlug, owner, name } = await window.electronAPI.getGithubRepoDetails(repo.path);
 
     set(repoMetadataByIdAtom, {
       ...get(repoMetadataByIdAtom),

@@ -5,7 +5,8 @@ export const PICK_REPO_DIRECTORY_CHANNEL = 'app:pick-repo-directory';
 export const GET_PROJECT_ISSUES_CHANNEL = 'app:get-project-issues';
 export const GET_PROJECT_PULL_REQUESTS_CHANNEL = 'app:get-project-pull-requests';
 export const GET_ISSUE_DETAIL_CHANNEL = 'app:get-issue-detail';
-export const GET_REPO_DETAILS_CHANNEL = 'app:get-repo-details';
+export const VALIDATE_LOCAL_GIT_REPO_CHANNEL = 'app:validate-local-git-repo';
+export const GET_GITHUB_REPO_DETAILS_CHANNEL = 'app:get-github-repo-details';
 
 export const PROJECT_VIEW_TABS = [
   'code',
@@ -149,5 +150,6 @@ export interface ElectronApi {
     skipCache?: boolean,
   ) => Promise<ProjectPullRequestFeed>;
   getIssueDetail: (owner: string, name: string, issueNumber: number) => Promise<IssueDetail>;
-  getRepoDetails: (projectPath: string) => Promise<RepoDetails>;
+  validateLocalGitRepository: (directoryPath: string) => Promise<void>;
+  getGithubRepoDetails: (projectPath: string) => Promise<RepoDetails>;
 }

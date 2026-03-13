@@ -6,6 +6,7 @@ import { atomWithStorage } from 'jotai/utils';
 import type { Repo } from '@/ipc/contracts';
 import {
   getProjectStorageKey,
+  isAbsoluteProjectPath,
   normalizeProjectInput,
 } from '@/renderer/lib/projects';
 
@@ -74,6 +75,19 @@ export function useRepoActions() {
   const addRepo = useCallback(
     async (candidatePath: string) => {
       const projectPath = normalizeProjectInput(candidatePath);
+
+      if (isAbsoluteProjectPath(projectPath)) {
+        try {
+          await window.electronAPI.validateLocalGitRepository(projectPath);
+        } catch (error) {
+          throw new Error(
+            error instanceof Error
+              ? error.message.replace(/^Error invoking remote method '[^']+': (?:Error: )?/, '')
+              : 'Please select a Git repository.',
+          );
+        }
+      }
+
       const repoKey = getProjectStorageKey(projectPath);
       const existingRepo = repos.find(
         (repo) => getProjectStorageKey(repo.path) === repoKey,

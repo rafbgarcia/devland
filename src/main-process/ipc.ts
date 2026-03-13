@@ -5,15 +5,16 @@ import {
   GET_ISSUE_DETAIL_CHANNEL,
   GET_PROJECT_ISSUES_CHANNEL,
   GET_PROJECT_PULL_REQUESTS_CHANNEL,
-  GET_REPO_DETAILS_CHANNEL,
+  GET_GITHUB_REPO_DETAILS_CHANNEL,
   PICK_REPO_DIRECTORY_CHANNEL,
+  VALIDATE_LOCAL_GIT_REPO_CHANNEL,
   type AppBootstrap,
 } from '../ipc/contracts';
 import { getRepositoryIssueDetail } from './gh-queries/issue-detail';
 import { getRepositoryIssues } from './gh-queries/issues';
 import { getRepositoryPullRequests } from './gh-queries/pull-requests';
 import { getGhUser } from './gh-queries/user';
-import { getRepoDetails } from './git';
+import { getGithubRepoDetails, validateLocalGitRepository } from './git';
 
 const getAppBootstrap = async (): Promise<AppBootstrap> => {
   const ghUser = await getGhUser();
@@ -62,7 +63,13 @@ export const registerAppIpcHandlers = (
     (_event, owner: string, name: string, issueNumber: number) =>
       getRepositoryIssueDetail(owner, name, issueNumber),
   );
-  ipcMain.handle(GET_REPO_DETAILS_CHANNEL, (_event, projectPath: string) =>
-    getRepoDetails(projectPath),
+  ipcMain.handle(
+    VALIDATE_LOCAL_GIT_REPO_CHANNEL,
+    (_event, directoryPath: string) =>
+      validateLocalGitRepository(directoryPath),
+  );
+  ipcMain.handle(
+    GET_GITHUB_REPO_DETAILS_CHANNEL,
+    (_event, projectPath: string) => getGithubRepoDetails(projectPath),
   );
 };

@@ -122,7 +122,39 @@ export const resolveGitHubSlugFromProjectPath = async (
   }
 };
 
-export const getRepoDetails = async (projectPath: string): Promise<RepoDetails> => {
+export const validateLocalGitRepository = async (
+  directoryPath: string,
+): Promise<void> => {
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['-C', directoryPath, 'rev-parse', '--show-toplevel'],
+      getGitExecOptions(),
+    );
+    const repoRoot = path.resolve(stdout.trim());
+    const normalizedInput = path.resolve(directoryPath);
+
+    if (normalizedInput !== repoRoot) {
+      throw new Error(
+        `This directory is inside a Git repository rooted at ${repoRoot}. Use the repository root instead.`,
+      );
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('rooted at')) {
+      throw error;
+    }
+
+    const gitError = error as NodeJS.ErrnoException & { stderr?: string };
+
+    if (gitError.code === 'ENOENT') {
+      throw new Error('Git is not available on this machine.');
+    }
+
+    throw new Error('Please select a Git repository.');
+  }
+};
+
+export const getGithubRepoDetails = async (projectPath: string): Promise<RepoDetails> => {
   const githubSlug = await resolveGitHubSlugFromProjectPath(projectPath);
   const { owner, name } = splitGitHubSlug(githubSlug);
 
