@@ -3,6 +3,7 @@ import {
   PROJECT_VIEW_TABS,
   type ProjectViewTab,
   type Repo,
+  type WorkspaceSession,
 } from '@/ipc/contracts';
 import { dayjs } from '@/lib/dayjs';
 
@@ -18,6 +19,35 @@ export type ProjectPullRequestDetailPath = `/projects/${string}/pull-requests/${
 
 export const isAbsoluteProjectPath = (value: string): boolean =>
   value.startsWith('/') || /^[A-Za-z]:[\\/]/.test(value) || value.startsWith('\\\\');
+
+const GITHUB_REPO_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+
+export const isGitHubProjectReference = (value: string): boolean =>
+  GITHUB_REPO_PATTERN.test(value);
+
+export const normalizeProjectInput = (value: string): string => {
+  const normalizedValue = value.trim();
+
+  if (!normalizedValue) {
+    throw new Error('Repository path is required.');
+  }
+
+  if (isAbsoluteProjectPath(normalizedValue) || isGitHubProjectReference(normalizedValue)) {
+    return normalizedValue;
+  }
+
+  throw new Error(
+    'Repository must be an absolute path or a GitHub owner/repository string.',
+  );
+};
+
+export const getProjectStorageKey = (projectPath: string): string => {
+  if (isAbsoluteProjectPath(projectPath)) {
+    return projectPath.replace(/[\\/]+$/, '') || projectPath;
+  }
+
+  return projectPath.toLowerCase();
+};
 
 export const getProjectLabel = (projectPath: string): string => {
   if (!isAbsoluteProjectPath(projectPath)) {
@@ -63,17 +93,37 @@ export const resolvePreferredRepoId = (
   return repos[0]?.id ?? null;
 };
 
-export const getProjectTabRouteTo = (tab: ProjectViewTab): ProjectTabRouteTo => {
-  switch (tab) {
-    case 'code':
-      return '/projects/$repoId/code';
-    case 'pull-requests':
-      return '/projects/$repoId/pull-requests';
-    case 'issues':
-      return '/projects/$repoId/issues';
-    case 'channels':
-      return '/projects/$repoId/channels';
+const PROJECT_TAB_ROUTE_BY_VALUE: Record<ProjectViewTab, ProjectTabRouteTo> = {
+  code: '/projects/$repoId/code',
+  'pull-requests': '/projects/$repoId/pull-requests',
+  issues: '/projects/$repoId/issues',
+  channels: '/projects/$repoId/channels',
+};
+
+export const getProjectTabRouteTo = (tab: ProjectViewTab): ProjectTabRouteTo =>
+  PROJECT_TAB_ROUTE_BY_VALUE[tab];
+
+export const DEFAULT_WORKSPACE_SESSION: WorkspaceSession = {
+  activeRepoId: null,
+  activeTab: DEFAULT_PROJECT_VIEW_TAB,
+};
+
+export const sanitizeWorkspaceSession = (value: unknown): WorkspaceSession => {
+  if (typeof value !== 'object' || value === null) {
+    return DEFAULT_WORKSPACE_SESSION;
   }
+
+  const record = value as Record<string, unknown>;
+
+  return {
+    activeRepoId:
+      typeof record.activeRepoId === 'string' && record.activeRepoId.trim() !== ''
+        ? record.activeRepoId
+        : null,
+    activeTab: resolveProjectViewTab(
+      typeof record.activeTab === 'string' ? record.activeTab : null,
+    ),
+  };
 };
 
 export const getProjectIssueDetailPath = (

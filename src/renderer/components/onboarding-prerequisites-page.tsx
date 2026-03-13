@@ -1,6 +1,6 @@
 import { CommandIcon, ShieldCheckIcon } from 'lucide-react';
 
-import { useGHUser } from '@/renderer/hooks/use-gh-user';
+import type { GhUser } from '@/ipc/contracts';
 import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';
 import { Badge } from '@/shadcn/components/ui/badge';
 import {
@@ -11,9 +11,7 @@ import {
   CardTitle,
 } from '@/shadcn/components/ui/card';
 
-export function OnboardingPrerequisitesPage() {
-  const user = useGHUser();
-
+export function OnboardingPrerequisitesPage({ user }: { user: GhUser | null }) {
   return (
     <section className="grid w-full gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
       <div className="flex max-w-2xl flex-col justify-center gap-8 animate-in fade-in slide-in-from-left-6 duration-700">

@@ -14,6 +14,8 @@ import {
 
 import type { ProjectViewTab, Repo } from '@/ipc/contracts';
 import { getProjectLabel, getProjectTabRouteTo, type ProjectTabRouteTo } from '@/renderer/lib/projects';
+import { useRepoActions, useRepos } from '@/renderer/hooks/use-repos';
+import { useWorkspaceSession } from '@/renderer/hooks/use-workspace-session';
 import { Button } from '@/shadcn/components/ui/button';
 import {
   Dialog,
@@ -63,10 +65,12 @@ function AddProjectDialog({
   open,
   onOpenChange,
   onProjectAdded,
+  onSaveRepo,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onProjectAdded: (repo: Repo) => void;
+  onSaveRepo: (path: string) => Promise<Repo>;
 }) {
   const [repoInput, setRepoInput] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
@@ -97,7 +101,7 @@ function AddProjectDialog({
     setIsSubmitting(true);
 
     try {
-      const repo = await window.electronAPI.saveRepo(trimmedValue);
+      const repo = await onSaveRepo(trimmedValue);
 
       setRepoInput('');
       setFormError(null);
@@ -194,38 +198,41 @@ function AddProjectDialog({
 }
 
 export function ProjectWorkspace({
-  repos,
   activeRepoId,
   activeView,
   headerAccessory,
   children,
 }: {
-  repos: Repo[];
   activeRepoId: string | null;
   activeView: ProjectViewTab;
   headerAccessory?: ReactNode;
   children?: ReactNode;
 }) {
   const router = useRouter();
-  const [localRepos, setLocalRepos] = useState(repos);
+  const repos = useRepos();
+  const { addRepo, removeRepo, reorderRepos } = useRepoActions();
+  const { session, updateSession } = useWorkspaceSession();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(repos.length === 0);
 
   useEffect(() => {
-    setLocalRepos(repos);
+    if (repos.length === 0) {
+      setIsAddDialogOpen(true);
+    }
   }, [repos]);
 
   useEffect(() => {
-    if (localRepos.length === 0) {
-      setIsAddDialogOpen(true);
+    if (
+      session.activeRepoId === activeRepoId &&
+      session.activeTab === activeView
+    ) {
+      return;
     }
-  }, [localRepos]);
 
-  useEffect(() => {
-    void window.electronAPI.setWorkspacePreferences({
-      lastRepoId: activeRepoId,
-      lastTab: activeView,
+    updateSession({
+      activeRepoId,
+      activeTab: activeView,
     });
-  }, [activeRepoId, activeView]);
+  }, [activeRepoId, activeView, session, updateSession]);
 
   const navigateToTab = (
     repoId: string,
@@ -238,9 +245,7 @@ export function ProjectWorkspace({
   };
 
   const handleRemoveRepo = (repoId: string) => {
-    const nextRepos = localRepos.filter((repo) => repo.id !== repoId);
-
-    setLocalRepos(nextRepos);
+    const nextRepos = repos.filter((repo) => repo.id !== repoId);
 
     if (repoId === activeRepoId) {
       const nextRepoId = nextRepos[0]?.id ?? null;
@@ -252,26 +257,18 @@ export function ProjectWorkspace({
       }
     }
 
-    void window.electronAPI.removeRepo(repoId).then(() => router.invalidate());
+    void removeRepo(repoId);
   };
 
   const handleReorder = (reordered: Repo[]) => {
-    setLocalRepos(reordered);
-    void window.electronAPI
-      .reorderRepos(reordered.map((repo) => repo.id))
-      .then(() => router.invalidate());
+    void reorderRepos(reordered);
   };
 
   const handleProjectAdded = (repo: Repo) => {
-    setLocalRepos((prev) =>
-      prev.some((existingRepo) => existingRepo.id === repo.id) ? prev : [...prev, repo],
-    );
     navigateToTab(repo.id, getProjectTabRouteTo(activeView));
-
-    void router.invalidate();
   };
 
-  if (localRepos.length === 0) {
+  if (repos.length === 0) {
     return (
       <section className="flex w-full flex-col gap-6">
         <div className="rounded-xl border bg-card shadow-sm">
@@ -301,6 +298,7 @@ export function ProjectWorkspace({
           open={isAddDialogOpen}
           onOpenChange={setIsAddDialogOpen}
           onProjectAdded={handleProjectAdded}
+          onSaveRepo={addRepo}
         />
       </section>
     );
@@ -310,13 +308,13 @@ export function ProjectWorkspace({
     <section className="flex w-full flex-col">
       <Reorder.Group
         axis="x"
-        values={localRepos}
+        values={repos}
         onReorder={handleReorder}
         className="flex items-end gap-px bg-muted px-2 pt-1.5"
         as="div"
       >
         <AnimatePresence initial={false}>
-          {localRepos.map((repo) => {
+          {repos.map((repo) => {
             const isActive = repo.id === activeRepoId;
 
             return (
@@ -420,6 +418,7 @@ export function ProjectWorkspace({
         open={isAddDialogOpen}
         onOpenChange={setIsAddDialogOpen}
         onProjectAdded={handleProjectAdded}
+        onSaveRepo={addRepo}
       />
     </section>
   );

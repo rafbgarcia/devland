@@ -122,15 +122,13 @@ function IssueDetailContent({ issue }: { issue: IssueDetail }) {
 }
 
 export function IssueDetailDrawer({
-  projectPath,
   issueNumber,
   onClose,
 }: {
-  projectPath: string;
   issueNumber: number | null;
   onClose: () => void;
 }) {
-  const detail = useIssueDetail(projectPath, issueNumber);
+  const detail = useIssueDetail(issueNumber);
 
   return (
     <AnimatePresence>

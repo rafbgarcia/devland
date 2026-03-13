@@ -1,8 +1,8 @@
 import type { LucideIcon } from 'lucide-react';
 
 import type { ProjectViewTab } from '@/ipc/contracts';
-import { useProjectRoute } from '@/renderer/hooks/use-project-route';
 import { ProjectWorkspace } from '@/renderer/components/project-workspace';
+import { useProjectRepoId } from '@/renderer/hooks/use-project-repo';
 import {
   Empty,
   EmptyDescription,
@@ -22,12 +22,11 @@ export function ProjectWorkspacePlaceholderView({
   title: string;
   description: string;
 }) {
-  const { repos, activeRepo } = useProjectRoute();
+  const activeRepoId = useProjectRepoId();
 
   return (
     <ProjectWorkspace
-      repos={repos}
-      activeRepoId={activeRepo?.id ?? null}
+      activeRepoId={activeRepoId}
       activeView={activeView}
     >
       <div className="px-6 py-16">

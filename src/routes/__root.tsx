@@ -12,7 +12,7 @@ function RootRouteShell() {
   const { ghUser } = Route.useLoaderData();
 
   if (ghUser === null) {
-    return <OnboardingPrerequisitesPage />;
+    return <OnboardingPrerequisitesPage user={ghUser} />;
   }
 
   return <Outlet />;

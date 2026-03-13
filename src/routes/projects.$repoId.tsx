@@ -1,17 +1,15 @@
 import { Navigate, Outlet, createFileRoute } from '@tanstack/react-router';
 
-import { useAppBootstrap } from '@/renderer/hooks/use-app-bootstrap';
+import { useProjectRepo } from '@/renderer/hooks/use-project-repo';
 
 export const Route = createFileRoute('/projects/$repoId')({
-  component: ProjectRouteGate,
+  component: ProjectRouteLayout,
 });
 
-function ProjectRouteGate() {
-  const { repos } = useAppBootstrap();
-  const { repoId } = Route.useParams();
-  const activeRepo = repos.find((repo) => repo.id === repoId) ?? null;
+function ProjectRouteLayout() {
+  const repo = useProjectRepo();
 
-  if (repos.length === 0 || activeRepo === null) {
+  if (repo === null) {
     return <Navigate replace to="/projects" />;
   }
 

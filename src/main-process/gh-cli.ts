@@ -4,6 +4,8 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
+const MAX_CONCURRENT_GH_PROCESSES = 2;
+const MAX_QUEUED_GH_PROCESSES = 20;
 
 export type GH = <T = unknown>(args: readonly string[]) => Promise<T>;
 export type GhResponse<T> = {
@@ -11,6 +13,9 @@ export type GhResponse<T> = {
   headers: Record<string, string>;
   statusLine: string;
 };
+
+let activeGhProcessCount = 0;
+const ghProcessQueue: Array<() => void> = [];
 
 const GH_COMMON_PATHS: Partial<Record<NodeJS.Platform, string[]>> = {
   darwin: ['/opt/homebrew/bin/gh', '/usr/local/bin/gh'],
@@ -55,6 +60,47 @@ const resolveGhExecutable = (): string | null => {
   return null;
 };
 
+const acquireGhProcessSlot = async (): Promise<void> => {
+  if (activeGhProcessCount < MAX_CONCURRENT_GH_PROCESSES) {
+    activeGhProcessCount += 1;
+    return;
+  }
+
+  if (ghProcessQueue.length >= MAX_QUEUED_GH_PROCESSES) {
+    throw new Error('GitHub CLI request queue overflow. Too many concurrent gh commands.');
+  }
+
+  await new Promise<void>((resolve) => {
+    ghProcessQueue.push(() => {
+      activeGhProcessCount += 1;
+      resolve();
+    });
+  });
+};
+
+const releaseGhProcessSlot = (): void => {
+  activeGhProcessCount = Math.max(0, activeGhProcessCount - 1);
+  const next = ghProcessQueue.shift();
+
+  if (next !== undefined) {
+    next();
+  }
+};
+
+const runGhCommand = async (
+  ghExecutable: string,
+  args: readonly string[],
+): Promise<string> => {
+  await acquireGhProcessSlot();
+
+  try {
+    const { stdout } = await execFileAsync(ghExecutable, [...args], getGhExecOptions());
+    return stdout.trim();
+  } finally {
+    releaseGhProcessSlot();
+  }
+};
+
 const parseIncludedOutput = (output: string): GhResponse<string> => {
   const normalizedOutput = output.replace(/\r\n/g, '\n');
   const separatorIndex = normalizedOutput.indexOf('\n\n');
@@ -97,8 +143,7 @@ const parseIncludedOutput = (output: string): GhResponse<string> => {
 
 const createGh = (ghExecutable: string): GH => {
   return async <T>(args: readonly string[]) => {
-    const { stdout } = await execFileAsync(ghExecutable, [...args], getGhExecOptions());
-    const output = stdout.trim();
+    const output = await runGhCommand(ghExecutable, args);
 
     if (!output) {
       throw new Error(`GitHub CLI returned an empty response for: gh ${args.join(' ')}`);
@@ -112,12 +157,7 @@ const createGhWithResponse = (
   ghExecutable: string,
 ): (<T = unknown>(args: readonly string[]) => Promise<GhResponse<T>>) => {
   return async <T>(args: readonly string[]) => {
-    const { stdout } = await execFileAsync(
-      ghExecutable,
-      [...args, '--include'],
-      getGhExecOptions(),
-    );
-    const output = stdout.trim();
+    const output = await runGhCommand(ghExecutable, [...args, '--include']);
 
     if (!output) {
       throw new Error(`GitHub CLI returned an empty response for: gh ${args.join(' ')}`);

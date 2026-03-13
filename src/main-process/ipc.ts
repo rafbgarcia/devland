@@ -5,27 +5,20 @@ import {
   GET_ISSUE_DETAIL_CHANNEL,
   GET_PROJECT_ISSUES_CHANNEL,
   GET_PROJECT_PULL_REQUESTS_CHANNEL,
-  GET_WORKSPACE_PREFERENCES_CHANNEL,
+  GET_REPO_DETAILS_CHANNEL,
   PICK_REPO_DIRECTORY_CHANNEL,
-  REMOVE_REPO_CHANNEL,
-  REORDER_REPOS_CHANNEL,
-  SAVE_REPO_CHANNEL,
-  SET_WORKSPACE_PREFERENCES_CHANNEL,
   type AppBootstrap,
-  type WorkspacePreferences,
 } from '../ipc/contracts';
-import { getGhUser, getIssueDetail, getProjectFeed } from './github';
-import { getSavedRepos } from './repo-store';
-import { addRepo, removeRepo, reorderRepos } from './repo-service';
-import {
-  getWorkspacePreferences,
-  updateWorkspacePreferences,
-} from './workspace-preferences-store';
+import { getRepositoryIssueDetail } from './gh-queries/issue-detail';
+import { getRepositoryIssues } from './gh-queries/issues';
+import { getRepositoryPullRequests } from './gh-queries/pull-requests';
+import { getGhUser } from './gh-queries/user';
+import { getRepoDetails } from './git';
 
 const getAppBootstrap = async (): Promise<AppBootstrap> => {
-  const [ghUser, repos] = await Promise.all([getGhUser(), getSavedRepos()]);
+  const ghUser = await getGhUser();
 
-  return { ghUser, repos };
+  return { ghUser };
 };
 
 const pickRepoDirectory = async (
@@ -51,31 +44,25 @@ export const registerAppIpcHandlers = (
   getMainWindow: () => BrowserWindow | null,
 ): void => {
   ipcMain.handle(GET_APP_BOOTSTRAP_CHANNEL, () => getAppBootstrap());
-  ipcMain.handle(GET_WORKSPACE_PREFERENCES_CHANNEL, () => getWorkspacePreferences());
-  ipcMain.handle(
-    SET_WORKSPACE_PREFERENCES_CHANNEL,
-    (_event, preferences: Partial<WorkspacePreferences>) =>
-      updateWorkspacePreferences(preferences),
-  );
-  ipcMain.handle(SAVE_REPO_CHANNEL, (_event, repoPath: string) => addRepo(repoPath));
-  ipcMain.handle(REMOVE_REPO_CHANNEL, (_event, repoId: string) => removeRepo(repoId));
-  ipcMain.handle(REORDER_REPOS_CHANNEL, (_event, orderedRepoIds: string[]) =>
-    reorderRepos(orderedRepoIds),
-  );
   ipcMain.handle(PICK_REPO_DIRECTORY_CHANNEL, () =>
     pickRepoDirectory(getMainWindow()),
   );
-  ipcMain.handle(GET_PROJECT_ISSUES_CHANNEL, (_event, projectPath: string, skipCache?: boolean) =>
-    getProjectFeed(projectPath, 'issues', skipCache),
+  ipcMain.handle(
+    GET_PROJECT_ISSUES_CHANNEL,
+    (_event, owner: string, name: string, skipCache?: boolean) =>
+      getRepositoryIssues(owner, name, skipCache),
   );
   ipcMain.handle(
     GET_PROJECT_PULL_REQUESTS_CHANNEL,
-    (_event, projectPath: string, skipCache?: boolean) =>
-      getProjectFeed(projectPath, 'pull-requests', skipCache),
+    (_event, owner: string, name: string, skipCache?: boolean) =>
+      getRepositoryPullRequests(owner, name, skipCache),
   );
   ipcMain.handle(
     GET_ISSUE_DETAIL_CHANNEL,
-    (_event, projectPath: string, issueNumber: number) =>
-      getIssueDetail(projectPath, issueNumber),
+    (_event, owner: string, name: string, issueNumber: number) =>
+      getRepositoryIssueDetail(owner, name, issueNumber),
+  );
+  ipcMain.handle(GET_REPO_DETAILS_CHANNEL, (_event, projectPath: string) =>
+    getRepoDetails(projectPath),
   );
 };

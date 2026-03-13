@@ -1,6 +1,7 @@
 import './styles/global.css';
 
 import { createRouter, RouterProvider } from '@tanstack/react-router';
+import { Provider as JotaiProvider } from 'jotai';
 
 import { TooltipProvider } from '@/shadcn/components/ui/tooltip';
 
@@ -19,8 +20,10 @@ declare module '@tanstack/react-router' {
 
 export function App() {
   return (
-    <TooltipProvider>
-      <RouterProvider router={router} />
-    </TooltipProvider>
+    <JotaiProvider>
+      <TooltipProvider>
+        <RouterProvider router={router} />
+      </TooltipProvider>
+    </JotaiProvider>
   );
 }

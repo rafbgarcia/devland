@@ -1,39 +1,37 @@
 import { Navigate, createFileRoute } from '@tanstack/react-router';
 
 import { ProjectWorkspace } from '@/renderer/components/project-workspace';
-import { useAppBootstrap } from '@/renderer/hooks/use-app-bootstrap';
+import { useRepos } from '@/renderer/hooks/use-repos';
+import { useWorkspaceSession } from '@/renderer/hooks/use-workspace-session';
 import {
   getProjectTabRouteTo,
   resolvePreferredRepoId,
 } from '@/renderer/lib/projects';
 
 export const Route = createFileRoute('/projects/')({
-  loader: () => window.electronAPI.getWorkspacePreferences(),
   component: ProjectsIndexRoute,
 });
 
 function ProjectsIndexRoute() {
-  const { repos } = useAppBootstrap();
-  const preferences = Route.useLoaderData();
+  const repos = useRepos();
+  const { session } = useWorkspaceSession();
 
   if (repos.length === 0) {
     return (
       <ProjectWorkspace
-        repos={repos}
         activeRepoId={null}
-        activeView={preferences.lastTab}
+        activeView={session.activeTab}
       />
     );
   }
 
-  const repoId = resolvePreferredRepoId(repos, preferences.lastRepoId);
+  const repoId = resolvePreferredRepoId(repos, session.activeRepoId);
 
   if (repoId === null) {
     return (
       <ProjectWorkspace
-        repos={repos}
         activeRepoId={null}
-        activeView={preferences.lastTab}
+        activeView={session.activeTab}
       />
     );
   }
@@ -41,7 +39,7 @@ function ProjectsIndexRoute() {
   return (
     <Navigate
       replace
-      to={getProjectTabRouteTo(preferences.lastTab)}
+      to={getProjectTabRouteTo(session.activeTab)}
       params={{ repoId }}
     />
   );

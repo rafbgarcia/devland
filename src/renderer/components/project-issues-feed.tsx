@@ -8,7 +8,7 @@ import {
   ProjectFeedScaffold,
   type ProjectFeedDefinition,
 } from '@/renderer/components/project-workspace-feed';
-import { useProjectFeed } from '@/renderer/hooks/use-project-feed';
+import { useProjectIssues } from '@/renderer/hooks/use-project-issues';
 import { cn } from '@/shadcn/lib/utils';
 
 import { IssueDetailDrawer } from './issue-detail-drawer';
@@ -44,8 +44,8 @@ function IssueFeedItem({
   );
 }
 
-export function ProjectIssuesFeed({ projectPath }: { projectPath: string }) {
-  const { refetch, isRefetching, ...feedState } = useProjectFeed(projectPath, 'issues');
+export function ProjectIssuesFeed() {
+  const { refetch, isRefetching, ...feedState } = useProjectIssues();
   const [selectedIssueNumber, setSelectedIssueNumber] = useState<number | null>(null);
 
   const issueFeedDefinition: ProjectFeedDefinition<ProjectIssueFeed> = {
@@ -77,7 +77,6 @@ export function ProjectIssuesFeed({ projectPath }: { projectPath: string }) {
         definition={issueFeedDefinition}
       />
       <IssueDetailDrawer
-        projectPath={projectPath}
         issueNumber={selectedIssueNumber}
         onClose={() => setSelectedIssueNumber(null)}
       />

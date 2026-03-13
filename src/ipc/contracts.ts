@@ -1,15 +1,11 @@
 import { z } from 'zod';
 
 export const GET_APP_BOOTSTRAP_CHANNEL = 'app:get-app-bootstrap';
-export const SAVE_REPO_CHANNEL = 'app:save-repo';
-export const REMOVE_REPO_CHANNEL = 'app:remove-repo';
-export const REORDER_REPOS_CHANNEL = 'app:reorder-repos';
 export const PICK_REPO_DIRECTORY_CHANNEL = 'app:pick-repo-directory';
-export const GET_WORKSPACE_PREFERENCES_CHANNEL = 'app:get-workspace-preferences';
-export const SET_WORKSPACE_PREFERENCES_CHANNEL = 'app:set-workspace-preferences';
 export const GET_PROJECT_ISSUES_CHANNEL = 'app:get-project-issues';
 export const GET_PROJECT_PULL_REQUESTS_CHANNEL = 'app:get-project-pull-requests';
 export const GET_ISSUE_DETAIL_CHANNEL = 'app:get-issue-detail';
+export const GET_REPO_DETAILS_CHANNEL = 'app:get-repo-details';
 
 export const PROJECT_VIEW_TABS = [
   'code',
@@ -34,20 +30,16 @@ export const GhUserSchema = z.object({
 });
 export type GhUser = z.infer<typeof GhUserSchema>;
 
+export const WorkspaceSessionSchema = z.object({
+  activeRepoId: z.string().min(1).nullable(),
+  activeTab: ProjectViewTabSchema,
+});
+export type WorkspaceSession = z.infer<typeof WorkspaceSessionSchema>;
+
 export const AppBootstrapSchema = z.object({
   ghUser: GhUserSchema.nullable(),
-  repos: z.array(RepoSchema),
 });
 export type AppBootstrap = z.infer<typeof AppBootstrapSchema>;
-
-export const WorkspacePreferencesSchema = z.object({
-  lastRepoId: z.string().min(1).nullable(),
-  lastTab: ProjectViewTabSchema,
-});
-export type WorkspacePreferences = z.infer<typeof WorkspacePreferencesSchema>;
-
-export const ProjectFeedKindSchema = z.enum(['issues', 'pull-requests']);
-export type ProjectFeedKind = z.infer<typeof ProjectFeedKindSchema>;
 
 export const GitHubUserSchema = z.object({
   login: z.string().min(1),
@@ -91,28 +83,28 @@ export const ProjectPullRequestFeedItemSchema = ProjectFeedItemBaseSchema.extend
 export type ProjectPullRequestFeedItem = z.infer<typeof ProjectPullRequestFeedItemSchema>;
 
 const ProjectFeedBaseSchema = z.object({
-  githubSlug: z.string().min(1),
-  projectPath: z.string().min(1),
   fetchedAt: z.number().int().nonnegative(),
 });
 
 export const ProjectIssueFeedSchema = ProjectFeedBaseSchema.extend({
-  kind: z.literal('issues'),
   items: z.array(ProjectIssueFeedItemSchema),
 });
 export type ProjectIssueFeed = z.infer<typeof ProjectIssueFeedSchema>;
 
 export const ProjectPullRequestFeedSchema = ProjectFeedBaseSchema.extend({
-  kind: z.literal('pull-requests'),
   items: z.array(ProjectPullRequestFeedItemSchema),
 });
 export type ProjectPullRequestFeed = z.infer<typeof ProjectPullRequestFeedSchema>;
 
-export const ProjectFeedSchema = z.discriminatedUnion('kind', [
-  ProjectIssueFeedSchema,
-  ProjectPullRequestFeedSchema,
-]);
-export type ProjectFeed = z.infer<typeof ProjectFeedSchema>;
+export type ProjectFeed = ProjectIssueFeed | ProjectPullRequestFeed;
+
+export const RepoDetailsSchema = z.object({
+  projectPath: z.string().min(1),
+  githubSlug: z.string().min(1),
+  owner: z.string().min(1),
+  name: z.string().min(1),
+});
+export type RepoDetails = z.infer<typeof RepoDetailsSchema>;
 
 export const IssueDetailCommentSchema = z.object({
   id: z.string().min(1),
@@ -145,18 +137,17 @@ export interface ElectronApi {
     readonly node: string;
   };
   getAppBootstrap: () => Promise<AppBootstrap>;
-  getWorkspacePreferences: () => Promise<WorkspacePreferences>;
-  setWorkspacePreferences: (
-    preferences: Partial<WorkspacePreferences>,
-  ) => Promise<WorkspacePreferences>;
-  saveRepo: (path: string) => Promise<Repo>;
-  removeRepo: (repoId: string) => Promise<void>;
-  reorderRepos: (orderedRepoIds: string[]) => Promise<void>;
   pickRepoDirectory: () => Promise<string | null>;
-  getProjectIssues: (projectPath: string, skipCache?: boolean) => Promise<ProjectIssueFeed>;
+  getProjectIssues: (
+    owner: string,
+    name: string,
+    skipCache?: boolean,
+  ) => Promise<ProjectIssueFeed>;
   getProjectPullRequests: (
-    projectPath: string,
+    owner: string,
+    name: string,
     skipCache?: boolean,
   ) => Promise<ProjectPullRequestFeed>;
-  getIssueDetail: (projectPath: string, issueNumber: number) => Promise<IssueDetail>;
+  getIssueDetail: (owner: string, name: string, issueNumber: number) => Promise<IssueDetail>;
+  getRepoDetails: (projectPath: string) => Promise<RepoDetails>;
 }

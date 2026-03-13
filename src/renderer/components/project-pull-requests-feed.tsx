@@ -10,7 +10,7 @@ import {
   ProjectFeedScaffold,
   type ProjectFeedDefinition,
 } from '@/renderer/components/project-workspace-feed';
-import { useProjectFeed } from '@/renderer/hooks/use-project-feed';
+import { useProjectPullRequests } from '@/renderer/hooks/use-project-prs';
 
 function PullRequestDiffStats({
   commitCount,
@@ -77,11 +77,8 @@ const pullRequestFeedDefinition: ProjectFeedDefinition<ProjectPullRequestFeed> =
   renderItem: (item) => <PullRequestFeedItem item={item} />,
 };
 
-export function ProjectPullRequestsFeed({ projectPath }: { projectPath: string }) {
-  const { refetch, isRefetching, ...feedState } = useProjectFeed(
-    projectPath,
-    'pull-requests',
-  );
+export function ProjectPullRequestsFeed() {
+  const { refetch, isRefetching, ...feedState } = useProjectPullRequests();
 
   return (
     <ProjectFeedScaffold

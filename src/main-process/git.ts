@@ -2,6 +2,8 @@ import { execFile } from 'node:child_process';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
+import { RepoDetailsSchema, type RepoDetails } from '../ipc/contracts';
+
 const execFileAsync = promisify(execFile);
 
 const GITHUB_REPO_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -79,6 +81,12 @@ export const getProjectLabel = (projectPath: string): string => {
   return projectPath;
 };
 
+export const splitGitHubSlug = (slug: string): { owner: string; name: string } => {
+  const [owner = '', name = ''] = slug.split('/');
+
+  return { owner, name };
+};
+
 export const resolveGitHubSlugFromProjectPath = async (
   projectPath: string,
 ): Promise<string> => {
@@ -112,4 +120,16 @@ export const resolveGitHubSlugFromProjectPath = async (
         'Local repository must be a Git repository with a GitHub `origin` remote.',
     );
   }
+};
+
+export const getRepoDetails = async (projectPath: string): Promise<RepoDetails> => {
+  const githubSlug = await resolveGitHubSlugFromProjectPath(projectPath);
+  const { owner, name } = splitGitHubSlug(githubSlug);
+
+  return RepoDetailsSchema.parse({
+    projectPath,
+    githubSlug,
+    owner,
+    name,
+  });
 };

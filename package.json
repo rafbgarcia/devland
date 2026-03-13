@@ -54,6 +54,7 @@
     "clsx": "2.1.1",
     "dayjs": "1.11.20",
     "electron-squirrel-startup": "1.0.1",
+    "jotai": "^2.18.1",
     "lucide-react": "0.577.0",
     "motion": "12.36.0",
     "nanoid": "5.1.6",

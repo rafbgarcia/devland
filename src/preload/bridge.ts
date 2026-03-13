@@ -5,12 +5,8 @@ import {
   GET_ISSUE_DETAIL_CHANNEL,
   GET_PROJECT_ISSUES_CHANNEL,
   GET_PROJECT_PULL_REQUESTS_CHANNEL,
-  GET_WORKSPACE_PREFERENCES_CHANNEL,
+  GET_REPO_DETAILS_CHANNEL,
   PICK_REPO_DIRECTORY_CHANNEL,
-  REMOVE_REPO_CHANNEL,
-  REORDER_REPOS_CHANNEL,
-  SAVE_REPO_CHANNEL,
-  SET_WORKSPACE_PREFERENCES_CHANNEL,
   type ElectronApi,
 } from '@/ipc/contracts';
 
@@ -22,18 +18,13 @@ export const electronApi: ElectronApi = {
     node: process.versions.node,
   },
   getAppBootstrap: () => ipcRenderer.invoke(GET_APP_BOOTSTRAP_CHANNEL),
-  getWorkspacePreferences: () => ipcRenderer.invoke(GET_WORKSPACE_PREFERENCES_CHANNEL),
-  setWorkspacePreferences: (preferences) =>
-    ipcRenderer.invoke(SET_WORKSPACE_PREFERENCES_CHANNEL, preferences),
-  saveRepo: (path) => ipcRenderer.invoke(SAVE_REPO_CHANNEL, path),
-  removeRepo: (repoId) => ipcRenderer.invoke(REMOVE_REPO_CHANNEL, repoId),
-  reorderRepos: (orderedRepoIds) =>
-    ipcRenderer.invoke(REORDER_REPOS_CHANNEL, orderedRepoIds),
   pickRepoDirectory: () => ipcRenderer.invoke(PICK_REPO_DIRECTORY_CHANNEL),
-  getProjectIssues: (projectPath, skipCache) =>
-    ipcRenderer.invoke(GET_PROJECT_ISSUES_CHANNEL, projectPath, skipCache),
-  getProjectPullRequests: (projectPath, skipCache) =>
-    ipcRenderer.invoke(GET_PROJECT_PULL_REQUESTS_CHANNEL, projectPath, skipCache),
-  getIssueDetail: (projectPath, issueNumber) =>
-    ipcRenderer.invoke(GET_ISSUE_DETAIL_CHANNEL, projectPath, issueNumber),
+  getProjectIssues: (owner, name, skipCache) =>
+    ipcRenderer.invoke(GET_PROJECT_ISSUES_CHANNEL, owner, name, skipCache),
+  getProjectPullRequests: (owner, name, skipCache) =>
+    ipcRenderer.invoke(GET_PROJECT_PULL_REQUESTS_CHANNEL, owner, name, skipCache),
+  getIssueDetail: (owner, name, issueNumber) =>
+    ipcRenderer.invoke(GET_ISSUE_DETAIL_CHANNEL, owner, name, issueNumber),
+  getRepoDetails: (projectPath) =>
+    ipcRenderer.invoke(GET_REPO_DETAILS_CHANNEL, projectPath),
 };
