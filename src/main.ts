@@ -22,7 +22,7 @@ const developmentContentSecurityPolicy = [
   "default-src 'self'",
   "script-src 'self' 'sha256-Z2/iFzh9VMlVkEOar1f/oSHWwQk3ve1qk/C2WdsC4Xk='",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data:",
+  "img-src 'self' data: https://*.githubusercontent.com",
   "font-src 'self' data:",
   `connect-src 'self' ${devServerOrigin} ${
     devServerOrigin?.replace(/^http/, 'ws') ?? ''

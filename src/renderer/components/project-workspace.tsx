@@ -342,7 +342,7 @@ export function ProjectWorkspace({
                   'group relative flex max-w-50 cursor-default items-center gap-1 overflow-hidden rounded-t-lg px-3 py-1.5 text-[13px]',
                   isActive
                     ? 'bg-card text-foreground shadow-[0_-1px_3px_-1px_rgba(0,0,0,0.08)]'
-                    : 'cursor-pointer text-muted-foreground hover:bg-muted/80 hover:text-foreground',
+                    : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground',
                 )}
                 as="div"
                 whileDrag={{ scale: 1.03, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}

@@ -2,6 +2,7 @@ import { ipcRenderer } from 'electron';
 
 import {
   GET_APP_BOOTSTRAP_CHANNEL,
+  GET_ISSUE_DETAIL_CHANNEL,
   GET_PROJECT_ISSUES_CHANNEL,
   GET_PROJECT_PULL_REQUESTS_CHANNEL,
   GET_WORKSPACE_PREFERENCES_CHANNEL,
@@ -33,4 +34,6 @@ export const electronApi: ElectronApi = {
     ipcRenderer.invoke(GET_PROJECT_ISSUES_CHANNEL, projectPath, skipCache),
   getProjectPullRequests: (projectPath, skipCache) =>
     ipcRenderer.invoke(GET_PROJECT_PULL_REQUESTS_CHANNEL, projectPath, skipCache),
+  getIssueDetail: (projectPath, issueNumber) =>
+    ipcRenderer.invoke(GET_ISSUE_DETAIL_CHANNEL, projectPath, issueNumber),
 };

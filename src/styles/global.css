@@ -1,8 +1,14 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
+
+.dark ::selection {
+  background-color: hsl(215 25% 40%);
+  color: hsl(0 0% 98%);
+}
 
 @theme inline {
   --color-background: var(--background);

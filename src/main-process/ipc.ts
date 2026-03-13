@@ -2,6 +2,7 @@ import { dialog, ipcMain, type BrowserWindow, type OpenDialogOptions } from 'ele
 
 import {
   GET_APP_BOOTSTRAP_CHANNEL,
+  GET_ISSUE_DETAIL_CHANNEL,
   GET_PROJECT_ISSUES_CHANNEL,
   GET_PROJECT_PULL_REQUESTS_CHANNEL,
   GET_WORKSPACE_PREFERENCES_CHANNEL,
@@ -13,7 +14,7 @@ import {
   type AppBootstrap,
   type WorkspacePreferences,
 } from '../ipc/contracts';
-import { getGhUser, getProjectFeed } from './github';
+import { getGhUser, getIssueDetail, getProjectFeed } from './github';
 import { getSavedRepos } from './repo-store';
 import { addRepo, removeRepo, reorderRepos } from './repo-service';
 import {
@@ -71,5 +72,10 @@ export const registerAppIpcHandlers = (
     GET_PROJECT_PULL_REQUESTS_CHANNEL,
     (_event, projectPath: string, skipCache?: boolean) =>
       getProjectFeed(projectPath, 'pull-requests', skipCache),
+  );
+  ipcMain.handle(
+    GET_ISSUE_DETAIL_CHANNEL,
+    (_event, projectPath: string, issueNumber: number) =>
+      getIssueDetail(projectPath, issueNumber),
   );
 };

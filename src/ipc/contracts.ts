@@ -7,6 +7,7 @@ export const GET_WORKSPACE_PREFERENCES_CHANNEL = 'app:get-workspace-preferences'
 export const SET_WORKSPACE_PREFERENCES_CHANNEL = 'app:set-workspace-preferences';
 export const GET_PROJECT_ISSUES_CHANNEL = 'app:get-project-issues';
 export const GET_PROJECT_PULL_REQUESTS_CHANNEL = 'app:get-project-pull-requests';
+export const GET_ISSUE_DETAIL_CHANNEL = 'app:get-issue-detail';
 
 export const PROJECT_VIEW_TABS = [
   'code',
@@ -85,6 +86,29 @@ export type ProjectPullRequestFeed = ProjectFeedBase<ProjectPullRequestFeedItem>
 
 export type ProjectFeed = ProjectIssueFeed | ProjectPullRequestFeed;
 
+export type IssueDetailComment = {
+  id: string;
+  bodyHTML: string;
+  createdAt: string;
+  authorLogin: string;
+  authorAvatarUrl: string;
+};
+
+export type IssueDetail = {
+  id: string;
+  number: number;
+  title: string;
+  url: string;
+  state: string;
+  bodyHTML: string;
+  authorLogin: string;
+  authorAvatarUrl: string;
+  labels: ProjectFeedLabel[];
+  comments: IssueDetailComment[];
+  commentCount: number;
+  createdAt: string;
+};
+
 export interface ElectronApi {
   readonly platform: NodeJS.Platform;
   readonly versions: {
@@ -106,4 +130,5 @@ export interface ElectronApi {
     projectPath: string,
     skipCache?: boolean,
   ) => Promise<ProjectPullRequestFeed>;
+  getIssueDetail: (projectPath: string, issueNumber: number) => Promise<IssueDetail>;
 }

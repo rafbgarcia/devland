@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import type {
   GhUser,
+  IssueDetail,
   ProjectFeed,
   ProjectFeedKind,
   ProjectIssueFeed,
@@ -11,6 +12,7 @@ import type {
 } from '../ipc/contracts';
 import { resolveGitHubSlugFromProjectPath } from './git';
 import { gh } from './gh';
+import { ISSUE_DETAIL_QUERY } from './gh-queries/issue-detail';
 import { ISSUES_QUERY } from './gh-queries/issues';
 import { PULL_REQUESTS_QUERY } from './gh-queries/pull-requests';
 
@@ -136,12 +138,19 @@ const fetchGraphQL = async (
   owner: string,
   name: string,
   skipCache = false,
+  extraVars?: Record<string, string>,
 ) => {
   if (gh === null) {
     throw new Error('GitHub CLI is not installed or could not be found.');
   }
 
   const args = ['api', 'graphql', '-f', `query=${query}`, '-f', `owner=${owner}`, '-f', `name=${name}`];
+
+  if (extraVars) {
+    for (const [key, value] of Object.entries(extraVars)) {
+      args.push('-F', `${key}=${value}`);
+    }
+  }
 
   if (!skipCache) {
     args.splice(2, 0, '--cache', GH_CACHE_TTL);
@@ -233,4 +242,70 @@ export async function getProjectFeed(
   inFlightFeedRequests.set(cacheKey, { promise: trackedRequest, skipCache });
 
   return trackedRequest;
+}
+
+const GqlIssueDetailCommentSchema = z.object({
+  id: z.union([z.string(), z.number()]),
+  bodyHTML: z.string(),
+  createdAt: z.string().min(1),
+  author: z.object({ login: z.string().min(1), avatarUrl: z.string().url() }).nullable().optional(),
+});
+
+const GqlIssueDetailResponseSchema = z.object({
+  data: z.object({
+    repository: z.object({
+      issue: z.object({
+        id: z.union([z.string(), z.number()]),
+        number: z.number().int().positive(),
+        title: z.string().min(1),
+        url: z.string().url(),
+        state: z.string().min(1),
+        bodyHTML: z.string(),
+        author: z.object({ login: z.string().min(1), avatarUrl: z.string().url() }).nullable().optional(),
+        labels: z.object({ nodes: z.array(GqlLabelSchema) }),
+        comments: z.object({
+          totalCount: z.number().int().nonnegative(),
+          nodes: z.array(GqlIssueDetailCommentSchema),
+        }),
+        createdAt: z.string().min(1),
+      }),
+    }),
+  }),
+});
+
+export async function getIssueDetail(
+  projectPath: string,
+  issueNumber: number,
+): Promise<IssueDetail> {
+  const githubSlug = await resolveGitHubSlugFromProjectPath(projectPath);
+  const { owner, name } = splitSlug(githubSlug);
+
+  const response = GqlIssueDetailResponseSchema.parse(
+    await fetchGraphQL(ISSUE_DETAIL_QUERY, owner, name, true, {
+      number: String(issueNumber),
+    }),
+  );
+
+  const issue = response.data.repository.issue;
+
+  return {
+    id: String(issue.id),
+    number: issue.number,
+    title: issue.title,
+    url: issue.url,
+    state: issue.state.toLowerCase(),
+    bodyHTML: issue.bodyHTML,
+    authorLogin: issue.author?.login ?? 'unknown',
+    authorAvatarUrl: issue.author?.avatarUrl ?? '',
+    labels: issue.labels.nodes.map((l) => ({ name: l.name, color: l.color })),
+    comments: issue.comments.nodes.map((c) => ({
+      id: String(c.id),
+      bodyHTML: c.bodyHTML,
+      createdAt: c.createdAt,
+      authorLogin: c.author?.login ?? 'unknown',
+      authorAvatarUrl: c.author?.avatarUrl ?? '',
+    })),
+    commentCount: issue.comments.totalCount,
+    createdAt: issue.createdAt,
+  };
 }
