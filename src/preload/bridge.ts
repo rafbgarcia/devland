@@ -5,6 +5,7 @@ import {
   AppShortcutCommandSchema,
   GET_APP_BOOTSTRAP_CHANNEL,
   GET_ISSUE_DETAIL_CHANNEL,
+  GET_PULL_REQUEST_DETAIL_CHANNEL,
   GET_PROJECT_ISSUES_CHANNEL,
   GET_PROJECT_PULL_REQUESTS_CHANNEL,
   GET_GITHUB_REPO_DETAILS_CHANNEL,
@@ -34,6 +35,8 @@ export const electronApi: ElectronApi = {
     ipcRenderer.invoke(GET_PROJECT_PULL_REQUESTS_CHANNEL, owner, name, skipCache),
   getIssueDetail: (owner, name, issueNumber) =>
     ipcRenderer.invoke(GET_ISSUE_DETAIL_CHANNEL, owner, name, issueNumber),
+  getPullRequestDetail: (owner, name, prNumber) =>
+    ipcRenderer.invoke(GET_PULL_REQUEST_DETAIL_CHANNEL, owner, name, prNumber),
   validateLocalGitRepository: (directoryPath) =>
     ipcRenderer.invoke(VALIDATE_LOCAL_GIT_REPO_CHANNEL, directoryPath),
   getGithubRepoDetails: (projectPath) =>

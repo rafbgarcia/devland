@@ -5,6 +5,7 @@ export const PICK_REPO_DIRECTORY_CHANNEL = 'app:pick-repo-directory';
 export const GET_PROJECT_ISSUES_CHANNEL = 'app:get-project-issues';
 export const GET_PROJECT_PULL_REQUESTS_CHANNEL = 'app:get-project-pull-requests';
 export const GET_ISSUE_DETAIL_CHANNEL = 'app:get-issue-detail';
+export const GET_PULL_REQUEST_DETAIL_CHANNEL = 'app:get-pull-request-detail';
 export const VALIDATE_LOCAL_GIT_REPO_CHANNEL = 'app:validate-local-git-repo';
 export const GET_GITHUB_REPO_DETAILS_CHANNEL = 'app:get-github-repo-details';
 export const APP_SHORTCUT_COMMAND_CHANNEL = 'app:shortcut-command';
@@ -182,6 +183,33 @@ export const IssueDetailSchema = z.object({
 });
 export type IssueDetail = z.infer<typeof IssueDetailSchema>;
 
+export const PullRequestDetailCommentSchema = z.object({
+  id: z.string().min(1),
+  bodyHTML: z.string(),
+  createdAt: z.string().min(1),
+  author: GitHubUserWithAvatarSchema.nullable(),
+});
+export type PullRequestDetailComment = z.infer<typeof PullRequestDetailCommentSchema>;
+
+export const PullRequestDetailSchema = z.object({
+  id: z.string().min(1),
+  number: z.number().int().positive(),
+  title: z.string().min(1),
+  url: z.string().url(),
+  state: z.string().min(1),
+  isDraft: z.boolean(),
+  bodyHTML: z.string(),
+  author: GitHubUserWithAvatarSchema.nullable(),
+  labels: z.array(GitHubLabelSchema),
+  comments: z.array(PullRequestDetailCommentSchema),
+  commentCount: z.number().int().nonnegative(),
+  commitCount: z.number().int().nonnegative(),
+  additions: z.number().int().nonnegative(),
+  deletions: z.number().int().nonnegative(),
+  createdAt: z.string().min(1),
+});
+export type PullRequestDetail = z.infer<typeof PullRequestDetailSchema>;
+
 export interface ElectronApi {
   readonly platform: NodeJS.Platform;
   readonly versions: {
@@ -202,6 +230,7 @@ export interface ElectronApi {
     skipCache?: boolean,
   ) => Promise<ProjectPullRequestFeed>;
   getIssueDetail: (owner: string, name: string, issueNumber: number) => Promise<IssueDetail>;
+  getPullRequestDetail: (owner: string, name: string, prNumber: number) => Promise<PullRequestDetail>;
   validateLocalGitRepository: (directoryPath: string) => Promise<void>;
   getGithubRepoDetails: (projectPath: string) => Promise<RepoDetails>;
   onAppShortcutCommand: (listener: (command: AppShortcutCommand) => void) => () => void;

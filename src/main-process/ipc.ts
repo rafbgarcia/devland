@@ -3,6 +3,7 @@ import { dialog, ipcMain, type BrowserWindow, type IpcMainInvokeEvent, type Open
 import {
   GET_APP_BOOTSTRAP_CHANNEL,
   GET_ISSUE_DETAIL_CHANNEL,
+  GET_PULL_REQUEST_DETAIL_CHANNEL,
   GET_PROJECT_ISSUES_CHANNEL,
   GET_PROJECT_PULL_REQUESTS_CHANNEL,
   GET_GITHUB_REPO_DETAILS_CHANNEL,
@@ -18,6 +19,7 @@ import {
 } from '../ipc/contracts';
 import { ghExecutable } from './gh-cli';
 import { getRepositoryIssueDetail } from './gh-queries/issue-detail';
+import { getRepositoryPullRequestDetail } from './gh-queries/pull-request-detail';
 import { getRepositoryIssues } from './gh-queries/issues';
 import { getRepositoryPullRequests } from './gh-queries/pull-requests';
 import { getGhUser } from './gh-queries/user';
@@ -77,6 +79,11 @@ export const registerAppIpcHandlers = (
     GET_ISSUE_DETAIL_CHANNEL,
     (_event, owner: string, name: string, issueNumber: number) =>
       getRepositoryIssueDetail(owner, name, issueNumber),
+  );
+  ipcMain.handle(
+    GET_PULL_REQUEST_DETAIL_CHANNEL,
+    (_event, owner: string, name: string, prNumber: number) =>
+      getRepositoryPullRequestDetail(owner, name, prNumber),
   );
   ipcMain.handle(
     VALIDATE_LOCAL_GIT_REPO_CHANNEL,
