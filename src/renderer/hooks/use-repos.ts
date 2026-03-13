@@ -128,6 +128,17 @@ export function useRepoActions() {
     [setRepos],
   );
 
+  const updateRepoPath = useCallback(
+    (repoId: string, newPath: string) => {
+      setRepos((currentRepos) =>
+        currentRepos.map((repo) =>
+          repo.id === repoId ? { ...repo, path: newPath } : repo,
+        ),
+      );
+    },
+    [setRepos],
+  );
+
   const reorderRepos = useCallback(
     (orderedRepos: Repo[]) => {
       setRepos(orderedRepos);
@@ -138,6 +149,7 @@ export function useRepoActions() {
   return {
     addRepo,
     removeRepo,
+    updateRepoPath,
     reorderRepos,
   };
 }

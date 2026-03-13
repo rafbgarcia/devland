@@ -10,6 +10,12 @@ import {
   GET_GITHUB_REPO_DETAILS_CHANNEL,
   PICK_REPO_DIRECTORY_CHANNEL,
   VALIDATE_LOCAL_GIT_REPO_CHANNEL,
+  CLONE_GITHUB_REPO_CHANNEL,
+  CLONE_GITHUB_REPO_PROGRESS_CHANNEL,
+  GET_GIT_BRANCHES_CHANNEL,
+  GET_GIT_STATUS_CHANNEL,
+  CHECKOUT_GIT_BRANCH_CHANNEL,
+  GET_GIT_FILE_DIFF_CHANNEL,
   type ElectronApi,
 } from '@/ipc/contracts';
 
@@ -32,6 +38,29 @@ export const electronApi: ElectronApi = {
     ipcRenderer.invoke(VALIDATE_LOCAL_GIT_REPO_CHANNEL, directoryPath),
   getGithubRepoDetails: (projectPath) =>
     ipcRenderer.invoke(GET_GITHUB_REPO_DETAILS_CHANNEL, projectPath),
+  cloneGithubRepo: (slug) =>
+    ipcRenderer.invoke(CLONE_GITHUB_REPO_CHANNEL, slug),
+  onCloneProgress: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, line: unknown) => {
+      if (typeof line === 'string') {
+        listener(line);
+      }
+    };
+
+    ipcRenderer.on(CLONE_GITHUB_REPO_PROGRESS_CHANNEL, handler);
+
+    return () => {
+      ipcRenderer.removeListener(CLONE_GITHUB_REPO_PROGRESS_CHANNEL, handler);
+    };
+  },
+  getGitBranches: (repoPath) =>
+    ipcRenderer.invoke(GET_GIT_BRANCHES_CHANNEL, repoPath),
+  getGitStatus: (repoPath) =>
+    ipcRenderer.invoke(GET_GIT_STATUS_CHANNEL, repoPath),
+  checkoutGitBranch: (repoPath, branchName) =>
+    ipcRenderer.invoke(CHECKOUT_GIT_BRANCH_CHANNEL, repoPath, branchName),
+  getGitFileDiff: (repoPath, filePath) =>
+    ipcRenderer.invoke(GET_GIT_FILE_DIFF_CHANNEL, repoPath, filePath),
   onAppShortcutCommand: (listener) => {
     const handleShortcutCommand = (
       _event: Electron.IpcRendererEvent,

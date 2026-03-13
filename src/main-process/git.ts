@@ -1,8 +1,16 @@
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
+import { existsSync, mkdirSync } from 'node:fs';
+import { homedir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
-import { RepoDetailsSchema, type RepoDetails } from '../ipc/contracts';
+import {
+  RepoDetailsSchema,
+  type GitBranch,
+  type GitFileStatus,
+  type GitStatus,
+  type RepoDetails,
+} from '../ipc/contracts';
 
 const execFileAsync = promisify(execFile);
 
@@ -163,5 +171,179 @@ export const getGithubRepoDetails = async (projectPath: string): Promise<RepoDet
     githubSlug,
     owner,
     name,
+  });
+};
+
+export const cloneGithubRepo = (
+  ghExecutable: string,
+  slug: string,
+  onProgress?: (line: string) => void,
+): Promise<string> => {
+  const { owner, name } = splitGitHubSlug(slug);
+  const targetDir = path.join(homedir(), 'github.com', owner, name);
+
+  if (existsSync(path.join(targetDir, '.git'))) {
+    return Promise.resolve(targetDir);
+  }
+
+  mkdirSync(path.dirname(targetDir), { recursive: true });
+
+  return new Promise((resolve, reject) => {
+    const proc = spawn(ghExecutable, ['repo', 'clone', slug, targetDir], {
+      env: { ...process.env, GH_PROMPT_DISABLED: '1' },
+      windowsHide: true,
+    });
+
+    const collectOutput = (data: Buffer) => {
+      const lines = data.toString().split(/\r?\n/).filter(Boolean);
+
+      for (const line of lines) {
+        onProgress?.(line);
+      }
+    };
+
+    proc.stdout.on('data', collectOutput);
+    proc.stderr.on('data', collectOutput);
+
+    proc.on('close', (code) => {
+      if (code === 0) {
+        resolve(targetDir);
+      } else {
+        reject(new Error(`Clone failed with exit code ${code}.`));
+      }
+    });
+
+    proc.on('error', (err) => {
+      reject(new Error(`Failed to start clone: ${err.message}`));
+    });
+  });
+};
+
+const parseGitFileStatus = (xy: string): GitFileStatus => {
+  if (xy === '??') return 'untracked';
+  if (xy[0] === 'R' || xy[1] === 'R') return 'renamed';
+  if (xy[0] === 'A' || xy[1] === 'A') return 'added';
+  if (xy[0] === 'D' || xy[1] === 'D') return 'deleted';
+
+  return 'modified';
+};
+
+export const getGitBranches = async (repoPath: string): Promise<GitBranch[]> => {
+  const { stdout } = await execFileAsync(
+    'git',
+    ['-C', repoPath, 'branch', '--format=%(HEAD)|%(refname:short)'],
+    getGitExecOptions(),
+  );
+
+  return stdout
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => {
+      const [head, ...nameParts] = line.split('|');
+
+      return { name: nameParts.join('|'), isCurrent: head === '*' };
+    });
+};
+
+export const getGitStatus = async (repoPath: string): Promise<GitStatus> => {
+  const [branchResult, statusResult] = await Promise.all([
+    execFileAsync(
+      'git',
+      ['-C', repoPath, 'branch', '--show-current'],
+      getGitExecOptions(),
+    ),
+    execFileAsync(
+      'git',
+      ['-C', repoPath, 'status', '--porcelain=v1'],
+      getGitExecOptions(),
+    ),
+  ]);
+
+  const branch = branchResult.stdout.trim() || 'HEAD';
+  const files = statusResult.stdout
+    .trimEnd()
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => {
+      const xy = line.slice(0, 2);
+      const filePath = line.slice(3);
+
+      return { path: filePath, status: parseGitFileStatus(xy) };
+    });
+
+  return { branch, files };
+};
+
+export const checkoutGitBranch = async (
+  repoPath: string,
+  branchName: string,
+): Promise<void> => {
+  await execFileAsync(
+    'git',
+    ['-C', repoPath, 'checkout', branchName],
+    getGitExecOptions(),
+  );
+};
+
+export const getGitFileDiff = async (
+  repoPath: string,
+  filePath: string,
+): Promise<string> => {
+  // Try diff against HEAD first (shows staged + unstaged changes)
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['-C', repoPath, 'diff', 'HEAD', '--', filePath],
+      getGitExecOptions(),
+    );
+
+    if (stdout.trim()) {
+      return stdout;
+    }
+  } catch {
+    // HEAD may not exist (empty repo), fall through
+  }
+
+  // Try working tree diff (unstaged changes only)
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['-C', repoPath, 'diff', '--', filePath],
+      getGitExecOptions(),
+    );
+
+    if (stdout.trim()) {
+      return stdout;
+    }
+  } catch {
+    // fall through
+  }
+
+  // Try staged diff
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['-C', repoPath, 'diff', '--cached', '--', filePath],
+      getGitExecOptions(),
+    );
+
+    if (stdout.trim()) {
+      return stdout;
+    }
+  } catch {
+    // fall through
+  }
+
+  // For untracked files, use --no-index which exits with code 1 when differences exist.
+  return new Promise((resolve) => {
+    execFile(
+      'git',
+      ['-C', repoPath, 'diff', '--no-index', '--', '/dev/null', filePath],
+      getGitExecOptions(),
+      (_error, diffOutput) => {
+        resolve(diffOutput || '');
+      },
+    );
   });
 };

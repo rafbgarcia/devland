@@ -8,6 +8,12 @@ export const GET_ISSUE_DETAIL_CHANNEL = 'app:get-issue-detail';
 export const VALIDATE_LOCAL_GIT_REPO_CHANNEL = 'app:validate-local-git-repo';
 export const GET_GITHUB_REPO_DETAILS_CHANNEL = 'app:get-github-repo-details';
 export const APP_SHORTCUT_COMMAND_CHANNEL = 'app:shortcut-command';
+export const CLONE_GITHUB_REPO_CHANNEL = 'app:clone-github-repo';
+export const CLONE_GITHUB_REPO_PROGRESS_CHANNEL = 'app:clone-github-repo-progress';
+export const GET_GIT_BRANCHES_CHANNEL = 'app:get-git-branches';
+export const GET_GIT_STATUS_CHANNEL = 'app:get-git-status';
+export const CHECKOUT_GIT_BRANCH_CHANNEL = 'app:checkout-git-branch';
+export const GET_GIT_FILE_DIFF_CHANNEL = 'app:get-git-file-diff';
 
 export const PROJECT_VIEW_TABS = [
   'code',
@@ -124,6 +130,35 @@ export const RepoDetailsSchema = z.object({
 });
 export type RepoDetails = z.infer<typeof RepoDetailsSchema>;
 
+export const GIT_FILE_STATUSES = [
+  'modified',
+  'added',
+  'deleted',
+  'renamed',
+  'untracked',
+] as const;
+
+export const GitFileStatusSchema = z.enum(GIT_FILE_STATUSES);
+export type GitFileStatus = z.infer<typeof GitFileStatusSchema>;
+
+export const GitBranchSchema = z.object({
+  name: z.string().min(1),
+  isCurrent: z.boolean(),
+});
+export type GitBranch = z.infer<typeof GitBranchSchema>;
+
+export const GitStatusFileSchema = z.object({
+  path: z.string().min(1),
+  status: GitFileStatusSchema,
+});
+export type GitStatusFile = z.infer<typeof GitStatusFileSchema>;
+
+export const GitStatusSchema = z.object({
+  branch: z.string(),
+  files: z.array(GitStatusFileSchema),
+});
+export type GitStatus = z.infer<typeof GitStatusSchema>;
+
 export const IssueDetailCommentSchema = z.object({
   id: z.string().min(1),
   bodyHTML: z.string(),
@@ -170,4 +205,10 @@ export interface ElectronApi {
   validateLocalGitRepository: (directoryPath: string) => Promise<void>;
   getGithubRepoDetails: (projectPath: string) => Promise<RepoDetails>;
   onAppShortcutCommand: (listener: (command: AppShortcutCommand) => void) => () => void;
+  cloneGithubRepo: (slug: string) => Promise<string>;
+  onCloneProgress: (listener: (line: string) => void) => () => void;
+  getGitBranches: (repoPath: string) => Promise<GitBranch[]>;
+  getGitStatus: (repoPath: string) => Promise<GitStatus>;
+  checkoutGitBranch: (repoPath: string, branchName: string) => Promise<void>;
+  getGitFileDiff: (repoPath: string, filePath: string) => Promise<string>;
 }
