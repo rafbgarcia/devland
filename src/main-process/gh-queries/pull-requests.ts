@@ -70,29 +70,31 @@ export async function getRepositoryPullRequests(
   owner: string,
   name: string,
   skipCache = false,
-): Promise<ProjectPullRequestFeedItem[]> {
-  const response = PullRequestsResponseSchema.parse(
-    await graphql(PULL_REQUESTS_QUERY, { owner, name, skipCache }),
-  );
+): Promise<{ items: ProjectPullRequestFeedItem[]; fetchedAt: number }> {
+  const result = await graphql(PULL_REQUESTS_QUERY, { owner, name, skipCache });
+  const response = PullRequestsResponseSchema.parse(result.data);
 
-  return response.data.repository.pullRequests.nodes.map((node) =>
-    ProjectPullRequestFeedItemSchema.parse({
-      id: String(node.id),
-      number: node.number,
-      title: node.title,
-      url: node.url,
-      state: node.state,
-      author: node.author,
-      commentCount: node.comments.totalCount,
-      commentAuthors: node.comments.nodes.map((comment) => comment.author),
-      labels: node.labels.nodes,
-      createdAt: node.createdAt,
-      isDraft: node.isDraft,
-      commitCount: node.commits.totalCount,
-      additions: node.additions,
-      deletions: node.deletions,
-    }),
-  );
+  return {
+    fetchedAt: result.fetchedAt,
+    items: response.data.repository.pullRequests.nodes.map((node) =>
+      ProjectPullRequestFeedItemSchema.parse({
+        id: String(node.id),
+        number: node.number,
+        title: node.title,
+        url: node.url,
+        state: node.state,
+        author: node.author,
+        commentCount: node.comments.totalCount,
+        commentAuthors: node.comments.nodes.map((comment) => comment.author),
+        labels: node.labels.nodes,
+        createdAt: node.createdAt,
+        isDraft: node.isDraft,
+        commitCount: node.commits.totalCount,
+        additions: node.additions,
+        deletions: node.deletions,
+      }),
+    ),
+  };
 }
 
 export const PULL_REQUESTS_QUERY = `

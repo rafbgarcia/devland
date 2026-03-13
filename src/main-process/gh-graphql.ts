@@ -1,9 +1,29 @@
-import { gh } from './gh-cli';
+import { ghWithResponse } from './gh-cli';
 
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 const GH_CACHE_TTL = `${CACHE_TTL_MS / 1000}s`;
 
 type GraphQLVariables = Record<string, string | number | boolean>;
+export type GraphqlResult<T> = {
+  data: T;
+  fetchedAt: number;
+};
+
+const getFetchedAtFromHeaders = (headers: Record<string, string>): number => {
+  const dateHeader = headers.date;
+
+  if (!dateHeader) {
+    throw new Error('GitHub response is missing the Date header.');
+  }
+
+  const fetchedAt = Date.parse(dateHeader);
+
+  if (Number.isNaN(fetchedAt)) {
+    throw new Error(`GitHub response Date header is invalid: ${dateHeader}`);
+  }
+
+  return fetchedAt;
+};
 
 export async function graphql<T = unknown>(
   query: string,
@@ -18,8 +38,8 @@ export async function graphql<T = unknown>(
     skipCache?: boolean;
     variables?: GraphQLVariables;
   },
-): Promise<T> {
-  if (gh === null) {
+): Promise<GraphqlResult<T>> {
+  if (ghWithResponse === null) {
     throw new Error('GitHub CLI is not installed or could not be found.');
   }
 
@@ -36,5 +56,10 @@ export async function graphql<T = unknown>(
     }
   }
 
-  return gh<T>(args);
+  const response = await ghWithResponse<T>(args);
+
+  return {
+    data: response.body,
+    fetchedAt: getFetchedAtFromHeaders(response.headers),
+  };
 }

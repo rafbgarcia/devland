@@ -60,25 +60,27 @@ export async function getRepositoryIssues(
   owner: string,
   name: string,
   skipCache = false,
-): Promise<ProjectIssueFeedItem[]> {
-  const response = IssuesResponseSchema.parse(
-    await graphql(ISSUES_QUERY, { owner, name, skipCache }),
-  );
+): Promise<{ items: ProjectIssueFeedItem[]; fetchedAt: number }> {
+  const result = await graphql(ISSUES_QUERY, { owner, name, skipCache });
+  const response = IssuesResponseSchema.parse(result.data);
 
-  return response.data.repository.issues.nodes.map((node) =>
-    ProjectIssueFeedItemSchema.parse({
-      id: String(node.id),
-      number: node.number,
-      title: node.title,
-      url: node.url,
-      state: node.state,
-      author: node.author,
-      commentCount: node.comments.totalCount,
-      commentAuthors: node.comments.nodes.map((comment) => comment.author),
-      labels: node.labels.nodes,
-      createdAt: node.createdAt,
-    }),
-  );
+  return {
+    fetchedAt: result.fetchedAt,
+    items: response.data.repository.issues.nodes.map((node) =>
+      ProjectIssueFeedItemSchema.parse({
+        id: String(node.id),
+        number: node.number,
+        title: node.title,
+        url: node.url,
+        state: node.state,
+        author: node.author,
+        commentCount: node.comments.totalCount,
+        commentAuthors: node.comments.nodes.map((comment) => comment.author),
+        labels: node.labels.nodes,
+        createdAt: node.createdAt,
+      }),
+    ),
+  };
 }
 
 export const ISSUES_QUERY = `

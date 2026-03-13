@@ -35,23 +35,23 @@ export async function getProjectFeed(
   const { owner, name } = splitSlug(githubSlug);
 
   if (kind === 'issues') {
-    const items = await getRepositoryIssues(owner, name, skipCache);
+    const { items, fetchedAt } = await getRepositoryIssues(owner, name, skipCache);
     const feed: ProjectIssueFeed = {
       kind,
       githubSlug,
       projectPath,
-      fetchedAt: Date.now(),
+      fetchedAt,
       items,
     };
     return feed;
   }
 
-  const items = await getRepositoryPullRequests(owner, name, skipCache);
+  const { items, fetchedAt } = await getRepositoryPullRequests(owner, name, skipCache);
   const feed: ProjectPullRequestFeed = {
     kind,
     githubSlug,
     projectPath,
-    fetchedAt: Date.now(),
+    fetchedAt,
     items,
   };
   return feed;

@@ -70,14 +70,13 @@ export async function getRepositoryIssueDetail(
   name: string,
   issueNumber: number,
 ): Promise<IssueDetail> {
-  const response = IssueDetailResponseSchema.parse(
-    await graphql(ISSUE_DETAIL_QUERY, {
-      owner,
-      name,
-      skipCache: true,
-      variables: { number: issueNumber },
-    }),
-  );
+  const result = await graphql(ISSUE_DETAIL_QUERY, {
+    owner,
+    name,
+    skipCache: true,
+    variables: { number: issueNumber },
+  });
+  const response = IssueDetailResponseSchema.parse(result.data);
   const issue = response.data.repository.issue;
 
   return IssueDetailSchema.parse({
