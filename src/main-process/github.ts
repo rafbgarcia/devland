@@ -1,171 +1,20 @@
-import { z } from 'zod';
-
 import type {
-  GhUser,
   IssueDetail,
   ProjectFeed,
   ProjectFeedKind,
   ProjectIssueFeed,
-  ProjectIssueFeedItem,
   ProjectPullRequestFeed,
-  ProjectPullRequestFeedItem,
 } from '../ipc/contracts';
 import { resolveGitHubSlugFromProjectPath } from './git';
-import { gh } from './gh';
-import { ISSUE_DETAIL_QUERY } from './gh-queries/issue-detail';
-import { ISSUES_QUERY } from './gh-queries/issues';
-import { PULL_REQUESTS_QUERY } from './gh-queries/pull-requests';
-
-const GhUserSchema: z.ZodType<GhUser> = z.object({
-  login: z.string().min(1),
-});
-
-const GqlLabelSchema = z.object({
-  name: z.string().min(1),
-  color: z.string().min(1),
-});
-
-const GqlCommentNodeSchema = z.object({
-  author: z.object({ login: z.string().min(1) }).nullable().optional(),
-});
-
-const GqlIssueNodeSchema = z.object({
-  id: z.union([z.string(), z.number()]),
-  number: z.number().int().positive(),
-  title: z.string().min(1),
-  url: z.string().url(),
-  state: z.string().min(1),
-  author: z.object({ login: z.string().min(1) }).nullable().optional(),
-  comments: z.object({
-    totalCount: z.number().int().nonnegative(),
-    nodes: z.array(GqlCommentNodeSchema),
-  }),
-  labels: z.object({
-    nodes: z.array(GqlLabelSchema),
-  }),
-  createdAt: z.string().min(1),
-});
-
-const GqlPrNodeSchema = GqlIssueNodeSchema.extend({
-  isDraft: z.boolean(),
-  commits: z.object({ totalCount: z.number().int().nonnegative() }),
-  additions: z.number().int().nonnegative(),
-  deletions: z.number().int().nonnegative(),
-});
-
-const GqlIssuesResponseSchema = z.object({
-  data: z.object({
-    repository: z.object({
-      issues: z.object({
-        nodes: z.array(GqlIssueNodeSchema),
-      }),
-    }),
-  }),
-});
-
-const GqlPullRequestsResponseSchema = z.object({
-  data: z.object({
-    repository: z.object({
-      pullRequests: z.object({
-        nodes: z.array(GqlPrNodeSchema),
-      }),
-    }),
-  }),
-});
-
-const uniqueCommentAuthors = (nodes: z.infer<typeof GqlCommentNodeSchema>[]): string[] => {
-  const seen = new Set<string>();
-  const result: string[] = [];
-
-  for (const node of nodes) {
-    const login = node.author?.login;
-    if (login && !seen.has(login)) {
-      seen.add(login);
-      result.push(login);
-    }
-  }
-
-  return result;
-};
-
-const toIssueFeedItem = (
-  node: z.infer<typeof GqlIssueNodeSchema>,
-): ProjectIssueFeedItem => ({
-  id: String(node.id),
-  number: node.number,
-  title: node.title,
-  url: node.url,
-  state: node.state.toLowerCase(),
-  authorLogin: node.author?.login ?? 'unknown',
-  commentCount: node.comments.totalCount,
-  commentAuthors: uniqueCommentAuthors(node.comments.nodes),
-  labels: node.labels.nodes.map((label) => ({ name: label.name, color: label.color })),
-  createdAt: node.createdAt,
-});
-
-const toPullRequestFeedItem = (
-  node: z.infer<typeof GqlPrNodeSchema>,
-): ProjectPullRequestFeedItem => ({
-  ...toIssueFeedItem(node),
-  isDraft: node.isDraft,
-  commitCount: node.commits.totalCount,
-  additions: node.additions,
-  deletions: node.deletions,
-});
+import { getRepositoryIssueDetail } from './gh-queries/issue-detail';
+import { getRepositoryIssues } from './gh-queries/issues';
+import { getRepositoryPullRequests } from './gh-queries/pull-requests';
+export { getGhUser } from './gh-queries/user';
 
 const splitSlug = (slug: string): { owner: string; name: string } => {
   const [owner = '', name = ''] = slug.split('/');
   return { owner, name };
 };
-
-export const getGhUser = async (): Promise<GhUser | null> => {
-  if (gh === null) {
-    return null;
-  }
-
-  try {
-    return GhUserSchema.parse(await gh(['api', 'user']));
-  } catch {
-    return null;
-  }
-};
-
-const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
-const GH_CACHE_TTL = `${CACHE_TTL_MS / 1000}s`;
-
-const fetchGraphQL = async (
-  query: string,
-  owner: string,
-  name: string,
-  skipCache = false,
-  extraVars?: Record<string, string>,
-) => {
-  if (gh === null) {
-    throw new Error('GitHub CLI is not installed or could not be found.');
-  }
-
-  const args = ['api', 'graphql', '-f', `query=${query}`, '-f', `owner=${owner}`, '-f', `name=${name}`];
-
-  if (extraVars) {
-    for (const [key, value] of Object.entries(extraVars)) {
-      args.push('-F', `${key}=${value}`);
-    }
-  }
-
-  if (!skipCache) {
-    args.splice(2, 0, '--cache', GH_CACHE_TTL);
-  }
-
-  return gh(args);
-};
-
-type FeedCache = { feed: ProjectFeed; fetchedAt: number };
-const feedCache = new Map<string, FeedCache>();
-type InFlightFeed = { promise: Promise<ProjectFeed>; skipCache: boolean };
-const inFlightFeedRequests = new Map<string, InFlightFeed>();
-
-const getCacheKey = (projectPath: string, kind: ProjectFeedKind): string =>
-  `${projectPath}::${kind}`;
 
 export function getProjectFeed(
   projectPath: string,
@@ -182,96 +31,31 @@ export async function getProjectFeed(
   kind: ProjectFeedKind,
   skipCache = false,
 ): Promise<ProjectFeed> {
-  const cacheKey = getCacheKey(projectPath, kind);
-  const cached = feedCache.get(cacheKey);
+  const githubSlug = await resolveGitHubSlugFromProjectPath(projectPath);
+  const { owner, name } = splitSlug(githubSlug);
 
-  if (!skipCache && cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
-    return cached.feed;
-  }
-
-  const inFlight = inFlightFeedRequests.get(cacheKey);
-
-  if (inFlight && (!skipCache || inFlight.skipCache)) {
-    return inFlight.promise;
-  }
-
-  const request = (async (): Promise<ProjectFeed> => {
-    const githubSlug = await resolveGitHubSlugFromProjectPath(projectPath);
-    const { owner, name } = splitSlug(githubSlug);
-    const fetchedAt = Date.now();
-
-    if (kind === 'issues') {
-      const response = GqlIssuesResponseSchema.parse(
-        await fetchGraphQL(ISSUES_QUERY, owner, name, skipCache),
-      );
-      const feed: ProjectIssueFeed = {
-        kind,
-        githubSlug,
-        projectPath,
-        fetchedAt,
-        items: response.data.repository.issues.nodes.map(toIssueFeedItem),
-      };
-
-      feedCache.set(cacheKey, { feed, fetchedAt });
-      return feed;
-    }
-
-    const response = GqlPullRequestsResponseSchema.parse(
-      await fetchGraphQL(PULL_REQUESTS_QUERY, owner, name, skipCache),
-    );
-    const feed: ProjectPullRequestFeed = {
+  if (kind === 'issues') {
+    const items = await getRepositoryIssues(owner, name, skipCache);
+    const feed: ProjectIssueFeed = {
       kind,
       githubSlug,
       projectPath,
-      fetchedAt,
-      items: response.data.repository.pullRequests.nodes.map(toPullRequestFeedItem),
+      fetchedAt: Date.now(),
+      items,
     };
-
-    feedCache.set(cacheKey, { feed, fetchedAt });
     return feed;
-  })();
+  }
 
-  const trackedRequest = request.finally(() => {
-    const activeRequest = inFlightFeedRequests.get(cacheKey);
-
-    if (activeRequest?.promise === trackedRequest) {
-      inFlightFeedRequests.delete(cacheKey);
-    }
-  });
-
-  inFlightFeedRequests.set(cacheKey, { promise: trackedRequest, skipCache });
-
-  return trackedRequest;
+  const items = await getRepositoryPullRequests(owner, name, skipCache);
+  const feed: ProjectPullRequestFeed = {
+    kind,
+    githubSlug,
+    projectPath,
+    fetchedAt: Date.now(),
+    items,
+  };
+  return feed;
 }
-
-const GqlIssueDetailCommentSchema = z.object({
-  id: z.union([z.string(), z.number()]),
-  bodyHTML: z.string(),
-  createdAt: z.string().min(1),
-  author: z.object({ login: z.string().min(1), avatarUrl: z.string().url() }).nullable().optional(),
-});
-
-const GqlIssueDetailResponseSchema = z.object({
-  data: z.object({
-    repository: z.object({
-      issue: z.object({
-        id: z.union([z.string(), z.number()]),
-        number: z.number().int().positive(),
-        title: z.string().min(1),
-        url: z.string().url(),
-        state: z.string().min(1),
-        bodyHTML: z.string(),
-        author: z.object({ login: z.string().min(1), avatarUrl: z.string().url() }).nullable().optional(),
-        labels: z.object({ nodes: z.array(GqlLabelSchema) }),
-        comments: z.object({
-          totalCount: z.number().int().nonnegative(),
-          nodes: z.array(GqlIssueDetailCommentSchema),
-        }),
-        createdAt: z.string().min(1),
-      }),
-    }),
-  }),
-});
 
 export async function getIssueDetail(
   projectPath: string,
@@ -280,32 +64,5 @@ export async function getIssueDetail(
   const githubSlug = await resolveGitHubSlugFromProjectPath(projectPath);
   const { owner, name } = splitSlug(githubSlug);
 
-  const response = GqlIssueDetailResponseSchema.parse(
-    await fetchGraphQL(ISSUE_DETAIL_QUERY, owner, name, true, {
-      number: String(issueNumber),
-    }),
-  );
-
-  const issue = response.data.repository.issue;
-
-  return {
-    id: String(issue.id),
-    number: issue.number,
-    title: issue.title,
-    url: issue.url,
-    state: issue.state.toLowerCase(),
-    bodyHTML: issue.bodyHTML,
-    authorLogin: issue.author?.login ?? 'unknown',
-    authorAvatarUrl: issue.author?.avatarUrl ?? '',
-    labels: issue.labels.nodes.map((l) => ({ name: l.name, color: l.color })),
-    comments: issue.comments.nodes.map((c) => ({
-      id: String(c.id),
-      bodyHTML: c.bodyHTML,
-      createdAt: c.createdAt,
-      authorLogin: c.author?.login ?? 'unknown',
-      authorAvatarUrl: c.author?.avatarUrl ?? '',
-    })),
-    commentCount: issue.comments.totalCount,
-    createdAt: issue.createdAt,
-  };
+  return getRepositoryIssueDetail(owner, name, issueNumber);
 }

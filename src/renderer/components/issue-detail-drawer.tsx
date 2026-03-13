@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'motion/react';
 
 import type { IssueDetail } from '@/ipc/contracts';
 import { useIssueDetail } from '@/renderer/hooks/use-issue-detail';
+import { getAuthorLogin } from '@/renderer/lib/github-view';
 import { Badge } from '@/shadcn/components/ui/badge';
 import { Separator } from '@/shadcn/components/ui/separator';
 import { Spinner } from '@/shadcn/components/ui/spinner';
@@ -56,7 +57,7 @@ function IssueDetailContent({ issue }: { issue: IssueDetail }) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <span>{issue.authorLogin}</span>
+          <span>{getAuthorLogin(issue.author)}</span>
           <RelativeTime value={issue.createdAt} />
           {issue.labels.length > 0 && (
             <span className="inline-flex flex-wrap gap-1">
@@ -102,7 +103,9 @@ function IssueDetailContent({ issue }: { issue: IssueDetail }) {
           {issue.comments.map((comment) => (
             <div key={comment.id} className="border-t border-border px-4 py-3">
               <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="font-medium text-foreground">{comment.authorLogin}</span>
+                <span className="font-medium text-foreground">
+                  {getAuthorLogin(comment.author)}
+                </span>
                 <RelativeTime value={comment.createdAt} />
               </div>
               <div

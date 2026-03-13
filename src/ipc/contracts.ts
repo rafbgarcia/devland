@@ -41,7 +41,15 @@ export type WorkspacePreferences = {
 
 export type ProjectFeedKind = 'issues' | 'pull-requests';
 
-export type ProjectFeedLabel = {
+export type GitHubUser = {
+  login: string;
+};
+
+export type GitHubUserWithAvatar = GitHubUser & {
+  avatarUrl: string;
+};
+
+export type GitHubLabel = {
   name: string;
   color: string;
 };
@@ -52,10 +60,10 @@ export type ProjectFeedItemBase = {
   title: string;
   url: string;
   state: string;
-  authorLogin: string;
+  author: GitHubUser | null;
   commentCount: number;
-  commentAuthors: string[];
-  labels: ProjectFeedLabel[];
+  commentAuthors: Array<GitHubUser | null>;
+  labels: GitHubLabel[];
   createdAt: string;
 };
 
@@ -90,8 +98,7 @@ export type IssueDetailComment = {
   id: string;
   bodyHTML: string;
   createdAt: string;
-  authorLogin: string;
-  authorAvatarUrl: string;
+  author: GitHubUserWithAvatar | null;
 };
 
 export type IssueDetail = {
@@ -101,9 +108,8 @@ export type IssueDetail = {
   url: string;
   state: string;
   bodyHTML: string;
-  authorLogin: string;
-  authorAvatarUrl: string;
-  labels: ProjectFeedLabel[];
+  author: GitHubUserWithAvatar | null;
+  labels: GitHubLabel[];
   comments: IssueDetailComment[];
   commentCount: number;
   createdAt: string;

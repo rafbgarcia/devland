@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { GithubIcon, MoreHorizontalIcon, RefreshCwIcon } from 'lucide-react';
 
 import type { ProjectFeed, ProjectFeedItemBase } from '@/ipc/contracts';
+import { getAuthorLogin, getUniqueCommentAuthorLogins } from '@/renderer/lib/github-view';
 import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';
 import { Badge } from '@/shadcn/components/ui/badge';
 import {
@@ -159,10 +160,13 @@ export function ProjectFeedItemFrame<TItem extends ProjectFeedItemBase>({
           {title}
         </div>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-          <span>{item.authorLogin}</span>
+          <span>{getAuthorLogin(item.author)}</span>
           <RelativeTime value={item.createdAt} />
           <span className="text-border">|</span>
-          <FeedCommentCount count={item.commentCount} authors={item.commentAuthors} />
+          <FeedCommentCount
+            count={item.commentCount}
+            authors={getUniqueCommentAuthorLogins(item.commentAuthors)}
+          />
         </div>
       </div>
 
