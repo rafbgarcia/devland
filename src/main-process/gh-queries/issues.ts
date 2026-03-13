@@ -2,7 +2,7 @@ export const ISSUES_QUERY = `
 query($owner: String!, $name: String!) {
   repository(owner: $owner, name: $name) {
     issues(
-      first: 100
+      first: 30
       states: OPEN
       orderBy: { field: CREATED_AT, direction: DESC }
     ) {

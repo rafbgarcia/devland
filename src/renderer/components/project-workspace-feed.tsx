@@ -41,6 +41,20 @@ export type ProjectFeedStatus<TFeed extends ProjectFeed> =
       error: string;
     };
 
+export type ProjectFeedDefinition<TFeed extends ProjectFeed> = {
+  loadingMessage: string;
+  emptyState: {
+    icon: ReactNode;
+    title: string;
+    description: string;
+  };
+  labels: {
+    refresh: string;
+    list: string;
+  };
+  renderItem: (item: TFeed['items'][number]) => ReactNode;
+};
+
 function FeedCommentCount({ count, authors }: { count: number; authors: string[] }) {
   if (count === 0) {
     return <span>0 comments</span>;
@@ -164,31 +178,19 @@ export function ProjectFeedScaffold<TFeed extends ProjectFeed>({
   state,
   isRefetching,
   onRefetch,
-  loadingMessage,
-  emptyIcon,
-  emptyTitle,
-  emptyDescription,
-  refreshLabel,
-  listLabel,
-  renderItem,
+  definition,
 }: {
   state: ProjectFeedStatus<TFeed>;
   isRefetching: boolean;
   onRefetch: () => void;
-  loadingMessage: string;
-  emptyIcon: ReactNode;
-  emptyTitle: string;
-  emptyDescription: string;
-  refreshLabel: string;
-  listLabel: string;
-  renderItem: (item: TFeed['items'][number]) => ReactNode;
+  definition: ProjectFeedDefinition<TFeed>;
 }) {
   if (state.status === 'loading') {
     return (
       <div className="flex min-h-96 items-center justify-center">
         <div className="flex items-center gap-3 text-sm text-muted-foreground">
           <Spinner />
-          {loadingMessage}
+          {definition.loadingMessage}
         </div>
       </div>
     );
@@ -211,9 +213,9 @@ export function ProjectFeedScaffold<TFeed extends ProjectFeed>({
       <div className="px-6 py-16">
         <Empty>
           <EmptyHeader>
-            <EmptyMedia variant="icon">{emptyIcon}</EmptyMedia>
-            <EmptyTitle>{emptyTitle}</EmptyTitle>
-            <EmptyDescription>{emptyDescription}</EmptyDescription>
+            <EmptyMedia variant="icon">{definition.emptyState.icon}</EmptyMedia>
+            <EmptyTitle>{definition.emptyState.title}</EmptyTitle>
+            <EmptyDescription>{definition.emptyState.description}</EmptyDescription>
           </EmptyHeader>
         </Empty>
       </div>
@@ -224,20 +226,20 @@ export function ProjectFeedScaffold<TFeed extends ProjectFeed>({
     <div>
       <div className="flex items-center justify-between border-b border-border px-5 py-3">
         <span className="text-sm text-muted-foreground">
-          Showing {state.data.items.length} {listLabel}
+          Showing {state.data.items.length} {definition.labels.list}
         </span>
         <ProjectFeedHeader
           itemCount={state.data.items.length}
           fetchedAt={state.data.fetchedAt}
           isRefetching={isRefetching}
           onRefetch={onRefetch}
-          refreshLabel={refreshLabel}
+          refreshLabel={definition.labels.refresh}
         />
       </div>
 
       {state.data.items.map((item, index) => (
         <div key={item.id}>
-          {renderItem(item)}
+          {definition.renderItem(item)}
           {index < state.data.items.length - 1 ? <Separator /> : null}
         </div>
       ))}

@@ -4,9 +4,13 @@ import {
   GitPullRequestIcon,
 } from 'lucide-react';
 
-import type { ProjectPullRequestFeedItem } from '@/ipc/contracts';
+import type { ProjectPullRequestFeed, ProjectPullRequestFeedItem } from '@/ipc/contracts';
+import {
+  ProjectFeedItemFrame,
+  ProjectFeedScaffold,
+  type ProjectFeedDefinition,
+} from '@/renderer/components/project-workspace-feed';
 import { useProjectFeed } from '@/renderer/hooks/use-project-feed';
-import { ProjectFeedItemFrame, ProjectFeedScaffold } from '@/renderer/components/project-workspace-feed';
 
 function PullRequestDiffStats({
   commitCount,
@@ -59,6 +63,20 @@ function PullRequestFeedItem({ item }: { item: ProjectPullRequestFeedItem }) {
   );
 }
 
+const pullRequestFeedDefinition: ProjectFeedDefinition<ProjectPullRequestFeed> = {
+  loadingMessage: 'Fetching pull requests from GitHub',
+  emptyState: {
+    icon: <GitPullRequestArrowIcon />,
+    title: 'No open pull requests',
+    description: 'This project has no open pull requests right now.',
+  },
+  labels: {
+    refresh: 'pull requests',
+    list: 'pull requests',
+  },
+  renderItem: (item) => <PullRequestFeedItem item={item} />,
+};
+
 export function ProjectPullRequestsFeed({ projectPath }: { projectPath: string }) {
   const { refetch, isRefetching, ...feedState } = useProjectFeed(
     projectPath,
@@ -70,13 +88,7 @@ export function ProjectPullRequestsFeed({ projectPath }: { projectPath: string }
       state={feedState}
       isRefetching={isRefetching}
       onRefetch={refetch}
-      loadingMessage="Fetching pull requests from GitHub"
-      emptyIcon={<GitPullRequestArrowIcon />}
-      emptyTitle="No open pull requests"
-      emptyDescription="This project has no open pull requests right now."
-      refreshLabel="pull requests"
-      listLabel="pull requests"
-      renderItem={(item) => <PullRequestFeedItem item={item} />}
+      definition={pullRequestFeedDefinition}
     />
   );
 }

@@ -2,7 +2,7 @@ export const PULL_REQUESTS_QUERY = `
 query($owner: String!, $name: String!) {
   repository(owner: $owner, name: $name) {
     pullRequests(
-      first: 100
+      first: 30
       states: OPEN
       orderBy: { field: CREATED_AT, direction: DESC }
     ) {

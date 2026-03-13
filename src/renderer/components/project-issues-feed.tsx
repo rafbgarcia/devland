@@ -1,8 +1,12 @@
 import { MessageSquareDotIcon } from 'lucide-react';
 
-import type { ProjectIssueFeedItem } from '@/ipc/contracts';
+import type { ProjectIssueFeed, ProjectIssueFeedItem } from '@/ipc/contracts';
+import {
+  ProjectFeedItemFrame,
+  ProjectFeedScaffold,
+  type ProjectFeedDefinition,
+} from '@/renderer/components/project-workspace-feed';
 import { useProjectFeed } from '@/renderer/hooks/use-project-feed';
-import { ProjectFeedItemFrame, ProjectFeedScaffold } from '@/renderer/components/project-workspace-feed';
 
 function IssueFeedItem({ item }: { item: ProjectIssueFeedItem }) {
   return (
@@ -23,6 +27,20 @@ function IssueFeedItem({ item }: { item: ProjectIssueFeedItem }) {
   );
 }
 
+const issueFeedDefinition: ProjectFeedDefinition<ProjectIssueFeed> = {
+  loadingMessage: 'Fetching issues from GitHub',
+  emptyState: {
+    icon: <MessageSquareDotIcon />,
+    title: 'No open issues',
+    description: 'This project has no open issues right now.',
+  },
+  labels: {
+    refresh: 'issues',
+    list: 'issues',
+  },
+  renderItem: (item) => <IssueFeedItem item={item} />,
+};
+
 export function ProjectIssuesFeed({ projectPath }: { projectPath: string }) {
   const { refetch, isRefetching, ...feedState } = useProjectFeed(projectPath, 'issues');
 
@@ -31,13 +49,7 @@ export function ProjectIssuesFeed({ projectPath }: { projectPath: string }) {
       state={feedState}
       isRefetching={isRefetching}
       onRefetch={refetch}
-      loadingMessage="Fetching issues from GitHub"
-      emptyIcon={<MessageSquareDotIcon />}
-      emptyTitle="No open issues"
-      emptyDescription="This project has no open issues right now."
-      refreshLabel="issues"
-      listLabel="issues"
-      renderItem={(item) => <IssueFeedItem item={item} />}
+      definition={issueFeedDefinition}
     />
   );
 }
