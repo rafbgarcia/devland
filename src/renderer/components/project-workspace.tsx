@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useEffectEvent, useState, type ReactNode } from 'react';
 import { useRouter } from '@tanstack/react-router';
 import { AnimatePresence, Reorder } from 'motion/react';
 import {
@@ -12,8 +12,14 @@ import {
   XIcon,
 } from 'lucide-react';
 
-import type { ProjectViewTab, Repo } from '@/ipc/contracts';
-import { getProjectLabel, getProjectTabRouteTo, type ProjectTabRouteTo } from '@/renderer/lib/projects';
+import type { AppShortcutCommand, ProjectViewTab, Repo } from '@/ipc/contracts';
+import {
+  getAdjacentProjectTabRepoId,
+  getProjectLabel,
+  getProjectTabRepoIdByShortcutSlot,
+  getProjectTabRouteTo,
+  type ProjectTabRouteTo,
+} from '@/renderer/lib/projects';
 import { useRepoActions, useRepos } from '@/renderer/hooks/use-repos';
 import { useWorkspaceSession } from '@/renderer/hooks/use-workspace-session';
 import { Button } from '@/shadcn/components/ui/button';
@@ -244,6 +250,28 @@ export function ProjectWorkspace({
     });
   };
 
+  const handleAppShortcutCommand = useEffectEvent(
+    (command: AppShortcutCommand) => {
+      if (repos.length === 0 || isAddDialogOpen) {
+        return;
+      }
+
+      const nextRepoId = command.type === 'activate-project-tab-by-shortcut-slot'
+        ? getProjectTabRepoIdByShortcutSlot(repos, command.slot)
+        : getAdjacentProjectTabRepoId(repos, activeRepoId, command.direction);
+
+      if (nextRepoId === null) {
+        return;
+      }
+
+      navigateToTab(nextRepoId, getProjectTabRouteTo(activeView));
+    },
+  );
+
+  useEffect(() => window.electronAPI.onAppShortcutCommand(handleAppShortcutCommand), [
+    handleAppShortcutCommand,
+  ]);
+
   const handleRemoveRepo = (repoId: string) => {
     const nextRepos = repos.filter((repo) => repo.id !== repoId);
 
@@ -411,7 +439,7 @@ export function ProjectWorkspace({
           {headerAccessory ?? <span />}
         </div>
 
-        <div className="min-h-96">{children}</div>
+        <div className="min-h-screen">{children}</div>
       </div>
 
       <AddProjectDialog

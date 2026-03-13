@@ -1,6 +1,8 @@
 import { ipcRenderer } from 'electron';
 
 import {
+  APP_SHORTCUT_COMMAND_CHANNEL,
+  AppShortcutCommandSchema,
   GET_APP_BOOTSTRAP_CHANNEL,
   GET_ISSUE_DETAIL_CHANNEL,
   GET_PROJECT_ISSUES_CHANNEL,
@@ -30,4 +32,27 @@ export const electronApi: ElectronApi = {
     ipcRenderer.invoke(VALIDATE_LOCAL_GIT_REPO_CHANNEL, directoryPath),
   getGithubRepoDetails: (projectPath) =>
     ipcRenderer.invoke(GET_GITHUB_REPO_DETAILS_CHANNEL, projectPath),
+  onAppShortcutCommand: (listener) => {
+    const handleShortcutCommand = (
+      _event: Electron.IpcRendererEvent,
+      command: unknown,
+    ) => {
+      const parsedCommand = AppShortcutCommandSchema.safeParse(command);
+
+      if (!parsedCommand.success) {
+        return;
+      }
+
+      listener(parsedCommand.data);
+    };
+
+    ipcRenderer.on(APP_SHORTCUT_COMMAND_CHANNEL, handleShortcutCommand);
+
+    return () => {
+      ipcRenderer.removeListener(
+        APP_SHORTCUT_COMMAND_CHANNEL,
+        handleShortcutCommand,
+      );
+    };
+  },
 };

@@ -1,4 +1,5 @@
 import {
+  type AppShortcutDirection,
   DEFAULT_PROJECT_VIEW_TAB,
   PROJECT_VIEW_TABS,
   type ProjectViewTab,
@@ -102,6 +103,47 @@ const PROJECT_TAB_ROUTE_BY_VALUE: Record<ProjectViewTab, ProjectTabRouteTo> = {
 
 export const getProjectTabRouteTo = (tab: ProjectViewTab): ProjectTabRouteTo =>
   PROJECT_TAB_ROUTE_BY_VALUE[tab];
+
+export const getProjectTabRepoIdByShortcutSlot = (
+  repos: Repo[],
+  slot: number,
+): string | null => {
+  if (slot === 9) {
+    return repos.at(-1)?.id ?? null;
+  }
+
+  return repos[slot - 1]?.id ?? null;
+};
+
+export const getAdjacentProjectTabRepoId = (
+  repos: Repo[],
+  activeRepoId: string | null,
+  direction: AppShortcutDirection,
+): string | null => {
+  if (repos.length === 0) {
+    return null;
+  }
+
+  if (activeRepoId === null) {
+    return direction === 'previous'
+      ? (repos.at(-1)?.id ?? null)
+      : (repos[0]?.id ?? null);
+  }
+
+  const activeRepoIndex = repos.findIndex((repo) => repo.id === activeRepoId);
+
+  if (activeRepoIndex === -1) {
+    return direction === 'previous'
+      ? (repos.at(-1)?.id ?? null)
+      : (repos[0]?.id ?? null);
+  }
+
+  const adjacentRepoIndex = direction === 'next'
+    ? (activeRepoIndex + 1) % repos.length
+    : (activeRepoIndex - 1 + repos.length) % repos.length;
+
+  return repos[adjacentRepoIndex]?.id ?? null;
+};
 
 export const DEFAULT_WORKSPACE_SESSION: WorkspaceSession = {
   activeRepoId: null,

@@ -191,7 +191,7 @@ export function ProjectFeedScaffold<TFeed extends ProjectFeed>({
 }) {
   if (state.status === 'loading') {
     return (
-      <div className="flex min-h-96 items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center">
         <div className="flex items-center gap-3 text-sm text-muted-foreground">
           <Spinner />
           {definition.loadingMessage}

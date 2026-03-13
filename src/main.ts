@@ -3,10 +3,15 @@ import {
   BrowserWindow,
   session,
   shell,
+  type Input,
 } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 
+import {
+  APP_SHORTCUT_COMMAND_CHANNEL,
+  type AppShortcutCommand,
+} from '@/ipc/contracts';
 import { registerAppIpcHandlers } from './main-process/ipc';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
@@ -59,6 +64,60 @@ const openExternalUrl = (targetUrl: string): void => {
   } catch {
     return;
   }
+};
+
+const getAppShortcutCommand = (input: Input): AppShortcutCommand | null => {
+  if (
+    input.type !== 'keyDown' ||
+    input.isComposing ||
+    !input.meta ||
+    input.alt ||
+    input.control
+  ) {
+    return null;
+  }
+
+  if (input.shift && input.code === 'BracketLeft') {
+    return {
+      type: 'cycle-project-tab',
+      direction: 'previous',
+    };
+  }
+
+  if (input.shift && input.code === 'BracketRight') {
+    return {
+      type: 'cycle-project-tab',
+      direction: 'next',
+    };
+  }
+
+  if (input.shift || !input.code.startsWith('Digit')) {
+    return null;
+  }
+
+  const shortcutIndex = Number(input.code.slice('Digit'.length)) - 1;
+
+  if (!Number.isInteger(shortcutIndex) || shortcutIndex < 0 || shortcutIndex > 8) {
+    return null;
+  }
+
+  return {
+    type: 'activate-project-tab-by-shortcut-slot',
+    slot: shortcutIndex + 1,
+  };
+};
+
+const registerAppShortcutForwarding = (window: BrowserWindow): void => {
+  window.webContents.on('before-input-event', (event, input) => {
+    const command = getAppShortcutCommand(input);
+
+    if (command === null) {
+      return;
+    }
+
+    event.preventDefault();
+    window.webContents.send(APP_SHORTCUT_COMMAND_CHANNEL, command);
+  });
 };
 
 const configureSessionSecurity = (): void => {
@@ -126,6 +185,7 @@ const createWindow = async (): Promise<BrowserWindow> => {
     event.preventDefault();
     openExternalUrl(navigationUrl);
   });
+  registerAppShortcutForwarding(mainWindow);
 
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();

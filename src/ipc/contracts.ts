@@ -7,6 +7,7 @@ export const GET_PROJECT_PULL_REQUESTS_CHANNEL = 'app:get-project-pull-requests'
 export const GET_ISSUE_DETAIL_CHANNEL = 'app:get-issue-detail';
 export const VALIDATE_LOCAL_GIT_REPO_CHANNEL = 'app:validate-local-git-repo';
 export const GET_GITHUB_REPO_DETAILS_CHANNEL = 'app:get-github-repo-details';
+export const APP_SHORTCUT_COMMAND_CHANNEL = 'app:shortcut-command';
 
 export const PROJECT_VIEW_TABS = [
   'code',
@@ -19,6 +20,22 @@ export const ProjectViewTabSchema = z.enum(PROJECT_VIEW_TABS);
 export type ProjectViewTab = (typeof PROJECT_VIEW_TABS)[number];
 
 export const DEFAULT_PROJECT_VIEW_TAB: ProjectViewTab = 'code';
+
+export const APP_SHORTCUT_DIRECTIONS = ['next', 'previous'] as const;
+export const AppShortcutDirectionSchema = z.enum(APP_SHORTCUT_DIRECTIONS);
+export type AppShortcutDirection = (typeof APP_SHORTCUT_DIRECTIONS)[number];
+
+export const AppShortcutCommandSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('activate-project-tab-by-shortcut-slot'),
+    slot: z.number().int().min(1).max(9),
+  }),
+  z.object({
+    type: z.literal('cycle-project-tab'),
+    direction: AppShortcutDirectionSchema,
+  }),
+]);
+export type AppShortcutCommand = z.infer<typeof AppShortcutCommandSchema>;
 
 export const RepoSchema = z.object({
   id: z.string().min(1),
@@ -152,4 +169,5 @@ export interface ElectronApi {
   getIssueDetail: (owner: string, name: string, issueNumber: number) => Promise<IssueDetail>;
   validateLocalGitRepository: (directoryPath: string) => Promise<void>;
   getGithubRepoDetails: (projectPath: string) => Promise<RepoDetails>;
+  onAppShortcutCommand: (listener: (command: AppShortcutCommand) => void) => () => void;
 }
