@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 import {
   ChevronRightIcon,
+  CodeIcon,
   ExternalLinkIcon,
   GitPullRequestDraftIcon,
   GitPullRequestIcon,
@@ -62,58 +63,67 @@ function PullRequestDiffStats({
   );
 }
 
-function PullRequestDetailContent({ pr }: { pr: PullRequestDetail }) {
+function PullRequestDetailContent({ pr, onReview }: { pr: PullRequestDetail; onReview?: () => void }) {
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
       <div className="flex flex-col gap-3 p-4">
-        <a
-          href={pr.url}
-          target="_blank"
-          rel="noreferrer"
-          className="group/title flex items-center gap-1.5"
-        >
-          <h2 className="text-base font-semibold leading-snug group-hover/title:underline">
-            {pr.title}{' '}
-            <span className="font-normal text-muted-foreground">(#{pr.number})</span>
-          </h2>
-          <ExternalLinkIcon className="size-3 shrink-0 text-muted-foreground transition-colors group-hover/title:text-foreground" />
-        </a>
-
-        <div className="flex items-center gap-2">
-          {pr.isDraft ? (
-            <Badge variant="outline" className="gap-1 px-2 py-0.5 text-[0.65rem] text-gray-500">
-              <GitPullRequestDraftIcon className="size-3" />
-              Draft
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="gap-1 px-2 py-0.5 text-[0.65rem] text-green-700">
-              <GitPullRequestIcon className="size-3" />
-              Open
-            </Badge>
-          )}
-          <PullRequestDiffStats
-            commitCount={pr.commitCount}
-            additions={pr.additions}
-            deletions={pr.deletions}
-          />
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-1.5">
+            {pr.isDraft ? (
+              <GitPullRequestDraftIcon className="size-3 shrink-0 text-gray-500" />
+            ) : (
+              <GitPullRequestIcon className="size-3 shrink-0 text-green-800" />
+            )}
+            <a
+              href={pr.url}
+              target="_blank"
+              rel="noreferrer"
+              className="group/title flex min-w-0 items-center gap-1.5"
+            >
+              <h2 className="truncate text-base font-semibold leading-snug group-hover/title:underline">
+                {pr.title}{' '}
+                <span className="font-normal text-muted-foreground">(#{pr.number})</span>
+              </h2>
+              <ExternalLinkIcon className="size-3 shrink-0 text-muted-foreground transition-colors group-hover/title:text-foreground" />
+            </a>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {pr.labels.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {pr.labels.map((label) => (
+                  <Badge
+                    key={label.name}
+                    variant="outline"
+                    className="px-2 py-0.5 text-[0.65rem]"
+                    style={{
+                      backgroundColor: `#${label.color}20`,
+                      color: `#${label.color}`,
+                      border: `1px solid #${label.color}40`,
+                    }}
+                  >
+                    {label.name}
+                  </Badge>
+                ))}
+              </div>
+            )}
+            <PullRequestDiffStats
+              commitCount={pr.commitCount}
+              additions={pr.additions}
+              deletions={pr.deletions}
+            />
+          </div>
         </div>
 
-        {pr.labels.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {pr.labels.map((label) => (
-              <Badge
-                key={label.name}
-                variant="outline"
-                className="px-2 py-0.5 text-[0.65rem]"
-                style={{
-                  backgroundColor: `#${label.color}20`,
-                  color: `#${label.color}`,
-                  border: `1px solid #${label.color}40`,
-                }}
-              >
-                {label.name}
-              </Badge>
-            ))}
+        {onReview && (
+          <div>
+            <button
+              type="button"
+              onClick={onReview}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/50 px-3 py-1.5 text-xs font-medium text-foreground transition-all hover:bg-accent hover:text-accent-foreground"
+            >
+              <CodeIcon className="size-3.5" />
+              Review
+            </button>
           </div>
         )}
       </div>
@@ -181,9 +191,11 @@ function PullRequestDetailContent({ pr }: { pr: PullRequestDetail }) {
 export function PullRequestDetailDrawer({
   prNumber,
   onClose,
+  onReview,
 }: {
   prNumber: number | null;
   onClose: () => void;
+  onReview?: () => void;
 }) {
   const detail = usePullRequestDetail(prNumber);
 
@@ -224,7 +236,7 @@ export function PullRequestDetailDrawer({
               </div>
             )}
 
-            {detail.status === 'ready' && <PullRequestDetailContent pr={detail.data} />}
+            {detail.status === 'ready' && <PullRequestDetailContent pr={detail.data} onReview={onReview} />}
           </div>
         </motion.aside>
       )}

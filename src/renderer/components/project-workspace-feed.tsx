@@ -169,11 +169,13 @@ export function ProjectFeedItemFrame<TItem extends ProjectFeedItemBase>({
   title,
   leadingIcon,
   sublineAside,
+  sublineExtra,
 }: {
   item: TItem;
   title: ReactNode;
   leadingIcon?: ReactNode;
   sublineAside?: ReactNode;
+  sublineExtra?: ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-1 px-5 py-3.5">
@@ -196,6 +198,7 @@ export function ProjectFeedItemFrame<TItem extends ProjectFeedItemBase>({
             {getAuthorLogin(item.author)}
           </span>
           <RelativeTime value={item.createdAt} />
+          {sublineExtra}
         </div>
         <div className="flex shrink-0 items-center gap-3">
           <FeedCommentAuthors

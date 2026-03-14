@@ -80,18 +80,20 @@ function PullRequestFeedItem({
               {item.title}{' '}
               <span className="font-normal text-muted-foreground">(#{item.number})</span>
             </span>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onReview(item);
-              }}
-              className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium text-muted-foreground opacity-0 transition-all hover:bg-primary/10 hover:text-primary group-hover/pr:opacity-100"
-            >
-              <CodeIcon className="size-3" />
-              Review
-            </button>
           </span>
+        }
+        sublineExtra={
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onReview(item);
+            }}
+            className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium text-muted-foreground opacity-0 transition-all hover:bg-primary/10 hover:text-primary group-hover/pr:opacity-100"
+          >
+            <CodeIcon className="size-3" />
+            Review
+          </button>
         }
         sublineAside={
           <PullRequestDiffStats
@@ -160,6 +162,13 @@ export function ProjectPullRequestsFeed() {
       <PullRequestDetailDrawer
         prNumber={selectedPrNumber}
         onClose={() => setSelectedPrNumber(null)}
+        onReview={() => {
+          if (selectedPrNumber === null) return;
+          const item = feedState.status === 'ready'
+            ? feedState.data.items.find((i) => i.number === selectedPrNumber)
+            : undefined;
+          if (item) handleReview(item);
+        }}
       />
       {repoDetails.status === 'ready' && (
         <PrReviewDialog
