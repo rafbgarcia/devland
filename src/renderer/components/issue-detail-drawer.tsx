@@ -3,13 +3,10 @@ import { useEffect, useState } from 'react';
 import { ChevronRightIcon, ExternalLinkIcon } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 
-import type { IssueDetail } from '@/ipc/contracts';
-import { useIssueDetail } from '@/renderer/hooks/use-issue-detail';
+import type { ProjectIssueFeedItem } from '@/ipc/contracts';
 import { getAuthorLogin } from '@/renderer/lib/github-view';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shadcn/components/ui/avatar';
 import { Badge } from '@/shadcn/components/ui/badge';
-import { Separator } from '@/shadcn/components/ui/separator';
-import { Spinner } from '@/shadcn/components/ui/spinner';
 import { RelativeTime } from '@/ui/relative-time';
 
 function CloseBar({ onClick }: { onClick: () => void }) {
@@ -38,7 +35,7 @@ function CloseBar({ onClick }: { onClick: () => void }) {
   );
 }
 
-function IssueDetailContent({ issue }: { issue: IssueDetail }) {
+function IssueDetailContent({ issue }: { issue: ProjectIssueFeedItem }) {
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
       <div className="flex flex-col gap-3 p-4">
@@ -134,14 +131,14 @@ function IssueDetailContent({ issue }: { issue: IssueDetail }) {
 }
 
 export function IssueDetailDrawer({
+  issue,
   issueNumber,
   onClose,
 }: {
+  issue: ProjectIssueFeedItem | null;
   issueNumber: number | null;
   onClose: () => void;
 }) {
-  const detail = useIssueDetail(issueNumber);
-
   useEffect(() => {
     if (issueNumber === null) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -164,22 +161,15 @@ export function IssueDetailDrawer({
           <CloseBar onClick={onClose} />
 
           <div className="flex min-w-0 flex-1 flex-col bg-background">
-            {detail.status === 'loading' && (
-              <div className="flex flex-1 items-center justify-center">
-                <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                  <Spinner />
-                  Loading issue details…
-                </div>
-              </div>
-            )}
-
-            {detail.status === 'error' && (
+            {issue === null && (
               <div className="flex flex-1 items-center justify-center p-4">
-                <p className="text-sm text-destructive">{detail.error}</p>
+                <p className="text-sm text-muted-foreground">
+                  Issue details are not available in the current feed.
+                </p>
               </div>
             )}
 
-            {detail.status === 'ready' && <IssueDetailContent issue={detail.data} />}
+            {issue !== null && <IssueDetailContent issue={issue} />}
           </div>
         </motion.aside>
       )}

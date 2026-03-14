@@ -9,12 +9,10 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 
-import type { PullRequestDetail } from '@/ipc/contracts';
-import { usePullRequestDetail } from '@/renderer/hooks/use-pull-request-detail';
+import type { ProjectPullRequestFeedItem } from '@/ipc/contracts';
 import { getAuthorLogin } from '@/renderer/lib/github-view';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shadcn/components/ui/avatar';
 import { Badge } from '@/shadcn/components/ui/badge';
-import { Spinner } from '@/shadcn/components/ui/spinner';
 import { RelativeTime } from '@/ui/relative-time';
 
 function CloseBar({ onClick }: { onClick: () => void }) {
@@ -63,7 +61,13 @@ function PullRequestDiffStats({
   );
 }
 
-function PullRequestDetailContent({ pr, onReview }: { pr: PullRequestDetail; onReview?: () => void }) {
+function PullRequestDetailContent({
+  pr,
+  onReview,
+}: {
+  pr: ProjectPullRequestFeedItem;
+  onReview: (() => void) | undefined;
+}) {
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
       <div className="flex flex-col gap-3 p-4">
@@ -189,16 +193,16 @@ function PullRequestDetailContent({ pr, onReview }: { pr: PullRequestDetail; onR
 }
 
 export function PullRequestDetailDrawer({
+  pr,
   prNumber,
   onClose,
   onReview,
 }: {
+  pr: ProjectPullRequestFeedItem | null;
   prNumber: number | null;
   onClose: () => void;
-  onReview?: () => void;
+  onReview: (() => void) | undefined;
 }) {
-  const detail = usePullRequestDetail(prNumber);
-
   useEffect(() => {
     if (prNumber === null) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -221,22 +225,15 @@ export function PullRequestDetailDrawer({
           <CloseBar onClick={onClose} />
 
           <div className="flex min-w-0 flex-1 flex-col bg-background">
-            {detail.status === 'loading' && (
-              <div className="flex flex-1 items-center justify-center">
-                <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                  <Spinner />
-                  Loading pull request details…
-                </div>
-              </div>
-            )}
-
-            {detail.status === 'error' && (
+            {pr === null && (
               <div className="flex flex-1 items-center justify-center p-4">
-                <p className="text-sm text-destructive">{detail.error}</p>
+                <p className="text-sm text-muted-foreground">
+                  Pull request details are not available in the current feed.
+                </p>
               </div>
             )}
 
-            {detail.status === 'ready' && <PullRequestDetailContent pr={detail.data} onReview={onReview} />}
+            {pr !== null && <PullRequestDetailContent pr={pr} onReview={onReview} />}
           </div>
         </motion.aside>
       )}

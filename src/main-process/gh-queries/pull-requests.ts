@@ -3,6 +3,7 @@ import { z } from 'zod';
 import {
   GitHubLabelSchema,
   GitHubUserWithAvatarSchema,
+  PullRequestCommentSchema,
   ProjectPullRequestFeedItemSchema,
   type ProjectPullRequestFeedItem,
 } from '../../ipc/contracts';
@@ -10,8 +11,8 @@ import { graphql } from '../gh-graphql';
 
 const GitHubNodeIdSchema = z.union([z.string(), z.number()]).transform(String);
 
-const PullRequestCommentAuthorSchema = z.object({
-  author: GitHubUserWithAvatarSchema.nullable(),
+const PullRequestCommentResponseSchema = PullRequestCommentSchema.extend({
+  id: GitHubNodeIdSchema,
 });
 
 const PullRequestResponseNodeSchema = z
@@ -22,9 +23,10 @@ const PullRequestResponseNodeSchema = z
     url: z.string().url(),
     state: z.string().min(1),
     author: GitHubUserWithAvatarSchema.nullable(),
+    bodyHTML: z.string(),
     comments: z.object({
       totalCount: z.number().int().nonnegative(),
-      nodes: z.array(PullRequestCommentAuthorSchema),
+      nodes: z.array(PullRequestCommentResponseSchema),
     }),
     labels: z.object({
       nodes: z.array(GitHubLabelSchema),
@@ -41,6 +43,7 @@ const PullRequestResponseNodeSchema = z
     ...pullRequest,
     commentCount: comments.totalCount,
     commentAuthors: comments.nodes.map(({ author }) => author),
+    comments: comments.nodes,
     labels: labels.nodes,
     commitCount: commits.totalCount,
   }))
@@ -74,7 +77,7 @@ const PULL_REQUESTS_QUERY = `
 query($owner: String!, $name: String!) {
   repository(owner: $owner, name: $name) {
     pullRequests(
-      first: 30
+      first: 20
       states: OPEN
       orderBy: { field: CREATED_AT, direction: DESC }
     ) {
@@ -89,9 +92,13 @@ query($owner: String!, $name: String!) {
           login
           avatarUrl
         }
+        bodyHTML
         comments(first: 20) {
           totalCount
           nodes {
+            id
+            bodyHTML
+            createdAt
             author {
               login
               avatarUrl

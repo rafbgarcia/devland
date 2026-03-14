@@ -3,8 +3,6 @@ import { dialog, ipcMain, type BrowserWindow, type IpcMainInvokeEvent, type Open
 import {
   CODEX_SESSION_EVENT_CHANNEL,
   GET_APP_BOOTSTRAP_CHANNEL,
-  GET_ISSUE_DETAIL_CHANNEL,
-  GET_PULL_REQUEST_DETAIL_CHANNEL,
   GET_PROJECT_ISSUES_CHANNEL,
   GET_PROJECT_PULL_REQUESTS_CHANNEL,
   GET_GITHUB_REPO_DETAILS_CHANNEL,
@@ -36,8 +34,6 @@ import { codexAppServerManager } from './codex-app-server';
 import { codexExecutable } from './codex-cli';
 import { generatePrReview } from './codex-use-cases/pr-review';
 import { ghExecutable } from './gh-cli';
-import { getRepositoryIssueDetail } from './gh-queries/issue-detail';
-import { getRepositoryPullRequestDetail } from './gh-queries/pull-request-detail';
 import { getRepositoryIssues } from './gh-queries/issues';
 import { getRepositoryPullRequests } from './gh-queries/pull-requests';
 import { getGhUser } from './gh-queries/user';
@@ -103,16 +99,6 @@ export const registerAppIpcHandlers = (
     GET_PROJECT_PULL_REQUESTS_CHANNEL,
     (_event, owner: string, name: string, skipCache?: boolean) =>
       getRepositoryPullRequests(owner, name, skipCache),
-  );
-  ipcMain.handle(
-    GET_ISSUE_DETAIL_CHANNEL,
-    (_event, owner: string, name: string, issueNumber: number) =>
-      getRepositoryIssueDetail(owner, name, issueNumber),
-  );
-  ipcMain.handle(
-    GET_PULL_REQUEST_DETAIL_CHANNEL,
-    (_event, owner: string, name: string, prNumber: number) =>
-      getRepositoryPullRequestDetail(owner, name, prNumber),
   );
   ipcMain.handle(
     VALIDATE_LOCAL_GIT_REPO_CHANNEL,

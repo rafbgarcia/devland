@@ -119,6 +119,9 @@ export function ProjectPullRequestsFeed() {
   const repoDetails = useProjectRepoDetailsState();
   const [selectedPrNumber, setSelectedPrNumber] = useState<number | null>(null);
   const [reviewPr, setReviewPr] = useState<PrReviewDialogPr | null>(null);
+  const selectedPr = feedState.status === 'ready'
+    ? feedState.data.items.find((item) => item.number === selectedPrNumber) ?? null
+    : null;
 
   const handleReview = (item: ProjectPullRequestFeedItem) => {
     setReviewPr({
@@ -160,14 +163,11 @@ export function ProjectPullRequestsFeed() {
         definition={pullRequestFeedDefinition}
       />
       <PullRequestDetailDrawer
+        pr={selectedPr}
         prNumber={selectedPrNumber}
         onClose={() => setSelectedPrNumber(null)}
         onReview={() => {
-          if (selectedPrNumber === null) return;
-          const item = feedState.status === 'ready'
-            ? feedState.data.items.find((i) => i.number === selectedPrNumber)
-            : undefined;
-          if (item) handleReview(item);
+          if (selectedPr) handleReview(selectedPr);
         }}
       />
       {repoDetails.status === 'ready' && (

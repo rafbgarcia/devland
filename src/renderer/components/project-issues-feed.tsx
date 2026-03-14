@@ -54,6 +54,9 @@ function IssueFeedItem({
 export function ProjectIssuesFeed() {
   const { refetch, isRefetching, ...feedState } = useProjectIssues();
   const [selectedIssueNumber, setSelectedIssueNumber] = useState<number | null>(null);
+  const selectedIssue = feedState.status === 'ready'
+    ? feedState.data.items.find((item) => item.number === selectedIssueNumber) ?? null
+    : null;
 
   const issueFeedDefinition: ProjectFeedDefinition<ProjectIssueFeed> = {
     loadingMessage: 'Fetching issues from GitHub',
@@ -84,6 +87,7 @@ export function ProjectIssuesFeed() {
         definition={issueFeedDefinition}
       />
       <IssueDetailDrawer
+        issue={selectedIssue}
         issueNumber={selectedIssueNumber}
         onClose={() => setSelectedIssueNumber(null)}
       />
