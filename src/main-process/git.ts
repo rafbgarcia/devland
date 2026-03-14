@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { execFile, spawn } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -5,10 +6,14 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 
 import {
+  CreateGitWorktreeResultSchema,
+  PromoteGitWorktreeBranchResultSchema,
   RepoDetailsSchema,
+  type CreateGitWorktreeResult,
   type GitBranch,
   type GitFileStatus,
   type GitStatus,
+  type PromoteGitWorktreeBranchResult,
   type RepoDetails,
 } from '../ipc/contracts';
 
@@ -228,6 +233,75 @@ const parseGitFileStatus = (xy: string): GitFileStatus => {
   return 'modified';
 };
 
+const CODEX_WORKTREE_BRANCH_PREFIX = 'codex';
+const TEMPORARY_WORKTREE_BRANCH_PATTERN = /^codex\/[0-9a-f]{8}$/;
+
+const sanitizeBranchForDirectory = (branchName: string): string =>
+  branchName.replace(/[\\/]+/g, '-');
+
+const buildWorktreeBasePath = (repoPath: string): string =>
+  path.join(
+    homedir(),
+    '.devland',
+    'worktrees',
+    path.basename(repoPath) || 'repo',
+  );
+
+const branchExists = async (repoPath: string, branchName: string): Promise<boolean> => {
+  try {
+    await execFileAsync(
+      'git',
+      ['-C', repoPath, 'show-ref', '--verify', '--quiet', `refs/heads/${branchName}`],
+      getGitExecOptions(),
+    );
+
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const createTemporaryWorktreeBranchName = async (repoPath: string): Promise<string> => {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const candidate = `${CODEX_WORKTREE_BRANCH_PREFIX}/${randomBytes(4).toString('hex')}`;
+
+    if (!(await branchExists(repoPath, candidate))) {
+      return candidate;
+    }
+  }
+
+  throw new Error('Could not allocate a temporary worktree branch name.');
+};
+
+const slugifyBranchName = (value: string): string => {
+  const slug = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48);
+
+  return slug || 'task';
+};
+
+const resolveUniqueBranchName = async (
+  repoPath: string,
+  branchName: string,
+): Promise<string> => {
+  if (!(await branchExists(repoPath, branchName))) {
+    return branchName;
+  }
+
+  for (let suffix = 1; suffix <= 100; suffix += 1) {
+    const candidate = `${branchName}-${suffix}`;
+
+    if (!(await branchExists(repoPath, candidate))) {
+      return candidate;
+    }
+  }
+
+  throw new Error('Could not allocate a unique promoted worktree branch name.');
+};
+
 export const getGitBranches = async (repoPath: string): Promise<GitBranch[]> => {
   const { stdout } = await execFileAsync(
     'git',
@@ -345,5 +419,55 @@ export const getGitFileDiff = async (
         resolve(diffOutput || '');
       },
     );
+  });
+};
+
+export const createGitWorktree = async (
+  repoPath: string,
+  baseBranch: string,
+): Promise<CreateGitWorktreeResult> => {
+  const branch = await createTemporaryWorktreeBranchName(repoPath);
+  const basePath = buildWorktreeBasePath(repoPath);
+  const directoryName = sanitizeBranchForDirectory(branch);
+  const targetPath = path.join(basePath, directoryName);
+
+  mkdirSync(basePath, { recursive: true });
+
+  await execFileAsync(
+    'git',
+    ['-C', repoPath, 'worktree', 'add', '-b', branch, targetPath, baseBranch],
+    getGitExecOptions(),
+  );
+
+  return CreateGitWorktreeResultSchema.parse({
+    cwd: targetPath,
+    branch,
+  });
+};
+
+export const promoteGitWorktreeBranch = async (
+  repoPath: string,
+  currentBranch: string,
+  prompt: string,
+): Promise<PromoteGitWorktreeBranchResult> => {
+  if (!TEMPORARY_WORKTREE_BRANCH_PATTERN.test(currentBranch)) {
+    return PromoteGitWorktreeBranchResultSchema.parse({
+      branch: currentBranch,
+    });
+  }
+
+  const desiredBaseBranch = `${CODEX_WORKTREE_BRANCH_PREFIX}/${slugifyBranchName(prompt)}`;
+  const nextBranch = await resolveUniqueBranchName(repoPath, desiredBaseBranch);
+
+  if (nextBranch !== currentBranch) {
+    await execFileAsync(
+      'git',
+      ['-C', repoPath, 'branch', '-m', nextBranch],
+      getGitExecOptions(),
+    );
+  }
+
+  return PromoteGitWorktreeBranchResultSchema.parse({
+    branch: nextBranch,
   });
 };

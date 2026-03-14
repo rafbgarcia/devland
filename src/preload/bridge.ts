@@ -3,6 +3,8 @@ import { ipcRenderer } from 'electron';
 import {
   APP_SHORTCUT_COMMAND_CHANNEL,
   AppShortcutCommandSchema,
+  CODEX_SESSION_EVENT_CHANNEL,
+  CodexSessionEventSchema,
   GET_APP_BOOTSTRAP_CHANNEL,
   GET_ISSUE_DETAIL_CHANNEL,
   GET_PULL_REQUEST_DETAIL_CHANNEL,
@@ -17,7 +19,14 @@ import {
   GET_GIT_STATUS_CHANNEL,
   CHECKOUT_GIT_BRANCH_CHANNEL,
   GET_GIT_FILE_DIFF_CHANNEL,
+  CREATE_GIT_WORKTREE_CHANNEL,
+  PROMOTE_GIT_WORKTREE_BRANCH_CHANNEL,
   GENERATE_PR_REVIEW_CHANNEL,
+  INTERRUPT_CODEX_SESSION_CHANNEL,
+  RESPOND_TO_CODEX_APPROVAL_CHANNEL,
+  RESPOND_TO_CODEX_USER_INPUT_CHANNEL,
+  SEND_CODEX_SESSION_PROMPT_CHANNEL,
+  STOP_CODEX_SESSION_CHANNEL,
   type ElectronApi,
 } from '@/ipc/contracts';
 
@@ -65,8 +74,44 @@ export const electronApi: ElectronApi = {
     ipcRenderer.invoke(CHECKOUT_GIT_BRANCH_CHANNEL, repoPath, branchName),
   getGitFileDiff: (repoPath, filePath) =>
     ipcRenderer.invoke(GET_GIT_FILE_DIFF_CHANNEL, repoPath, filePath),
+  createGitWorktree: (repoPath, baseBranch) =>
+    ipcRenderer.invoke(CREATE_GIT_WORKTREE_CHANNEL, repoPath, baseBranch),
+  promoteGitWorktreeBranch: (repoPath, currentBranch, prompt) =>
+    ipcRenderer.invoke(
+      PROMOTE_GIT_WORKTREE_BRANCH_CHANNEL,
+      repoPath,
+      currentBranch,
+      prompt,
+    ),
   generatePrReview: (owner, name, prNumber, repoPath) =>
     ipcRenderer.invoke(GENERATE_PR_REVIEW_CHANNEL, owner, name, prNumber, repoPath),
+  sendCodexSessionPrompt: (input) =>
+    ipcRenderer.invoke(SEND_CODEX_SESSION_PROMPT_CHANNEL, input),
+  interruptCodexSession: (sessionId) =>
+    ipcRenderer.invoke(INTERRUPT_CODEX_SESSION_CHANNEL, sessionId),
+  stopCodexSession: (sessionId) =>
+    ipcRenderer.invoke(STOP_CODEX_SESSION_CHANNEL, sessionId),
+  respondToCodexApproval: (input) =>
+    ipcRenderer.invoke(RESPOND_TO_CODEX_APPROVAL_CHANNEL, input),
+  respondToCodexUserInput: (input) =>
+    ipcRenderer.invoke(RESPOND_TO_CODEX_USER_INPUT_CHANNEL, input),
+  onCodexSessionEvent: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, event: unknown) => {
+      const parsedEvent = CodexSessionEventSchema.safeParse(event);
+
+      if (!parsedEvent.success) {
+        return;
+      }
+
+      listener(parsedEvent.data);
+    };
+
+    ipcRenderer.on(CODEX_SESSION_EVENT_CHANNEL, handler);
+
+    return () => {
+      ipcRenderer.removeListener(CODEX_SESSION_EVENT_CHANNEL, handler);
+    };
+  },
   onAppShortcutCommand: (listener) => {
     const handleShortcutCommand = (
       _event: Electron.IpcRendererEvent,

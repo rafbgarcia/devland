@@ -15,7 +15,15 @@ export const GET_GIT_BRANCHES_CHANNEL = 'app:get-git-branches';
 export const GET_GIT_STATUS_CHANNEL = 'app:get-git-status';
 export const CHECKOUT_GIT_BRANCH_CHANNEL = 'app:checkout-git-branch';
 export const GET_GIT_FILE_DIFF_CHANNEL = 'app:get-git-file-diff';
+export const CREATE_GIT_WORKTREE_CHANNEL = 'app:create-git-worktree';
+export const PROMOTE_GIT_WORKTREE_BRANCH_CHANNEL = 'app:promote-git-worktree-branch';
 export const GENERATE_PR_REVIEW_CHANNEL = 'app:generate-pr-review';
+export const SEND_CODEX_SESSION_PROMPT_CHANNEL = 'app:send-codex-session-prompt';
+export const INTERRUPT_CODEX_SESSION_CHANNEL = 'app:interrupt-codex-session';
+export const STOP_CODEX_SESSION_CHANNEL = 'app:stop-codex-session';
+export const RESPOND_TO_CODEX_APPROVAL_CHANNEL = 'app:respond-to-codex-approval';
+export const RESPOND_TO_CODEX_USER_INPUT_CHANNEL = 'app:respond-to-codex-user-input';
+export const CODEX_SESSION_EVENT_CHANNEL = 'app:codex-session-event';
 
 export const PROJECT_VIEW_TABS = [
   'code',
@@ -161,6 +169,124 @@ export const GitStatusSchema = z.object({
 });
 export type GitStatus = z.infer<typeof GitStatusSchema>;
 
+export const CODE_TARGET_KINDS = ['root', 'session', 'worktree'] as const;
+export const CodeTargetKindSchema = z.enum(CODE_TARGET_KINDS);
+export type CodeTargetKind = z.infer<typeof CodeTargetKindSchema>;
+
+export const CodeTargetSchema = z.object({
+  id: z.string().min(1),
+  repoId: z.string().min(1),
+  kind: CodeTargetKindSchema,
+  cwd: z.string().min(1),
+  title: z.string().min(1),
+  createdAt: z.string().min(1),
+});
+export type CodeTarget = z.infer<typeof CodeTargetSchema>;
+
+export const CreateGitWorktreeResultSchema = z.object({
+  cwd: z.string().min(1),
+  branch: z.string().min(1),
+});
+export type CreateGitWorktreeResult = z.infer<typeof CreateGitWorktreeResultSchema>;
+
+export const PromoteGitWorktreeBranchResultSchema = z.object({
+  branch: z.string().min(1),
+});
+export type PromoteGitWorktreeBranchResult = z.infer<typeof PromoteGitWorktreeBranchResultSchema>;
+
+export const CodexSessionStatusSchema = z.enum([
+  'connecting',
+  'ready',
+  'running',
+  'error',
+  'closed',
+]);
+export type CodexSessionStatus = z.infer<typeof CodexSessionStatusSchema>;
+
+export const CodexApprovalKindSchema = z.enum([
+  'command',
+  'file-change',
+  'permissions',
+  'generic',
+]);
+export type CodexApprovalKind = z.infer<typeof CodexApprovalKindSchema>;
+
+export const CodexApprovalDecisionSchema = z.enum(['accept', 'acceptForSession', 'decline', 'cancel']);
+export type CodexApprovalDecision = z.infer<typeof CodexApprovalDecisionSchema>;
+
+export const CodexUserInputQuestionOptionSchema = z.object({
+  label: z.string().min(1),
+  description: z.string().min(1),
+});
+export type CodexUserInputQuestionOption = z.infer<typeof CodexUserInputQuestionOptionSchema>;
+
+export const CodexUserInputQuestionSchema = z.object({
+  id: z.string().min(1),
+  header: z.string().min(1),
+  question: z.string().min(1),
+  options: z.array(CodexUserInputQuestionOptionSchema).min(1),
+});
+export type CodexUserInputQuestion = z.infer<typeof CodexUserInputQuestionSchema>;
+
+export const CodexSessionEventSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('state'),
+    sessionId: z.string().min(1),
+    status: CodexSessionStatusSchema,
+    threadId: z.string().min(1).nullable().optional(),
+    turnId: z.string().min(1).nullable().optional(),
+    message: z.string().min(1).nullable().optional(),
+  }),
+  z.object({
+    type: z.literal('assistant-delta'),
+    sessionId: z.string().min(1),
+    itemId: z.string().min(1).nullable().optional(),
+    text: z.string(),
+  }),
+  z.object({
+    type: z.literal('activity'),
+    sessionId: z.string().min(1),
+    tone: z.enum(['info', 'tool', 'error']),
+    label: z.string().min(1),
+    detail: z.string().nullable().optional(),
+  }),
+  z.object({
+    type: z.literal('approval-requested'),
+    sessionId: z.string().min(1),
+    requestId: z.string().min(1),
+    kind: CodexApprovalKindSchema,
+    title: z.string().min(1),
+    detail: z.string().nullable().optional(),
+    command: z.string().nullable().optional(),
+    cwd: z.string().nullable().optional(),
+  }),
+  z.object({
+    type: z.literal('approval-resolved'),
+    sessionId: z.string().min(1),
+    requestId: z.string().min(1),
+    decision: CodexApprovalDecisionSchema,
+  }),
+  z.object({
+    type: z.literal('user-input-requested'),
+    sessionId: z.string().min(1),
+    requestId: z.string().min(1),
+    questions: z.array(CodexUserInputQuestionSchema).min(1),
+  }),
+  z.object({
+    type: z.literal('user-input-resolved'),
+    sessionId: z.string().min(1),
+    requestId: z.string().min(1),
+  }),
+  z.object({
+    type: z.literal('turn-completed'),
+    sessionId: z.string().min(1),
+    turnId: z.string().min(1).nullable().optional(),
+    status: z.enum(['completed', 'failed', 'interrupted', 'cancelled']),
+    error: z.string().nullable().optional(),
+  }),
+]);
+export type CodexSessionEvent = z.infer<typeof CodexSessionEventSchema>;
+
 export const IssueDetailCommentSchema = z.object({
   id: z.string().min(1),
   bodyHTML: z.string(),
@@ -255,5 +381,29 @@ export interface ElectronApi {
   getGitStatus: (repoPath: string) => Promise<GitStatus>;
   checkoutGitBranch: (repoPath: string, branchName: string) => Promise<void>;
   getGitFileDiff: (repoPath: string, filePath: string) => Promise<string>;
+  createGitWorktree: (repoPath: string, baseBranch: string) => Promise<CreateGitWorktreeResult>;
+  promoteGitWorktreeBranch: (
+    repoPath: string,
+    currentBranch: string,
+    prompt: string,
+  ) => Promise<PromoteGitWorktreeBranchResult>;
   generatePrReview: (owner: string, name: string, prNumber: number, repoPath: string) => Promise<PrReview>;
+  sendCodexSessionPrompt: (input: {
+    sessionId: string;
+    cwd: string;
+    prompt: string;
+  }) => Promise<void>;
+  interruptCodexSession: (sessionId: string) => Promise<void>;
+  stopCodexSession: (sessionId: string) => Promise<void>;
+  respondToCodexApproval: (input: {
+    sessionId: string;
+    requestId: string;
+    decision: CodexApprovalDecision;
+  }) => Promise<void>;
+  respondToCodexUserInput: (input: {
+    sessionId: string;
+    requestId: string;
+    answers: Record<string, string>;
+  }) => Promise<void>;
+  onCodexSessionEvent: (listener: (event: CodexSessionEvent) => void) => () => void;
 }

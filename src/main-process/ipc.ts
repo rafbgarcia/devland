@@ -1,6 +1,7 @@
 import { dialog, ipcMain, type BrowserWindow, type IpcMainInvokeEvent, type OpenDialogOptions } from 'electron';
 
 import {
+  CODEX_SESSION_EVENT_CHANNEL,
   GET_APP_BOOTSTRAP_CHANNEL,
   GET_ISSUE_DETAIL_CHANNEL,
   GET_PULL_REQUEST_DETAIL_CHANNEL,
@@ -15,9 +16,18 @@ import {
   GET_GIT_STATUS_CHANNEL,
   CHECKOUT_GIT_BRANCH_CHANNEL,
   GET_GIT_FILE_DIFF_CHANNEL,
+  CREATE_GIT_WORKTREE_CHANNEL,
+  PROMOTE_GIT_WORKTREE_BRANCH_CHANNEL,
   GENERATE_PR_REVIEW_CHANNEL,
+  INTERRUPT_CODEX_SESSION_CHANNEL,
+  RESPOND_TO_CODEX_APPROVAL_CHANNEL,
+  RESPOND_TO_CODEX_USER_INPUT_CHANNEL,
+  SEND_CODEX_SESSION_PROMPT_CHANNEL,
+  STOP_CODEX_SESSION_CHANNEL,
   type AppBootstrap,
+  type CodexApprovalDecision,
 } from '../ipc/contracts';
+import { codexAppServerManager } from './codex-app-server';
 import { codexExecutable } from './codex-cli';
 import { generatePrReview } from './codex-use-cases/pr-review';
 import { ghExecutable } from './gh-cli';
@@ -28,11 +38,13 @@ import { getRepositoryPullRequests } from './gh-queries/pull-requests';
 import { getGhUser } from './gh-queries/user';
 import {
   checkoutGitBranch,
+  createGitWorktree,
   cloneGithubRepo,
   getGitBranches,
   getGitFileDiff,
   getGitStatus,
   getGithubRepoDetails,
+  promoteGitWorktreeBranch,
   validateLocalGitRepository,
 } from './git';
 
@@ -64,6 +76,10 @@ const pickRepoDirectory = async (
 export const registerAppIpcHandlers = (
   getMainWindow: () => BrowserWindow | null,
 ): void => {
+  codexAppServerManager.on('event', (event) => {
+    getMainWindow()?.webContents.send(CODEX_SESSION_EVENT_CHANNEL, event);
+  });
+
   ipcMain.handle(GET_APP_BOOTSTRAP_CHANNEL, () => getAppBootstrap());
   ipcMain.handle(PICK_REPO_DIRECTORY_CHANNEL, () =>
     pickRepoDirectory(getMainWindow()),
@@ -128,6 +144,16 @@ export const registerAppIpcHandlers = (
       getGitFileDiff(repoPath, filePath),
   );
   ipcMain.handle(
+    CREATE_GIT_WORKTREE_CHANNEL,
+    (_event, repoPath: string, baseBranch: string) =>
+      createGitWorktree(repoPath, baseBranch),
+  );
+  ipcMain.handle(
+    PROMOTE_GIT_WORKTREE_BRANCH_CHANNEL,
+    (_event, repoPath: string, currentBranch: string, prompt: string) =>
+      promoteGitWorktreeBranch(repoPath, currentBranch, prompt),
+  );
+  ipcMain.handle(
     GENERATE_PR_REVIEW_CHANNEL,
     (_event, owner: string, name: string, prNumber: number, repoPath: string) => {
       if (ghExecutable === null) {
@@ -139,5 +165,42 @@ export const registerAppIpcHandlers = (
 
       return generatePrReview(codexExecutable, ghExecutable, owner, name, prNumber, repoPath);
     },
+  );
+  ipcMain.handle(
+    SEND_CODEX_SESSION_PROMPT_CHANNEL,
+    (_event, input: { sessionId: string; cwd: string; prompt: string }) =>
+      codexAppServerManager.sendPrompt(input.sessionId, input.cwd, input.prompt),
+  );
+  ipcMain.handle(
+    INTERRUPT_CODEX_SESSION_CHANNEL,
+    (_event, sessionId: string) => codexAppServerManager.interruptSession(sessionId),
+  );
+  ipcMain.handle(
+    STOP_CODEX_SESSION_CHANNEL,
+    (_event, sessionId: string) => codexAppServerManager.stopSession(sessionId),
+  );
+  ipcMain.handle(
+    RESPOND_TO_CODEX_APPROVAL_CHANNEL,
+    (
+      _event,
+      input: { sessionId: string; requestId: string; decision: CodexApprovalDecision },
+    ) =>
+      codexAppServerManager.respondToApproval(
+        input.sessionId,
+        input.requestId,
+        input.decision,
+      ),
+  );
+  ipcMain.handle(
+    RESPOND_TO_CODEX_USER_INPUT_CHANNEL,
+    (
+      _event,
+      input: { sessionId: string; requestId: string; answers: Record<string, string> },
+    ) =>
+      codexAppServerManager.respondToUserInput(
+        input.sessionId,
+        input.requestId,
+        input.answers,
+      ),
   );
 };

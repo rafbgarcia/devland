@@ -86,8 +86,7 @@ export function useGitFileDiff(repoPath: string, filePath: string | null) {
     error: null,
   });
   const fetchIdRef = useRef(0);
-
-  useEffect(() => {
+  const fetchDiff = useCallback(async () => {
     if (filePath === null) {
       fetchIdRef.current += 1;
       setState({ status: 'loading', data: null, error: null });
@@ -99,23 +98,26 @@ export function useGitFileDiff(repoPath: string, filePath: string | null) {
 
     setState({ status: 'loading', data: null, error: null });
 
-    void window.electronAPI
-      .getGitFileDiff(repoPath, filePath)
-      .then((diff) => {
-        if (fetchIdRef.current !== fetchId) return;
+    try {
+      const diff = await window.electronAPI.getGitFileDiff(repoPath, filePath);
 
-        setState({ status: 'ready', data: diff, error: null });
-      })
-      .catch((error: unknown) => {
-        if (fetchIdRef.current !== fetchId) return;
+      if (fetchIdRef.current !== fetchId) return;
 
-        setState({
-          status: 'error',
-          data: null,
-          error: error instanceof Error ? error.message : 'Failed to load diff.',
-        });
+      setState({ status: 'ready', data: diff, error: null });
+    } catch (error) {
+      if (fetchIdRef.current !== fetchId) return;
+
+      setState({
+        status: 'error',
+        data: null,
+        error: error instanceof Error ? error.message : 'Failed to load diff.',
       });
-  }, [repoPath, filePath]);
+    }
+  }, [filePath, repoPath]);
 
-  return state;
+  useEffect(() => {
+    void fetchDiff();
+  }, [fetchDiff]);
+
+  return { ...state, refetch: fetchDiff };
 }

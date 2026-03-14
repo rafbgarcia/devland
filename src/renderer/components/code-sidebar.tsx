@@ -1,9 +1,7 @@
 import { useMemo, useState } from 'react';
 
 import {
-  ArrowUpIcon,
   CheckIcon,
-  CircleDotIcon,
   GitBranchIcon,
   SearchIcon,
 } from 'lucide-react';
@@ -11,7 +9,6 @@ import {
 import type { GitBranch, GitFileStatus, GitStatusFile } from '@/ipc/contracts';
 import { Input } from '@/shadcn/components/ui/input';
 import { Spinner } from '@/shadcn/components/ui/spinner';
-import { Textarea } from '@/shadcn/components/ui/textarea';
 import { cn } from '@/shadcn/lib/utils';
 
 const FILE_STATUS_BADGE: Record<
@@ -181,32 +178,6 @@ function FileStatusList({
   );
 }
 
-function AiChatInput() {
-  return (
-    <div className="flex flex-col gap-2 border-t border-border p-3">
-      <div className="relative">
-        <Textarea
-          className="min-h-10 resize-none pr-10 text-xs"
-          placeholder="Ask AI anything..."
-          rows={2}
-          disabled
-        />
-        <button
-          className="absolute right-2 bottom-2 flex size-6 items-center justify-center rounded-full bg-foreground text-background transition-opacity disabled:opacity-30"
-          disabled
-          type="button"
-        >
-          <ArrowUpIcon className="size-3.5" />
-        </button>
-      </div>
-      <div className="flex items-center text-[10px] text-muted-foreground">
-        <CircleDotIcon className="mr-1 size-2.5" />
-        Coming soon
-      </div>
-    </div>
-  );
-}
-
 export function CodeSidebar({
   branches,
   isBranchesLoading,
@@ -286,9 +257,6 @@ export function CodeSidebar({
           />
         )}
       </div>
-
-      {/* AI chat */}
-      <AiChatInput />
     </div>
   );
 }
