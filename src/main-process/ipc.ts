@@ -19,6 +19,10 @@ import {
   CREATE_GIT_WORKTREE_CHANNEL,
   PROMOTE_GIT_WORKTREE_BRANCH_CHANNEL,
   GENERATE_PR_REVIEW_CHANNEL,
+  SYNC_REPO_REVIEW_REFS_CHANNEL,
+  GET_PR_DIFF_META_CHANNEL,
+  GET_COMMIT_DIFF_CHANNEL,
+  GET_PR_DIFF_CHANNEL,
   INTERRUPT_CODEX_SESSION_CHANNEL,
   RESPOND_TO_CODEX_APPROVAL_CHANNEL,
   RESPOND_TO_CODEX_USER_INPUT_CHANNEL,
@@ -40,11 +44,15 @@ import {
   checkoutGitBranch,
   createGitWorktree,
   cloneGithubRepo,
+  getCommitDiff,
   getGitBranches,
   getGitFileDiff,
   getGitStatus,
   getGithubRepoDetails,
+  getPrDiff,
+  getPrDiffMeta,
   promoteGitWorktreeBranch,
+  syncRepoReviewRefs,
   validateLocalGitRepository,
 } from './git';
 
@@ -155,16 +163,38 @@ export const registerAppIpcHandlers = (
   );
   ipcMain.handle(
     GENERATE_PR_REVIEW_CHANNEL,
-    (_event, owner: string, name: string, prNumber: number, repoPath: string) => {
-      if (ghExecutable === null) {
-        throw new Error('GitHub CLI is not available on this machine.');
-      }
+    (_event, repoPath: string, prNumber: number, title: string) => {
       if (codexExecutable === null) {
         throw new Error('Codex CLI is not installed. Install it from https://codex.openai.com');
       }
 
-      return generatePrReview(codexExecutable, ghExecutable, owner, name, prNumber, repoPath);
+      return generatePrReview(codexExecutable, repoPath, prNumber, title);
     },
+  );
+  ipcMain.handle(
+    GET_PR_DIFF_META_CHANNEL,
+    (_event, repoPath: string, prNumber: number) =>
+      getPrDiffMeta(repoPath, prNumber),
+  );
+  ipcMain.handle(
+    SYNC_REPO_REVIEW_REFS_CHANNEL,
+    (_event, repoPath: string, owner: string, name: string) => {
+      if (ghExecutable === null) {
+        throw new Error('GitHub CLI is not available on this machine.');
+      }
+
+      return syncRepoReviewRefs(repoPath, ghExecutable, owner, name);
+    },
+  );
+  ipcMain.handle(
+    GET_COMMIT_DIFF_CHANNEL,
+    (_event, repoPath: string, commitSha: string) =>
+      getCommitDiff(repoPath, commitSha),
+  );
+  ipcMain.handle(
+    GET_PR_DIFF_CHANNEL,
+    (_event, repoPath: string, prNumber: number) =>
+      getPrDiff(repoPath, prNumber),
   );
   ipcMain.handle(
     SEND_CODEX_SESSION_PROMPT_CHANNEL,

@@ -1,65 +1,29 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-
 import {
   PrReviewSchema,
   PrReviewStepSchema,
   type PrReview,
 } from '../../ipc/contracts';
 import { runCodexStructuredOutput } from '../codex-cli';
+import { getPrDiff, getPrDiffMeta, splitDiffByFile } from '../git';
 import { z } from 'zod';
-
-const execFileAsync = promisify(execFile);
 
 const PrReviewCodexOutputSchema = z.object({
   steps: z.array(PrReviewStepSchema),
 });
 
-const PrReviewMetadataSchema = z.object({
+const PrReviewPromptMetadataSchema = z.object({
+  prNumber: z.number().int().positive(),
   title: z.string().min(1),
-  body: z.string(),
   headRefName: z.string().min(1),
   baseRefName: z.string().min(1),
 });
 
-const getGhExecOptions = () => ({
-  env: {
-    ...process.env,
-    GH_PROMPT_DISABLED: '1',
-  },
-  timeout: 30000,
-  windowsHide: true,
-});
-
-const splitDiffByFile = (rawDiff: string): Record<string, string> => {
-  const fileDiffs: Record<string, string> = {};
-  const fileSections = rawDiff.split(/^(?=diff --git )/m);
-
-  for (const section of fileSections) {
-    if (!section.startsWith('diff --git ')) {
-      continue;
-    }
-
-    const headerMatch = section.match(/^diff --git a\/.+ b\/(.+)$/m);
-
-    if (!headerMatch) {
-      continue;
-    }
-
-    fileDiffs[headerMatch[1]!] = section;
-  }
-
-  return fileDiffs;
-};
-
 const buildReviewPrompt = ({
+  prNumber,
   title,
-  body,
   headRefName,
   baseRefName,
-}: z.infer<typeof PrReviewMetadataSchema>): string => {
-  const prDescription = body.trim();
-
+}: z.infer<typeof PrReviewPromptMetadataSchema>): string => {
   return `
 Your task is to explain a pull request's code changes.
 Focus on grouping logical/user-value changes and explaining in a way that's easy to digest and understand in sequence.
@@ -68,10 +32,8 @@ It's often easier to understand when reviews start from an end-user's perspectiv
 # PR details
 
 Title: ${title}
-- Base branch: origin/${baseRefName}
-- Head branch: origin/${headRefName}
-
-${prDescription ? `Description: ${prDescription}\n` : ''}
+- Base snapshot: refs/remotes/origin/${baseRefName}
+- Head snapshot: refs/devland/pr/${prNumber}/head (${headRefName})
 
 # Rules:
 - YOU MAY use git readonly operations to inspect the branch, file diffs, commits, etc.
@@ -86,58 +48,27 @@ ${prDescription ? `Description: ${prDescription}\n` : ''}
 `;
 };
 
-const getPrReviewMetadata = async (
-  ghExec: string,
-  repo: string,
-  prNumber: number,
-) => {
-  const { stdout } = await execFileAsync(
-    ghExec,
-    [
-      'pr',
-      'view',
-      String(prNumber),
-      '--repo',
-      repo,
-      '--json',
-      'title,body,headRefName,baseRefName',
-    ],
-    getGhExecOptions(),
-  );
-
-  return PrReviewMetadataSchema.parse(JSON.parse(stdout.trim()));
-};
-
-const getPrRawDiff = async (
-  ghExec: string,
-  repo: string,
-  prNumber: number,
-): Promise<string> => {
-  const { stdout } = await execFileAsync(
-    ghExec,
-    ['pr', 'diff', String(prNumber), '--repo', repo],
-    {
-      ...getGhExecOptions(),
-      maxBuffer: 10 * 1024 * 1024,
-    },
-  );
-
-  return stdout;
-};
-
 export async function generatePrReview(
   codexExec: string,
-  ghExec: string,
-  owner: string,
-  name: string,
-  prNumber: number,
   repoPath: string,
+  prNumber: number,
+  title: string,
 ): Promise<PrReview> {
-  const repo = `${owner}/${name}`;
   const startTime = Date.now();
-  const rawDiffPromise = getPrRawDiff(ghExec, repo, prNumber);
-  const metadata = await getPrReviewMetadata(ghExec, repo, prNumber);
-  const prompt = buildReviewPrompt(metadata);
+  const localMeta = await getPrDiffMeta(repoPath, prNumber);
+
+  if (localMeta.status !== 'ready') {
+    throw new Error('No local PR snapshot is available yet.');
+  }
+
+  const prompt = buildReviewPrompt(
+    PrReviewPromptMetadataSchema.parse({
+      prNumber,
+      title,
+      baseRefName: localMeta.baseBranch,
+      headRefName: localMeta.headBranch,
+    }),
+  );
 
   const reviewOutputPromise = runCodexStructuredOutput(codexExec, {
     cwd: repoPath,
@@ -146,7 +77,7 @@ export async function generatePrReview(
   });
 
   const [rawDiff, reviewOutput] = await Promise.all([
-    rawDiffPromise,
+    getPrDiff(repoPath, prNumber),
     reviewOutputPromise,
   ]);
 

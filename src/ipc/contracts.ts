@@ -18,12 +18,16 @@ export const GET_GIT_FILE_DIFF_CHANNEL = 'app:get-git-file-diff';
 export const CREATE_GIT_WORKTREE_CHANNEL = 'app:create-git-worktree';
 export const PROMOTE_GIT_WORKTREE_BRANCH_CHANNEL = 'app:promote-git-worktree-branch';
 export const GENERATE_PR_REVIEW_CHANNEL = 'app:generate-pr-review';
+export const SYNC_REPO_REVIEW_REFS_CHANNEL = 'app:sync-repo-review-refs';
 export const SEND_CODEX_SESSION_PROMPT_CHANNEL = 'app:send-codex-session-prompt';
 export const INTERRUPT_CODEX_SESSION_CHANNEL = 'app:interrupt-codex-session';
 export const STOP_CODEX_SESSION_CHANNEL = 'app:stop-codex-session';
 export const RESPOND_TO_CODEX_APPROVAL_CHANNEL = 'app:respond-to-codex-approval';
 export const RESPOND_TO_CODEX_USER_INPUT_CHANNEL = 'app:respond-to-codex-user-input';
 export const CODEX_SESSION_EVENT_CHANNEL = 'app:codex-session-event';
+export const GET_PR_DIFF_META_CHANNEL = 'app:get-pr-diff-meta';
+export const GET_COMMIT_DIFF_CHANNEL = 'app:get-commit-diff';
+export const GET_PR_DIFF_CHANNEL = 'app:get-pr-diff';
 
 export const PROJECT_VIEW_TABS = [
   'code',
@@ -337,6 +341,37 @@ export const PullRequestDetailSchema = z.object({
 });
 export type PullRequestDetail = z.infer<typeof PullRequestDetailSchema>;
 
+export const PrCommitSchema = z.object({
+  sha: z.string().min(1),
+  shortSha: z.string().min(1),
+  title: z.string(),
+  body: z.string(),
+  authorName: z.string(),
+  authorDate: z.string(),
+});
+export type PrCommit = z.infer<typeof PrCommitSchema>;
+
+export const PrDiffMetaSchema = z.object({
+  status: z.literal('ready'),
+  baseBranch: z.string().min(1),
+  headBranch: z.string().min(1),
+  commits: z.array(PrCommitSchema),
+});
+export type PrDiffMeta = z.infer<typeof PrDiffMetaSchema>;
+
+export const PrDiffMetaMissingSchema = z.object({
+  status: z.literal('missing'),
+  reason: z.enum(['missing-snapshot', 'missing-refs']),
+  message: z.string().min(1),
+});
+export type PrDiffMetaMissing = z.infer<typeof PrDiffMetaMissingSchema>;
+
+export const PrDiffMetaResultSchema = z.discriminatedUnion('status', [
+  PrDiffMetaSchema,
+  PrDiffMetaMissingSchema,
+]);
+export type PrDiffMetaResult = z.infer<typeof PrDiffMetaResultSchema>;
+
 export const PrReviewStepSchema = z.object({
   order: z.number().int().positive(),
   description: z.string().min(1),
@@ -387,7 +422,11 @@ export interface ElectronApi {
     currentBranch: string,
     prompt: string,
   ) => Promise<PromoteGitWorktreeBranchResult>;
-  generatePrReview: (owner: string, name: string, prNumber: number, repoPath: string) => Promise<PrReview>;
+  generatePrReview: (repoPath: string, prNumber: number, title: string) => Promise<PrReview>;
+  getPrDiffMeta: (repoPath: string, prNumber: number) => Promise<PrDiffMetaResult>;
+  syncRepoReviewRefs: (repoPath: string, owner: string, name: string) => Promise<void>;
+  getCommitDiff: (repoPath: string, commitSha: string) => Promise<string>;
+  getPrDiff: (repoPath: string, prNumber: number) => Promise<string>;
   sendCodexSessionPrompt: (input: {
     sessionId: string;
     cwd: string;

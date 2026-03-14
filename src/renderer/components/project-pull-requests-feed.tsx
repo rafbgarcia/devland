@@ -106,7 +106,14 @@ function PullRequestFeedItem({
 }
 
 export function ProjectPullRequestsFeed() {
-  const { refetch, isRefetching, ...feedState } = useProjectPullRequests();
+  const {
+    refetch,
+    isRefetching,
+    reviewRefsSyncState,
+    reviewRefsVersion,
+    retryReviewRefsSync,
+    ...feedState
+  } = useProjectPullRequests();
   const repoDetails = useProjectRepoDetailsState();
   const [selectedPrNumber, setSelectedPrNumber] = useState<number | null>(null);
   const [reviewPr, setReviewPr] = useState<PrReviewDialogPr | null>(null);
@@ -159,9 +166,10 @@ export function ProjectPullRequestsFeed() {
           pr={reviewPr}
           repoId={repoDetails.data.id}
           repoPath={repoDetails.data.path}
-          owner={repoDetails.data.owner}
-          name={repoDetails.data.name}
           slug={repoDetails.data.githubSlug}
+          reviewRefsSyncState={reviewRefsSyncState}
+          reviewRefsVersion={reviewRefsVersion}
+          onRetryReviewRefsSync={retryReviewRefsSync}
           open={reviewPr !== null}
           onOpenChange={(open) => {
             if (!open) setReviewPr(null);

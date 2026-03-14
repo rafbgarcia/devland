@@ -6,23 +6,35 @@ import type { ProjectFeedStatus } from '@/renderer/components/project-workspace-
 import { useProjectRepoDetailsState } from './use-project-repo';
 
 type ProjectPullRequestsState = ProjectFeedStatus<ProjectPullRequestFeed>;
+type ReviewRefsSyncState =
+  | { status: 'idle' }
+  | { status: 'syncing' }
+  | { status: 'ready' }
+  | { status: 'error'; error: string };
 
 export function useProjectPullRequests(): ProjectPullRequestsState & {
   isRefetching: boolean;
   refetch: () => void;
+  reviewRefsSyncState: ReviewRefsSyncState;
+  reviewRefsVersion: number;
+  retryReviewRefsSync: () => void;
 } {
   const repoDetails = useProjectRepoDetailsState();
   const repoStatus = repoDetails.status;
   const repoError = repoDetails.status === 'error' ? repoDetails.error : null;
   const owner = repoDetails.status === 'ready' ? repoDetails.data.owner : null;
   const name = repoDetails.status === 'ready' ? repoDetails.data.name : null;
+  const repoPath = repoDetails.status === 'ready' ? repoDetails.data.path : null;
   const [state, setState] = useState<ProjectPullRequestsState>({
     status: 'loading',
     data: null,
     error: null,
   });
   const [isRefetching, setIsRefetching] = useState(false);
+  const [reviewRefsSyncState, setReviewRefsSyncState] = useState<ReviewRefsSyncState>({ status: 'idle' });
+  const [reviewRefsVersion, setReviewRefsVersion] = useState(0);
   const fetchIdRef = useRef(0);
+  const syncIdRef = useRef(0);
 
   const fetchPullRequests = useCallback(
     (skipCache: boolean) => {
@@ -83,13 +95,55 @@ export function useProjectPullRequests(): ProjectPullRequestsState & {
     [name, owner, repoError, repoStatus],
   );
 
+  const syncReviewRefs = useCallback(() => {
+    if (repoStatus !== 'ready' || owner === null || name === null || repoPath === null) {
+      return;
+    }
+
+    const syncId = ++syncIdRef.current;
+    setReviewRefsSyncState({ status: 'syncing' });
+
+    void window.electronAPI
+      .syncRepoReviewRefs(repoPath, owner, name)
+      .then(() => {
+        if (syncIdRef.current !== syncId) return;
+        setReviewRefsSyncState({ status: 'ready' });
+        setReviewRefsVersion((current) => current + 1);
+      })
+      .catch((error: unknown) => {
+        if (syncIdRef.current !== syncId) return;
+        setReviewRefsSyncState({
+          status: 'error',
+          error: error instanceof Error ? error.message : 'Could not sync review refs.',
+        });
+      });
+  }, [name, owner, repoPath, repoStatus]);
+
   const refetch = useCallback(() => {
     fetchPullRequests(true);
-  }, [fetchPullRequests]);
+    syncReviewRefs();
+  }, [fetchPullRequests, syncReviewRefs]);
 
   useEffect(() => {
     fetchPullRequests(false);
   }, [fetchPullRequests]);
 
-  return { ...state, isRefetching, refetch };
+  useEffect(() => {
+    if (repoStatus !== 'ready') {
+      syncIdRef.current += 1;
+      setReviewRefsSyncState({ status: 'idle' });
+      return;
+    }
+
+    syncReviewRefs();
+  }, [repoStatus, syncReviewRefs]);
+
+  return {
+    ...state,
+    isRefetching,
+    refetch,
+    reviewRefsSyncState,
+    reviewRefsVersion,
+    retryReviewRefsSync: syncReviewRefs,
+  };
 }

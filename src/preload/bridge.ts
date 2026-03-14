@@ -22,6 +22,10 @@ import {
   CREATE_GIT_WORKTREE_CHANNEL,
   PROMOTE_GIT_WORKTREE_BRANCH_CHANNEL,
   GENERATE_PR_REVIEW_CHANNEL,
+  SYNC_REPO_REVIEW_REFS_CHANNEL,
+  GET_PR_DIFF_META_CHANNEL,
+  GET_COMMIT_DIFF_CHANNEL,
+  GET_PR_DIFF_CHANNEL,
   INTERRUPT_CODEX_SESSION_CHANNEL,
   RESPOND_TO_CODEX_APPROVAL_CHANNEL,
   RESPOND_TO_CODEX_USER_INPUT_CHANNEL,
@@ -83,8 +87,16 @@ export const electronApi: ElectronApi = {
       currentBranch,
       prompt,
     ),
-  generatePrReview: (owner, name, prNumber, repoPath) =>
-    ipcRenderer.invoke(GENERATE_PR_REVIEW_CHANNEL, owner, name, prNumber, repoPath),
+  generatePrReview: (repoPath, prNumber, title) =>
+    ipcRenderer.invoke(GENERATE_PR_REVIEW_CHANNEL, repoPath, prNumber, title),
+  getPrDiffMeta: (repoPath, prNumber) =>
+    ipcRenderer.invoke(GET_PR_DIFF_META_CHANNEL, repoPath, prNumber),
+  syncRepoReviewRefs: (repoPath, owner, name) =>
+    ipcRenderer.invoke(SYNC_REPO_REVIEW_REFS_CHANNEL, repoPath, owner, name),
+  getCommitDiff: (repoPath, commitSha) =>
+    ipcRenderer.invoke(GET_COMMIT_DIFF_CHANNEL, repoPath, commitSha),
+  getPrDiff: (repoPath, prNumber) =>
+    ipcRenderer.invoke(GET_PR_DIFF_CHANNEL, repoPath, prNumber),
   sendCodexSessionPrompt: (input) =>
     ipcRenderer.invoke(SEND_CODEX_SESSION_PROMPT_CHANNEL, input),
   interruptCodexSession: (sessionId) =>

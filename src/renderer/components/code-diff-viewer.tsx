@@ -105,6 +105,48 @@ const LINE_STYLES: Record<DiffLineType, { row: string; gutter: string }> = {
 
 export { type ParsedDiffLine, type DiffLineType };
 
+export type DiffFileStatus = 'added' | 'deleted' | 'renamed' | 'modified';
+
+export type DiffFile = {
+  path: string;
+  status: DiffFileStatus;
+  additions: number;
+  deletions: number;
+  rawDiff: string;
+};
+
+export function parseDiffFiles(rawDiff: string): DiffFile[] {
+  const fileSections = rawDiff.split(/^(?=diff --git )/m);
+  const files: DiffFile[] = [];
+
+  for (const section of fileSections) {
+    if (!section.startsWith('diff --git ')) continue;
+
+    const headerMatch = section.match(/^diff --git a\/.+ b\/(.+)$/m);
+    if (!headerMatch) continue;
+
+    const filePath = headerMatch[1]!;
+
+    let status: DiffFileStatus = 'modified';
+    if (section.includes('\nnew file mode ')) status = 'added';
+    else if (section.includes('\ndeleted file mode ')) status = 'deleted';
+    else if (section.includes('\nrename from ')) status = 'renamed';
+
+    let additions = 0;
+    let deletions = 0;
+    for (const line of section.split('\n')) {
+      if (line.startsWith('+') && !line.startsWith('+++')) additions++;
+      if (line.startsWith('-') && !line.startsWith('---')) deletions++;
+    }
+
+    files.push({ path: filePath, status, additions, deletions, rawDiff: section });
+  }
+
+  files.sort((a, b) => a.path.localeCompare(b.path));
+
+  return files;
+}
+
 export function DiffRow({ line }: { line: ParsedDiffLine }) {
   const style = LINE_STYLES[line.type];
 
