@@ -1,12 +1,23 @@
+import { useState } from 'react';
 import { Navigate, createFileRoute } from '@tanstack/react-router';
+import { GithubIcon, PlusIcon } from 'lucide-react';
 
-import { ProjectWorkspace } from '@/renderer/components/project-workspace';
-import { useRepos } from '@/renderer/hooks/use-repos';
+import { AddProjectDialog } from '@/renderer/components/project-workspace';
+import { useRepoActions, useRepos } from '@/renderer/hooks/use-repos';
 import { useWorkspaceSession } from '@/renderer/hooks/use-workspace-session';
 import {
   getProjectTabRouteTo,
   resolvePreferredRepoId,
 } from '@/renderer/lib/projects';
+import { Button } from '@/shadcn/components/ui/button';
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/shadcn/components/ui/empty';
 
 export const Route = createFileRoute('/projects/')({
   component: ProjectsIndexRoute,
@@ -17,23 +28,13 @@ function ProjectsIndexRoute() {
   const { session } = useWorkspaceSession();
 
   if (repos.length === 0) {
-    return (
-      <ProjectWorkspace
-        activeRepoId={null}
-        activeView={session.activeTab}
-      />
-    );
+    return <ProjectsEmptyState />;
   }
 
   const repoId = resolvePreferredRepoId(repos, session.activeRepoId);
 
   if (repoId === null) {
-    return (
-      <ProjectWorkspace
-        activeRepoId={null}
-        activeView={session.activeTab}
-      />
-    );
+    return <ProjectsEmptyState />;
   }
 
   return (
@@ -42,5 +43,44 @@ function ProjectsIndexRoute() {
       to={getProjectTabRouteTo(session.activeTab)}
       params={{ repoId }}
     />
+  );
+}
+
+function ProjectsEmptyState() {
+  const { addRepo } = useRepoActions();
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(true);
+
+  return (
+    <section className="flex w-full flex-col gap-6">
+      <div className="rounded-xl border bg-card shadow-sm">
+        <div className="px-6 py-16">
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <GithubIcon />
+              </EmptyMedia>
+              <EmptyTitle>No projects yet</EmptyTitle>
+              <EmptyDescription>
+                Add a local Git repository or a remote GitHub repo to start tracking
+                issues and pull requests.
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button onClick={() => setIsAddDialogOpen(true)} type="button">
+                <PlusIcon data-icon="inline-start" />
+                Add your first project
+              </Button>
+            </EmptyContent>
+          </Empty>
+        </div>
+      </div>
+
+      <AddProjectDialog
+        open={isAddDialogOpen}
+        onOpenChange={setIsAddDialogOpen}
+        onProjectAdded={() => {}}
+        onSaveRepo={addRepo}
+      />
+    </section>
   );
 }

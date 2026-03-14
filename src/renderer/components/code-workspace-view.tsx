@@ -21,7 +21,7 @@ export function CodeWorkspaceView({ repoPath }: { repoPath: string }) {
   };
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-full">
       <CodeSidebar
         branches={branchesState.data ?? []}
         isBranchesLoading={branchesState.status === 'loading'}

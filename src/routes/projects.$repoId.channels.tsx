@@ -1,7 +1,13 @@
 import { HashIcon } from 'lucide-react';
 import { createFileRoute } from '@tanstack/react-router';
 
-import { ProjectWorkspacePlaceholderView } from '@/renderer/components/project-workspace-placeholder-view';
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/shadcn/components/ui/empty';
 
 export const Route = createFileRoute('/projects/$repoId/channels')({
   component: ProjectChannelsRoute,
@@ -9,11 +15,18 @@ export const Route = createFileRoute('/projects/$repoId/channels')({
 
 function ProjectChannelsRoute() {
   return (
-    <ProjectWorkspacePlaceholderView
-      activeView="channels"
-      icon={HashIcon}
-      title="Channels"
-      description="Team conversations and updates for this project."
-    />
+    <div className="px-6 py-16">
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <HashIcon />
+          </EmptyMedia>
+          <EmptyTitle>Channels</EmptyTitle>
+          <EmptyDescription>
+            Team conversations and updates for this project.
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    </div>
   );
 }

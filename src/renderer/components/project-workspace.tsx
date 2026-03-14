@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useState, type ReactNode } from 'react';
-import { useRouter } from '@tanstack/react-router';
+import { useLocation, useRouter } from '@tanstack/react-router';
 import { AnimatePresence, Reorder } from 'motion/react';
 import {
   CodeIcon,
@@ -18,6 +18,7 @@ import {
   getProjectLabel,
   getProjectTabRepoIdByShortcutSlot,
   getProjectTabRouteTo,
+  isProjectViewTab,
   type ProjectTabRouteTo,
 } from '@/renderer/lib/projects';
 import { useRepoActions, useRepos } from '@/renderer/hooks/use-repos';
@@ -32,14 +33,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/shadcn/components/ui/dialog';
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from '@/shadcn/components/ui/empty';
 import {
   Field,
   FieldError,
@@ -67,7 +60,15 @@ const VIEW_TABS = [
   to: ProjectTabRouteTo;
 }>;
 
-function AddProjectDialog({
+function useActiveView(): ProjectViewTab {
+  const location = useLocation();
+  const segments = location.pathname.split('/');
+  const tabSegment = segments[3] ?? 'code';
+
+  return isProjectViewTab(tabSegment) ? tabSegment : 'code';
+}
+
+export function AddProjectDialog({
   open,
   onOpenChange,
   onProjectAdded,
@@ -205,26 +206,17 @@ function AddProjectDialog({
 
 export function ProjectWorkspace({
   activeRepoId,
-  activeView,
-  headerAccessory,
   children,
 }: {
-  activeRepoId: string | null;
-  activeView: ProjectViewTab;
-  headerAccessory?: ReactNode;
-  children?: ReactNode;
+  activeRepoId: string;
+  children: ReactNode;
 }) {
   const router = useRouter();
   const repos = useRepos();
   const { addRepo, removeRepo, reorderRepos } = useRepoActions();
   const { session, updateSession } = useWorkspaceSession();
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(repos.length === 0);
-
-  useEffect(() => {
-    if (repos.length === 0) {
-      setIsAddDialogOpen(true);
-    }
-  }, [repos]);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const activeView = useActiveView();
 
   useEffect(() => {
     if (
@@ -296,49 +288,13 @@ export function ProjectWorkspace({
     navigateToTab(repo.id, getProjectTabRouteTo(activeView));
   };
 
-  if (repos.length === 0) {
-    return (
-      <section className="flex w-full flex-col gap-6">
-        <div className="rounded-xl border bg-card shadow-sm">
-          <div className="px-6 py-16">
-            <Empty>
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <GithubIcon />
-                </EmptyMedia>
-                <EmptyTitle>No projects yet</EmptyTitle>
-                <EmptyDescription>
-                  Add a local Git repository or a remote GitHub repo to start tracking
-                  issues and pull requests.
-                </EmptyDescription>
-              </EmptyHeader>
-              <EmptyContent>
-                <Button onClick={() => setIsAddDialogOpen(true)} type="button">
-                  <PlusIcon data-icon="inline-start" />
-                  Add your first project
-                </Button>
-              </EmptyContent>
-            </Empty>
-          </div>
-        </div>
-
-        <AddProjectDialog
-          open={isAddDialogOpen}
-          onOpenChange={setIsAddDialogOpen}
-          onProjectAdded={handleProjectAdded}
-          onSaveRepo={addRepo}
-        />
-      </section>
-    );
-  }
-
   return (
-    <section className="flex w-full flex-col">
+    <section className="flex h-screen w-full flex-col">
       <Reorder.Group
         axis="x"
         values={repos}
         onReorder={handleReorder}
-        className="flex items-end gap-px bg-muted px-2 pt-1.5"
+        className="flex shrink-0 items-end gap-px bg-muted px-2 pt-1.5"
         as="div"
       >
         <AnimatePresence initial={false}>
@@ -406,8 +362,8 @@ export function ProjectWorkspace({
         </button>
       </Reorder.Group>
 
-      <div className="rounded-b-xl border border-border bg-card shadow-sm">
-        <div className="flex items-center justify-between border-b border-border px-5">
+      <div className="flex min-h-0 flex-1 flex-col rounded-b-xl border border-border bg-card shadow-sm">
+        <div className="flex shrink-0 items-center justify-between border-b border-border px-5">
           <nav className="-mb-px flex gap-1">
             {VIEW_TABS.map((tab) => {
               const Icon = tab.icon;
@@ -423,9 +379,7 @@ export function ProjectWorkspace({
                       : 'border-transparent text-muted-foreground hover:text-foreground',
                   )}
                   onClick={() => {
-                    if (activeRepoId !== null) {
-                      navigateToTab(activeRepoId, tab.to);
-                    }
+                    navigateToTab(activeRepoId, tab.to);
                   }}
                   type="button"
                 >
@@ -435,11 +389,11 @@ export function ProjectWorkspace({
               );
             })}
           </nav>
-
-          {headerAccessory ?? <span />}
         </div>
 
-        <div className="min-h-screen">{children}</div>
+        <div className="flex-1 overflow-y-auto">
+          {children}
+        </div>
       </div>
 
       <AddProjectDialog
