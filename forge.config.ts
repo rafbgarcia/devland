@@ -7,6 +7,7 @@ import { MakerRpm } from '@electron-forge/maker-rpm';
 import { VitePlugin } from '@electron-forge/plugin-vite';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
+import { DevAppLauncherPlugin } from './forge.dev-app';
 
 const config: ForgeConfig = {
   packagerConfig: {
@@ -64,6 +65,11 @@ const config: ForgeConfig = {
       [FuseV1Options.EnableNodeCliInspectArguments]: false,
       [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: true,
       [FuseV1Options.OnlyLoadAppFromAsar]: true,
+    }),
+    new DevAppLauncherPlugin({
+      displayName: 'Devland:dev',
+      bundleId: 'com.rafbgarcia.devland.dev',
+      iconPath: path.resolve(__dirname, 'assets/icons/devland.icns'),
     }),
   ],
 };

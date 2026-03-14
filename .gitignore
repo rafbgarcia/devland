@@ -90,6 +90,7 @@ typings/
 
 # Electron-Forge
 out/
+.electron-runtime/
 
 .claude/*local*
 

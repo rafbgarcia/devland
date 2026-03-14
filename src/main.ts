@@ -21,6 +21,7 @@ if (started) {
 }
 
 const isDevelopment = MAIN_WINDOW_VITE_DEV_SERVER_URL !== undefined;
+const APP_DISPLAY_NAME = isDevelopment ? 'Devland:dev' : 'Devland';
 const devServerOrigin = MAIN_WINDOW_VITE_DEV_SERVER_URL
   ? new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL).origin
   : null;
@@ -41,6 +42,8 @@ const developmentContentSecurityPolicy = [
 
 let mainWindow: BrowserWindow | null = null;
 const appIconPath = path.join(app.getAppPath(), 'assets', 'icons', 'devland.png');
+
+app.setName(APP_DISPLAY_NAME);
 
 const isAppUrl = (targetUrl: string): boolean => {
   if (targetUrl.startsWith('file://')) {
