@@ -1,4 +1,4 @@
-* project tags: ElectronJS; TailwindCSS; Shadcn; BunJS; clean design; great UX; motion/react; dayjs (src/lib/dayjs.ts);
+* project tags: Electron Forge; Tailwind; Shadcn; BunJS; clean, beautiful design and UX; motion/react; dayjs (src/lib/dayjs.ts);
 * project stage: greenfield; not live; no users; no backwards compatibility;
 * behaviors: think first principles; write production-grade code;
 
