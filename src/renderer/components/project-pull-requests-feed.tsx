@@ -1,10 +1,10 @@
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 
 import {
+  CodeIcon,
   GitPullRequestArrowIcon,
   GitPullRequestDraftIcon,
   GitPullRequestIcon,
-  SparklesIcon,
 } from 'lucide-react';
 
 import type { ProjectPullRequestFeed, ProjectPullRequestFeedItem } from '@/ipc/contracts';
@@ -15,14 +15,9 @@ import {
 } from '@/renderer/components/project-workspace-feed';
 import { useProjectRepoDetailsState } from '@/renderer/hooks/use-project-repo';
 import { useProjectPullRequests } from '@/renderer/hooks/use-project-prs';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/shadcn/components/ui/tooltip';
 import { cn } from '@/shadcn/lib/utils';
 
-import { PrReviewOverlay, type PrReviewOverlayState } from './pr-review-overlay';
+import { PrReviewDialog, type PrReviewDialogPr } from './pr-review-dialog';
 import { PullRequestDetailDrawer } from './pull-request-detail-drawer';
 
 function PullRequestDiffStats({
@@ -85,21 +80,17 @@ function PullRequestFeedItem({
               {item.title}{' '}
               <span className="font-normal text-muted-foreground">(#{item.number})</span>
             </span>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onReview(item);
-                  }}
-                  className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-primary/10 hover:text-primary group-hover/pr:opacity-100"
-                >
-                  <SparklesIcon className="size-3.5" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>AI Review Guide</TooltipContent>
-            </Tooltip>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onReview(item);
+              }}
+              className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium text-muted-foreground opacity-0 transition-all hover:bg-primary/10 hover:text-primary group-hover/pr:opacity-100"
+            >
+              <CodeIcon className="size-3" />
+              Review
+            </button>
           </span>
         }
         sublineAside={
@@ -118,43 +109,17 @@ export function ProjectPullRequestsFeed() {
   const { refetch, isRefetching, ...feedState } = useProjectPullRequests();
   const repoDetails = useProjectRepoDetailsState();
   const [selectedPrNumber, setSelectedPrNumber] = useState<number | null>(null);
-  const [reviewState, setReviewState] = useState<PrReviewOverlayState>({ status: 'idle' });
+  const [reviewPr, setReviewPr] = useState<PrReviewDialogPr | null>(null);
 
-  const handleReview = useCallback(
-    async (item: ProjectPullRequestFeedItem) => {
-      if (repoDetails.status !== 'ready') return;
-
-      const { owner, name } = repoDetails.data;
-      const repoPath = repoDetails.data.path;
-
-      const meta = {
-        prNumber: item.number,
-        prTitle: item.title,
-        additions: item.additions,
-        deletions: item.deletions,
-        commitCount: item.commitCount,
-      };
-
-      setReviewState({ status: 'loading', ...meta });
-
-      try {
-        const review = await window.electronAPI.generatePrReview(
-          owner,
-          name,
-          item.number,
-          repoPath,
-        );
-        setReviewState({ status: 'ready', review, ...meta });
-      } catch (error) {
-        setReviewState({
-          status: 'error',
-          error: error instanceof Error ? error.message : 'Failed to generate review',
-          ...meta,
-        });
-      }
-    },
-    [repoDetails],
-  );
+  const handleReview = (item: ProjectPullRequestFeedItem) => {
+    setReviewPr({
+      number: item.number,
+      title: item.title,
+      additions: item.additions,
+      deletions: item.deletions,
+      commitCount: item.commitCount,
+    });
+  };
 
   const pullRequestFeedDefinition: ProjectFeedDefinition<ProjectPullRequestFeed> = {
     loadingMessage: 'Fetching pull requests from GitHub',
@@ -189,10 +154,20 @@ export function ProjectPullRequestsFeed() {
         prNumber={selectedPrNumber}
         onClose={() => setSelectedPrNumber(null)}
       />
-      <PrReviewOverlay
-        state={reviewState}
-        onClose={() => setReviewState({ status: 'idle' })}
-      />
+      {repoDetails.status === 'ready' && (
+        <PrReviewDialog
+          pr={reviewPr}
+          repoId={repoDetails.data.id}
+          repoPath={repoDetails.data.path}
+          owner={repoDetails.data.owner}
+          name={repoDetails.data.name}
+          slug={repoDetails.data.githubSlug}
+          open={reviewPr !== null}
+          onOpenChange={(open) => {
+            if (!open) setReviewPr(null);
+          }}
+        />
+      )}
     </>
   );
 }

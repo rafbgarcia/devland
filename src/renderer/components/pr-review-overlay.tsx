@@ -7,8 +7,6 @@ import { AnimatePresence, motion } from 'motion/react';
 import type { PrReview } from '@/ipc/contracts';
 import { Button } from '@/shadcn/components/ui/button';
 import { Spinner } from '@/shadcn/components/ui/spinner';
-import { cn } from '@/shadcn/lib/utils';
-
 import { DiffRow, parseDiff, type ParsedDiffLine } from './code-diff-viewer';
 
 type LineRange = { start: number; end: number };
@@ -135,6 +133,20 @@ function ReviewStep({
   );
 }
 
+export function PrReviewContent({ review }: { review: PrReview }) {
+  return (
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-6 py-8">
+      {review.steps.map((step) => (
+        <ReviewStep
+          key={step.order}
+          step={step}
+          fileDiffs={review.fileDiffs}
+        />
+      ))}
+    </div>
+  );
+}
+
 type PrReviewMeta = {
   prNumber: number;
   prTitle: string;
@@ -232,17 +244,7 @@ export function PrReviewOverlay({
             )}
 
             {state.status === 'ready' && (
-              <div className={cn(
-                'mx-auto flex w-full max-w-4xl flex-col gap-8 px-6 py-8',
-              )}>
-                {state.review.steps.map((step) => (
-                  <ReviewStep
-                    key={step.order}
-                    step={step}
-                    fileDiffs={state.review.fileDiffs}
-                  />
-                ))}
-              </div>
+              <PrReviewContent review={state.review} />
             )}
           </div>
         </motion.div>
