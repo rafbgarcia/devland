@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import {
   ChevronRightIcon,
@@ -186,6 +186,15 @@ export function PullRequestDetailDrawer({
   onClose: () => void;
 }) {
   const detail = usePullRequestDetail(prNumber);
+
+  useEffect(() => {
+    if (prNumber === null) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [prNumber, onClose]);
 
   return (
     <AnimatePresence>

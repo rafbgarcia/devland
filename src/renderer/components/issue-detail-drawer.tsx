@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { ChevronRightIcon, ExternalLinkIcon } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
@@ -141,6 +141,15 @@ export function IssueDetailDrawer({
   onClose: () => void;
 }) {
   const detail = useIssueDetail(issueNumber);
+
+  useEffect(() => {
+    if (issueNumber === null) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [issueNumber, onClose]);
 
   return (
     <AnimatePresence>

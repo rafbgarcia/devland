@@ -237,7 +237,7 @@ export function PrReviewDialog({
         variants={panelVariants}
         transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
         onAnimationComplete={resetState}
-        className="fixed inset-8 z-50 flex flex-col gap-0 rounded-xl border bg-card p-0 shadow-2xl"
+        className="fixed inset-2 z-50 flex flex-col gap-0 rounded-xl border bg-card p-0 shadow-2xl"
         style={{ visibility: 'hidden' }}
       >
         {displayPr && (
