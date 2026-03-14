@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
+import { useAtom } from 'jotai';
 import {
-  CodeIcon,
   GitPullRequestArrowIcon,
   GitPullRequestDraftIcon,
   GitPullRequestIcon,
@@ -13,11 +13,12 @@ import {
   ProjectFeedScaffold,
   type ProjectFeedDefinition,
 } from '@/renderer/components/project-workspace-feed';
-import { useProjectRepoDetailsState } from '@/renderer/hooks/use-project-repo';
 import { useProjectPullRequests } from '@/renderer/hooks/use-project-prs';
+import { useProjectRepoDetailsState } from '@/renderer/hooks/use-project-repo';
 import { cn } from '@/shadcn/lib/utils';
 
-import { PrReviewDialog, type PrReviewDialogPr } from './pr-review-dialog';
+import { PrReviewButton, reviewPrAtom } from './pr-review-button';
+import { PrReviewDialog } from './pr-review-dialog';
 import { PullRequestDetailDrawer } from './pull-request-detail-drawer';
 
 function PullRequestDiffStats({
@@ -42,12 +43,10 @@ function PullRequestFeedItem({
   item,
   isSelected,
   onSelect,
-  onReview,
 }: {
   item: ProjectPullRequestFeedItem;
   isSelected: boolean;
   onSelect: (item: ProjectPullRequestFeedItem) => void;
-  onReview: (item: ProjectPullRequestFeedItem) => void;
 }) {
   return (
     <div
@@ -82,19 +81,7 @@ function PullRequestFeedItem({
             </span>
           </span>
         }
-        sublineExtra={
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onReview(item);
-            }}
-            className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium text-muted-foreground opacity-0 transition-all hover:bg-primary/10 hover:text-primary group-hover/pr:opacity-100"
-          >
-            <CodeIcon className="size-3" />
-            Review
-          </button>
-        }
+        sublineExtra={<PrReviewButton size="xs" pr={item} className="opacity-0 group-hover/pr:opacity-100" />}
         sublineAside={
           <PullRequestDiffStats
             commitCount={item.commitCount}
@@ -118,20 +105,10 @@ export function ProjectPullRequestsFeed() {
   } = useProjectPullRequests();
   const repoDetails = useProjectRepoDetailsState();
   const [selectedPrNumber, setSelectedPrNumber] = useState<number | null>(null);
-  const [reviewPr, setReviewPr] = useState<PrReviewDialogPr | null>(null);
+  const [reviewPr, setReviewPr] = useAtom(reviewPrAtom);
   const selectedPr = feedState.status === 'ready'
     ? feedState.data.items.find((item) => item.number === selectedPrNumber) ?? null
     : null;
-
-  const handleReview = (item: ProjectPullRequestFeedItem) => {
-    setReviewPr({
-      number: item.number,
-      title: item.title,
-      additions: item.additions,
-      deletions: item.deletions,
-      commitCount: item.commitCount,
-    });
-  };
 
   const pullRequestFeedDefinition: ProjectFeedDefinition<ProjectPullRequestFeed> = {
     loadingMessage: 'Fetching pull requests from GitHub',
@@ -149,7 +126,6 @@ export function ProjectPullRequestsFeed() {
         item={item}
         isSelected={item.number === selectedPrNumber}
         onSelect={(i) => setSelectedPrNumber(i.number)}
-        onReview={handleReview}
       />
     ),
   };
@@ -166,9 +142,6 @@ export function ProjectPullRequestsFeed() {
         pr={selectedPr}
         prNumber={selectedPrNumber}
         onClose={() => setSelectedPrNumber(null)}
-        onReview={() => {
-          if (selectedPr) handleReview(selectedPr);
-        }}
       />
       {repoDetails.status === 'ready' && (
         <PrReviewDialog

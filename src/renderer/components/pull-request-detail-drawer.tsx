@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 
 import {
   ChevronRightIcon,
-  CodeIcon,
   ExternalLinkIcon,
   GitPullRequestDraftIcon,
   GitPullRequestIcon,
@@ -10,6 +9,7 @@ import {
 import { AnimatePresence, motion } from 'motion/react';
 
 import type { ProjectPullRequestFeedItem } from '@/ipc/contracts';
+import { PrReviewButton } from '@/renderer/components/pr-review-button';
 import { getAuthorLogin } from '@/renderer/lib/github-view';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shadcn/components/ui/avatar';
 import { Badge } from '@/shadcn/components/ui/badge';
@@ -63,10 +63,8 @@ function PullRequestDiffStats({
 
 function PullRequestDetailContent({
   pr,
-  onReview,
 }: {
   pr: ProjectPullRequestFeedItem;
-  onReview: (() => void) | undefined;
 }) {
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
@@ -91,7 +89,7 @@ function PullRequestDetailContent({
               <ExternalLinkIcon className="size-3 shrink-0 text-muted-foreground transition-colors group-hover/title:text-foreground" />
             </a>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex flex-col shrink-0 items-center gap-2">
             {pr.labels.length > 0 && (
               <div className="flex flex-wrap gap-1">
                 {pr.labels.map((label) => (
@@ -118,18 +116,9 @@ function PullRequestDetailContent({
           </div>
         </div>
 
-        {onReview && (
-          <div>
-            <button
-              type="button"
-              onClick={onReview}
-              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/50 px-3 py-1.5 text-xs font-medium text-foreground transition-all hover:bg-accent hover:text-accent-foreground"
-            >
-              <CodeIcon className="size-3.5" />
-              Review
-            </button>
-          </div>
-        )}
+        <div>
+          <PrReviewButton pr={pr} />
+        </div>
       </div>
 
       <div className="px-4 pt-1">
@@ -196,12 +185,10 @@ export function PullRequestDetailDrawer({
   pr,
   prNumber,
   onClose,
-  onReview,
 }: {
   pr: ProjectPullRequestFeedItem | null;
   prNumber: number | null;
   onClose: () => void;
-  onReview: (() => void) | undefined;
 }) {
   useEffect(() => {
     if (prNumber === null) return;
@@ -233,7 +220,7 @@ export function PullRequestDetailDrawer({
               </div>
             )}
 
-            {pr !== null && <PullRequestDetailContent pr={pr} onReview={onReview} />}
+            {pr !== null && <PullRequestDetailContent pr={pr} />}
           </div>
         </motion.aside>
       )}
