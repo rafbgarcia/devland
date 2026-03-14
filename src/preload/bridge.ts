@@ -17,6 +17,7 @@ import {
   GET_GIT_STATUS_CHANNEL,
   CHECKOUT_GIT_BRANCH_CHANNEL,
   GET_GIT_FILE_DIFF_CHANNEL,
+  GENERATE_PR_REVIEW_CHANNEL,
   type ElectronApi,
 } from '@/ipc/contracts';
 
@@ -64,6 +65,8 @@ export const electronApi: ElectronApi = {
     ipcRenderer.invoke(CHECKOUT_GIT_BRANCH_CHANNEL, repoPath, branchName),
   getGitFileDiff: (repoPath, filePath) =>
     ipcRenderer.invoke(GET_GIT_FILE_DIFF_CHANNEL, repoPath, filePath),
+  generatePrReview: (owner, name, prNumber, repoPath) =>
+    ipcRenderer.invoke(GENERATE_PR_REVIEW_CHANNEL, owner, name, prNumber, repoPath),
   onAppShortcutCommand: (listener) => {
     const handleShortcutCommand = (
       _event: Electron.IpcRendererEvent,

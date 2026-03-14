@@ -16,7 +16,7 @@ type ParsedDiffLine = {
 
 const HUNK_HEADER_RE = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
 
-function parseDiff(raw: string): ParsedDiffLine[] {
+export function parseDiff(raw: string): ParsedDiffLine[] {
   const lines = raw.split('\n');
   const result: ParsedDiffLine[] = [];
   let oldLine = 0;
@@ -103,7 +103,9 @@ const LINE_STYLES: Record<DiffLineType, { row: string; gutter: string }> = {
   },
 };
 
-function DiffRow({ line }: { line: ParsedDiffLine }) {
+export { type ParsedDiffLine, type DiffLineType };
+
+export function DiffRow({ line }: { line: ParsedDiffLine }) {
   const style = LINE_STYLES[line.type];
 
   return (

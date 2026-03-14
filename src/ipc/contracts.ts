@@ -15,6 +15,7 @@ export const GET_GIT_BRANCHES_CHANNEL = 'app:get-git-branches';
 export const GET_GIT_STATUS_CHANNEL = 'app:get-git-status';
 export const CHECKOUT_GIT_BRANCH_CHANNEL = 'app:checkout-git-branch';
 export const GET_GIT_FILE_DIFF_CHANNEL = 'app:get-git-file-diff';
+export const GENERATE_PR_REVIEW_CHANNEL = 'app:generate-pr-review';
 
 export const PROJECT_VIEW_TABS = [
   'code',
@@ -210,6 +211,20 @@ export const PullRequestDetailSchema = z.object({
 });
 export type PullRequestDetail = z.infer<typeof PullRequestDetailSchema>;
 
+export const PrReviewStepSchema = z.object({
+  order: z.number().int().positive(),
+  description: z.string().min(1),
+  relevantChanges: z.array(z.string().min(1)),
+});
+export type PrReviewStep = z.infer<typeof PrReviewStepSchema>;
+
+export const PrReviewSchema = z.object({
+  steps: z.array(PrReviewStepSchema),
+  fileDiffs: z.record(z.string(), z.string()),
+  durationMs: z.number().int().nonnegative(),
+});
+export type PrReview = z.infer<typeof PrReviewSchema>;
+
 export interface ElectronApi {
   readonly platform: NodeJS.Platform;
   readonly versions: {
@@ -240,4 +255,5 @@ export interface ElectronApi {
   getGitStatus: (repoPath: string) => Promise<GitStatus>;
   checkoutGitBranch: (repoPath: string, branchName: string) => Promise<void>;
   getGitFileDiff: (repoPath: string, filePath: string) => Promise<string>;
+  generatePrReview: (owner: string, name: string, prNumber: number, repoPath: string) => Promise<PrReview>;
 }

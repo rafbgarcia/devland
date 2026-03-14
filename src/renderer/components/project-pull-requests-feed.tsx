@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import {
   GitPullRequestArrowIcon,
   GitPullRequestDraftIcon,
   GitPullRequestIcon,
+  SparklesIcon,
 } from 'lucide-react';
 
 import type { ProjectPullRequestFeed, ProjectPullRequestFeedItem } from '@/ipc/contracts';
@@ -12,9 +13,16 @@ import {
   ProjectFeedScaffold,
   type ProjectFeedDefinition,
 } from '@/renderer/components/project-workspace-feed';
+import { useProjectRepoDetailsState } from '@/renderer/hooks/use-project-repo';
 import { useProjectPullRequests } from '@/renderer/hooks/use-project-prs';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/shadcn/components/ui/tooltip';
 import { cn } from '@/shadcn/lib/utils';
 
+import { PrReviewOverlay, type PrReviewOverlayState } from './pr-review-overlay';
 import { PullRequestDetailDrawer } from './pull-request-detail-drawer';
 
 function PullRequestDiffStats({
@@ -39,10 +47,12 @@ function PullRequestFeedItem({
   item,
   isSelected,
   onSelect,
+  onReview,
 }: {
   item: ProjectPullRequestFeedItem;
   isSelected: boolean;
   onSelect: (item: ProjectPullRequestFeedItem) => void;
+  onReview: (item: ProjectPullRequestFeedItem) => void;
 }) {
   return (
     <div
@@ -56,7 +66,7 @@ function PullRequestFeedItem({
         }
       }}
       className={cn(
-        'w-full cursor-pointer text-left transition-colors hover:bg-muted/50',
+        'group/pr w-full cursor-pointer text-left transition-colors hover:bg-muted/50',
         isSelected && 'bg-muted',
       )}
     >
@@ -70,9 +80,26 @@ function PullRequestFeedItem({
           )
         }
         title={
-          <span className="truncate text-sm font-medium text-foreground">
-            {item.title}{' '}
-            <span className="font-normal text-muted-foreground">(#{item.number})</span>
+          <span className="flex items-center gap-2 truncate text-sm font-medium text-foreground">
+            <span className="truncate">
+              {item.title}{' '}
+              <span className="font-normal text-muted-foreground">(#{item.number})</span>
+            </span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onReview(item);
+                  }}
+                  className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-primary/10 hover:text-primary group-hover/pr:opacity-100"
+                >
+                  <SparklesIcon className="size-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>AI Review Guide</TooltipContent>
+            </Tooltip>
           </span>
         }
         sublineAside={
@@ -89,7 +116,45 @@ function PullRequestFeedItem({
 
 export function ProjectPullRequestsFeed() {
   const { refetch, isRefetching, ...feedState } = useProjectPullRequests();
+  const repoDetails = useProjectRepoDetailsState();
   const [selectedPrNumber, setSelectedPrNumber] = useState<number | null>(null);
+  const [reviewState, setReviewState] = useState<PrReviewOverlayState>({ status: 'idle' });
+
+  const handleReview = useCallback(
+    async (item: ProjectPullRequestFeedItem) => {
+      if (repoDetails.status !== 'ready') return;
+
+      const { owner, name } = repoDetails.data;
+      const repoPath = repoDetails.data.path;
+
+      const meta = {
+        prNumber: item.number,
+        prTitle: item.title,
+        additions: item.additions,
+        deletions: item.deletions,
+        commitCount: item.commitCount,
+      };
+
+      setReviewState({ status: 'loading', ...meta });
+
+      try {
+        const review = await window.electronAPI.generatePrReview(
+          owner,
+          name,
+          item.number,
+          repoPath,
+        );
+        setReviewState({ status: 'ready', review, ...meta });
+      } catch (error) {
+        setReviewState({
+          status: 'error',
+          error: error instanceof Error ? error.message : 'Failed to generate review',
+          ...meta,
+        });
+      }
+    },
+    [repoDetails],
+  );
 
   const pullRequestFeedDefinition: ProjectFeedDefinition<ProjectPullRequestFeed> = {
     loadingMessage: 'Fetching pull requests from GitHub',
@@ -107,6 +172,7 @@ export function ProjectPullRequestsFeed() {
         item={item}
         isSelected={item.number === selectedPrNumber}
         onSelect={(i) => setSelectedPrNumber(i.number)}
+        onReview={handleReview}
       />
     ),
   };
@@ -122,6 +188,10 @@ export function ProjectPullRequestsFeed() {
       <PullRequestDetailDrawer
         prNumber={selectedPrNumber}
         onClose={() => setSelectedPrNumber(null)}
+      />
+      <PrReviewOverlay
+        state={reviewState}
+        onClose={() => setReviewState({ status: 'idle' })}
       />
     </>
   );

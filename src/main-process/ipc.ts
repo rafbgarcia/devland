@@ -15,8 +15,10 @@ import {
   GET_GIT_STATUS_CHANNEL,
   CHECKOUT_GIT_BRANCH_CHANNEL,
   GET_GIT_FILE_DIFF_CHANNEL,
+  GENERATE_PR_REVIEW_CHANNEL,
   type AppBootstrap,
 } from '../ipc/contracts';
+import { codexExecutable, generatePrReview } from './codex';
 import { ghExecutable } from './gh-cli';
 import { getRepositoryIssueDetail } from './gh-queries/issue-detail';
 import { getRepositoryPullRequestDetail } from './gh-queries/pull-request-detail';
@@ -123,5 +125,18 @@ export const registerAppIpcHandlers = (
     GET_GIT_FILE_DIFF_CHANNEL,
     (_event, repoPath: string, filePath: string) =>
       getGitFileDiff(repoPath, filePath),
+  );
+  ipcMain.handle(
+    GENERATE_PR_REVIEW_CHANNEL,
+    (_event, owner: string, name: string, prNumber: number, repoPath: string) => {
+      if (ghExecutable === null) {
+        throw new Error('GitHub CLI is not available on this machine.');
+      }
+      if (codexExecutable === null) {
+        throw new Error('Codex CLI is not installed. Install it from https://codex.openai.com');
+      }
+
+      return generatePrReview(codexExecutable, ghExecutable, owner, name, prNumber, repoPath);
+    },
   );
 };
