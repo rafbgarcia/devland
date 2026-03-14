@@ -11,6 +11,7 @@ import {
   GET_PROJECT_ISSUES_CHANNEL,
   GET_PROJECT_PULL_REQUESTS_CHANNEL,
   GET_GITHUB_REPO_DETAILS_CHANNEL,
+  FIND_LOCAL_GITHUB_REPO_CHANNEL,
   PICK_REPO_DIRECTORY_CHANNEL,
   VALIDATE_LOCAL_GIT_REPO_CHANNEL,
   CLONE_GITHUB_REPO_CHANNEL,
@@ -55,6 +56,8 @@ export const electronApi: ElectronApi = {
     ipcRenderer.invoke(VALIDATE_LOCAL_GIT_REPO_CHANNEL, directoryPath),
   getGithubRepoDetails: (projectPath) =>
     ipcRenderer.invoke(GET_GITHUB_REPO_DETAILS_CHANNEL, projectPath),
+  findLocalGithubRepoPath: (slug) =>
+    ipcRenderer.invoke(FIND_LOCAL_GITHUB_REPO_CHANNEL, slug),
   cloneGithubRepo: (slug) =>
     ipcRenderer.invoke(CLONE_GITHUB_REPO_CHANNEL, slug),
   onCloneProgress: (listener) => {

@@ -8,6 +8,7 @@ import {
   GET_PROJECT_ISSUES_CHANNEL,
   GET_PROJECT_PULL_REQUESTS_CHANNEL,
   GET_GITHUB_REPO_DETAILS_CHANNEL,
+  FIND_LOCAL_GITHUB_REPO_CHANNEL,
   PICK_REPO_DIRECTORY_CHANNEL,
   VALIDATE_LOCAL_GIT_REPO_CHANNEL,
   CLONE_GITHUB_REPO_CHANNEL,
@@ -44,6 +45,7 @@ import {
   checkoutGitBranch,
   createGitWorktree,
   cloneGithubRepo,
+  findLocalGithubRepoPath,
   getCommitDiff,
   getGitBranches,
   getGitFileDiff,
@@ -120,6 +122,10 @@ export const registerAppIpcHandlers = (
   ipcMain.handle(
     GET_GITHUB_REPO_DETAILS_CHANNEL,
     (_event, projectPath: string) => getGithubRepoDetails(projectPath),
+  );
+  ipcMain.handle(
+    FIND_LOCAL_GITHUB_REPO_CHANNEL,
+    (_event, slug: string) => findLocalGithubRepoPath(slug),
   );
   ipcMain.handle(
     CLONE_GITHUB_REPO_CHANNEL,

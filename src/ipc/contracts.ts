@@ -8,6 +8,7 @@ export const GET_ISSUE_DETAIL_CHANNEL = 'app:get-issue-detail';
 export const GET_PULL_REQUEST_DETAIL_CHANNEL = 'app:get-pull-request-detail';
 export const VALIDATE_LOCAL_GIT_REPO_CHANNEL = 'app:validate-local-git-repo';
 export const GET_GITHUB_REPO_DETAILS_CHANNEL = 'app:get-github-repo-details';
+export const FIND_LOCAL_GITHUB_REPO_CHANNEL = 'app:find-local-github-repo';
 export const APP_SHORTCUT_COMMAND_CHANNEL = 'app:shortcut-command';
 export const CLONE_GITHUB_REPO_CHANNEL = 'app:clone-github-repo';
 export const CLONE_GITHUB_REPO_PROGRESS_CHANNEL = 'app:clone-github-repo-progress';
@@ -409,6 +410,7 @@ export interface ElectronApi {
   getPullRequestDetail: (owner: string, name: string, prNumber: number) => Promise<PullRequestDetail>;
   validateLocalGitRepository: (directoryPath: string) => Promise<void>;
   getGithubRepoDetails: (projectPath: string) => Promise<RepoDetails>;
+  findLocalGithubRepoPath: (slug: string) => Promise<string | null>;
   onAppShortcutCommand: (listener: (command: AppShortcutCommand) => void) => () => void;
   cloneGithubRepo: (slug: string) => Promise<string>;
   onCloneProgress: (listener: (line: string) => void) => () => void;

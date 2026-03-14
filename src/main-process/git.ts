@@ -104,6 +104,18 @@ export const splitGitHubSlug = (slug: string): { owner: string; name: string } =
   return { owner, name };
 };
 
+const getGithubCloneTargetDir = (slug: string): string => {
+  const { owner, name } = splitGitHubSlug(slug);
+
+  return path.join(homedir(), 'github.com', owner, name);
+};
+
+export const findLocalGithubRepoPath = (slug: string): string | null => {
+  const targetDir = getGithubCloneTargetDir(slug);
+
+  return existsSync(path.join(targetDir, '.git')) ? targetDir : null;
+};
+
 export const resolveGitHubSlugFromProjectPath = async (
   projectPath: string,
 ): Promise<string> => {
@@ -188,8 +200,7 @@ export const cloneGithubRepo = (
   slug: string,
   onProgress?: (line: string) => void,
 ): Promise<string> => {
-  const { owner, name } = splitGitHubSlug(slug);
-  const targetDir = path.join(homedir(), 'github.com', owner, name);
+  const targetDir = getGithubCloneTargetDir(slug);
 
   if (existsSync(path.join(targetDir, '.git'))) {
     return Promise.resolve(targetDir);

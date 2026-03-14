@@ -7,6 +7,7 @@ import type { Repo } from '@/ipc/contracts';
 import {
   getProjectStorageKey,
   isAbsoluteProjectPath,
+  isGitHubProjectReference,
   normalizeProjectInput,
 } from '@/renderer/lib/projects';
 
@@ -74,7 +75,12 @@ export function useRepoActions() {
 
   const addRepo = useCallback(
     async (candidatePath: string) => {
-      const projectPath = normalizeProjectInput(candidatePath);
+      const normalizedProjectInput = normalizeProjectInput(candidatePath);
+      const projectPath = isGitHubProjectReference(normalizedProjectInput)
+        ? (
+            await window.electronAPI.findLocalGithubRepoPath(normalizedProjectInput)
+          ) ?? normalizedProjectInput
+        : normalizedProjectInput;
 
       if (isAbsoluteProjectPath(projectPath)) {
         try {
