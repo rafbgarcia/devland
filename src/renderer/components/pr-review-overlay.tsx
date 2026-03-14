@@ -5,9 +5,10 @@ import Markdown from 'react-markdown';
 import { AnimatePresence, motion } from 'motion/react';
 
 import type { PrReview } from '@/ipc/contracts';
+import { parseDiff, type ParsedDiffLine } from '@/renderer/lib/code-diff';
 import { Button } from '@/shadcn/components/ui/button';
 import { Spinner } from '@/shadcn/components/ui/spinner';
-import { DiffRow, parseDiff, type ParsedDiffLine } from './code-diff-viewer';
+import { DiffRow } from './code-diff-viewer';
 
 type LineRange = { start: number; end: number };
 

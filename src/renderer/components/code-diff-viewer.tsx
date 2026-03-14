@@ -2,91 +2,13 @@ import { useMemo } from 'react';
 
 import { FileCodeIcon } from 'lucide-react';
 
+import {
+  parseDiff,
+  type DiffLineType,
+  type ParsedDiffLine,
+} from '@/renderer/lib/code-diff';
 import { Spinner } from '@/shadcn/components/ui/spinner';
 import { cn } from '@/shadcn/lib/utils';
-
-type DiffLineType = 'addition' | 'deletion' | 'context';
-
-type ParsedDiffLine = {
-  type: DiffLineType;
-  content: string;
-  oldLineNumber: number | null;
-  newLineNumber: number | null;
-};
-
-const HUNK_HEADER_RE = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
-
-export function parseDiff(raw: string): ParsedDiffLine[] {
-  const lines = raw.split('\n');
-  const result: ParsedDiffLine[] = [];
-  let oldLine = 0;
-  let newLine = 0;
-
-  for (const line of lines) {
-    const hunkMatch = line.match(HUNK_HEADER_RE);
-
-    if (hunkMatch) {
-      oldLine = parseInt(hunkMatch[1]!, 10);
-      newLine = parseInt(hunkMatch[2]!, 10);
-
-      continue;
-    }
-
-    if (
-      line.startsWith('diff ') ||
-      line.startsWith('index ') ||
-      line.startsWith('---') ||
-      line.startsWith('+++') ||
-      line.startsWith('new file') ||
-      line.startsWith('old mode') ||
-      line.startsWith('new mode') ||
-      line.startsWith('similarity') ||
-      line.startsWith('rename') ||
-      line.startsWith('deleted file') ||
-      line.startsWith('\\ No newline')
-    ) {
-      continue;
-    }
-
-    if (line.startsWith('+')) {
-      result.push({
-        type: 'addition',
-        content: line.slice(1),
-        oldLineNumber: null,
-        newLineNumber: newLine,
-      });
-      newLine++;
-
-      continue;
-    }
-
-    if (line.startsWith('-')) {
-      result.push({
-        type: 'deletion',
-        content: line.slice(1),
-        oldLineNumber: oldLine,
-        newLineNumber: null,
-      });
-      oldLine++;
-
-      continue;
-    }
-
-    // Context line (starts with space or is empty after headers)
-    if (oldLine > 0 || newLine > 0) {
-      result.push({
-        type: 'context',
-        content: line.startsWith(' ') ? line.slice(1) : line,
-        oldLineNumber: oldLine,
-        newLineNumber: newLine,
-      });
-      oldLine++;
-      newLine++;
-    }
-  }
-
-  return result;
-}
 
 const LINE_STYLES: Record<DiffLineType, { row: string; gutter: string }> = {
   addition: {
@@ -104,48 +26,6 @@ const LINE_STYLES: Record<DiffLineType, { row: string; gutter: string }> = {
 };
 
 export { type ParsedDiffLine, type DiffLineType };
-
-export type DiffFileStatus = 'added' | 'deleted' | 'renamed' | 'modified';
-
-export type DiffFile = {
-  path: string;
-  status: DiffFileStatus;
-  additions: number;
-  deletions: number;
-  rawDiff: string;
-};
-
-export function parseDiffFiles(rawDiff: string): DiffFile[] {
-  const fileSections = rawDiff.split(/^(?=diff --git )/m);
-  const files: DiffFile[] = [];
-
-  for (const section of fileSections) {
-    if (!section.startsWith('diff --git ')) continue;
-
-    const headerMatch = section.match(/^diff --git a\/.+ b\/(.+)$/m);
-    if (!headerMatch) continue;
-
-    const filePath = headerMatch[1]!;
-
-    let status: DiffFileStatus = 'modified';
-    if (section.includes('\nnew file mode ')) status = 'added';
-    else if (section.includes('\ndeleted file mode ')) status = 'deleted';
-    else if (section.includes('\nrename from ')) status = 'renamed';
-
-    let additions = 0;
-    let deletions = 0;
-    for (const line of section.split('\n')) {
-      if (line.startsWith('+') && !line.startsWith('+++')) additions++;
-      if (line.startsWith('-') && !line.startsWith('---')) deletions++;
-    }
-
-    files.push({ path: filePath, status, additions, deletions, rawDiff: section });
-  }
-
-  files.sort((a, b) => a.path.localeCompare(b.path));
-
-  return files;
-}
 
 export function DiffRow({ line }: { line: ParsedDiffLine }) {
   const style = LINE_STYLES[line.type];
