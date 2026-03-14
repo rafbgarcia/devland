@@ -52,6 +52,7 @@
     "@tanstack/react-router": "1.166.8",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
+    "convex": "1.33.1",
     "dayjs": "1.11.20",
     "electron-squirrel-startup": "1.0.1",
     "jotai": "^2.18.1",

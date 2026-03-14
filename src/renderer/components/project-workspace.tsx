@@ -391,7 +391,12 @@ export function ProjectWorkspace({
           </nav>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div
+          className={cn(
+            'flex-1',
+            activeView === 'channels' ? 'min-h-0 overflow-hidden' : 'overflow-y-auto',
+          )}
+        >
           {children}
         </div>
       </div>

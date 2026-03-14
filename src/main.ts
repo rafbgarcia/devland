@@ -29,7 +29,7 @@ const developmentContentSecurityPolicy = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https://*.githubusercontent.com",
   "font-src 'self' data:",
-  `connect-src 'self' ${devServerOrigin} ${
+  `connect-src 'self' https://*.convex.cloud https://*.convex.site wss://*.convex.cloud ${devServerOrigin} ${
     devServerOrigin?.replace(/^http/, 'ws') ?? ''
   }`,
   "object-src 'none'",
