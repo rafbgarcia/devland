@@ -363,6 +363,7 @@ export function PrCodeChanges({
 
   const diffCacheRef = useRef<Map<string, string>>(new Map());
   const fileRefsRef = useRef<Map<string, HTMLDivElement>>(new Map());
+  const fileRefCallbacksRef = useRef<Map<string, (el: HTMLDivElement | null) => void>>(new Map());
   const diffScrollRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
@@ -385,6 +386,7 @@ export function PrCodeChanges({
   useEffect(() => {
     diffCacheRef.current.clear();
     fileRefsRef.current.clear();
+    fileRefCallbacksRef.current.clear();
     setSelection({ type: 'commit', index: 0 });
     setRawDiff({ status: 'idle' });
     setVisibleFiles(new Set());
@@ -487,19 +489,31 @@ export function PrCodeChanges({
   }, []);
 
   // ---- File section ref callback ----
-  const makeFileRef = useCallback(
-    (path: string) => (el: HTMLDivElement | null) => {
+  const getFileRef = useCallback((path: string) => {
+    const existingRef = fileRefCallbacksRef.current.get(path);
+
+    if (existingRef) {
+      return existingRef;
+    }
+
+    const nextRef = (el: HTMLDivElement | null) => {
       if (el) {
         fileRefsRef.current.set(path, el);
         observerRef.current?.observe(el);
-      } else {
-        const prev = fileRefsRef.current.get(path);
-        if (prev) observerRef.current?.unobserve(prev);
-        fileRefsRef.current.delete(path);
+        return;
       }
-    },
-    [],
-  );
+
+      const prev = fileRefsRef.current.get(path);
+      if (prev) {
+        observerRef.current?.unobserve(prev);
+      }
+
+      fileRefsRef.current.delete(path);
+    };
+
+    fileRefCallbacksRef.current.set(path, nextRef);
+    return nextRef;
+  }, []);
 
   // ---- Selection handlers ----
   const handleSelectCommit = useCallback((index: number) => {
@@ -666,7 +680,7 @@ export function PrCodeChanges({
                   <FileDiffSection
                     key={file.path}
                     file={file}
-                    sectionRef={makeFileRef(file.path)}
+                    sectionRef={getFileRef(file.path)}
                   />
                 ))}
               </div>

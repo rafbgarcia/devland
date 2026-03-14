@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { startTransition, useCallback, useEffect, useRef, useState } from 'react';
 
 import { CodeIcon, SparklesIcon, XIcon } from 'lucide-react';
 import { motion, type Variants } from 'motion/react';
@@ -7,6 +7,13 @@ import type { PrDiffMetaResult, PrReview } from '@/ipc/contracts';
 import { CodeCloneView } from '@/renderer/components/code-clone-view';
 import { isAbsoluteProjectPath } from '@/renderer/lib/projects';
 import { Button } from '@/shadcn/components/ui/button';
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/shadcn/components/ui/empty';
 import { Spinner } from '@/shadcn/components/ui/spinner';
 
 import {
@@ -62,6 +69,12 @@ const panelVariants: Variants = {
   },
 };
 
+/**
+ * Wait for animation to finish smoothly.
+ */
+const PANEL_TRANSITION_DURATION_S = 0.2;
+const CONTENT_MOUNT_DELAY_MS = PANEL_TRANSITION_DURATION_S * 1000;
+
 export function PrReviewDialog({
   pr,
   repoId,
@@ -86,6 +99,7 @@ export function PrReviewDialog({
   const [aiReview, setAiReview] = useState<AiReviewState>({ status: 'idle' });
   const [activeTab, setActiveTab] = useState<string>('code-changes');
   const [prMeta, setPrMeta] = useState<AsyncState<PrDiffMetaResult>>({ status: 'idle' });
+  const [isContentMounted, setIsContentMounted] = useState(false);
   const requestIdRef = useRef(0);
   const activeSnapshotKeyRef = useRef('');
   const loadedReviewRefsVersionRef = useRef<number | null>(null);
@@ -157,6 +171,22 @@ export function PrReviewDialog({
   }, [open, pr, isCloned, repoPath, loadLocalSnapshot]);
 
   useEffect(() => {
+    if (!open || !displayPr) {
+      return;
+    }
+
+    setIsContentMounted(false);
+
+    const timeoutId = window.setTimeout(() => {
+      startTransition(() => {
+        setIsContentMounted(true);
+      });
+    }, CONTENT_MOUNT_DELAY_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [open, displayPr?.number]);
+
+  useEffect(() => {
     if (!open || !pr || !isCloned) {
       return;
     }
@@ -198,6 +228,7 @@ export function PrReviewDialog({
     setAiReview({ status: 'idle' });
     setActiveTab('code-changes');
     setPrMeta({ status: 'idle' });
+    setIsContentMounted(false);
     activeSnapshotKeyRef.current = '';
     loadedReviewRefsVersionRef.current = null;
     requestIdRef.current += 1;
@@ -235,7 +266,7 @@ export function PrReviewDialog({
         initial="closed"
         animate={animateState}
         variants={panelVariants}
-        transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+        transition={{ duration: PANEL_TRANSITION_DURATION_S, ease: [0.4, 0, 0.2, 1] }}
         onAnimationComplete={resetState}
         className="fixed inset-2 z-50 flex flex-col gap-0 rounded-xl border bg-card p-0 shadow-2xl"
         style={{ visibility: 'hidden' }}
@@ -268,7 +299,19 @@ export function PrReviewDialog({
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              {!isCloned ? (
+              {!isContentMounted ? (
+                <Empty className="h-full border-0">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <Spinner />
+                    </EmptyMedia>
+                    <EmptyTitle>Preparing review workspace</EmptyTitle>
+                    <EmptyDescription>
+                      Loading the interactive review view after the panel animation settles.
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              ) : !isCloned ? (
                 <CodeCloneView repoId={repoId} slug={slug} />
               ) : (
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col">
