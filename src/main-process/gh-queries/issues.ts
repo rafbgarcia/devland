@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import {
   GitHubLabelSchema,
-  GitHubUserSchema,
+  GitHubUserWithAvatarSchema,
   ProjectIssueFeedItemSchema,
   type ProjectIssueFeedItem,
 } from '../../ipc/contracts';
@@ -11,7 +11,7 @@ import { graphql } from '../gh-graphql';
 const GitHubNodeIdSchema = z.union([z.string(), z.number()]).transform(String);
 
 const IssueCommentAuthorSchema = z.object({
-  author: GitHubUserSchema.nullable(),
+  author: GitHubUserWithAvatarSchema.nullable(),
 });
 
 const IssueResponseNodeSchema = z
@@ -21,7 +21,7 @@ const IssueResponseNodeSchema = z
     title: z.string().min(1),
     url: z.string().url(),
     state: z.string().min(1),
-    author: GitHubUserSchema.nullable(),
+    author: GitHubUserWithAvatarSchema.nullable(),
     comments: z.object({
       totalCount: z.number().int().nonnegative(),
       nodes: z.array(IssueCommentAuthorSchema),
@@ -79,12 +79,14 @@ query($owner: String!, $name: String!) {
         state
         author {
           login
+          avatarUrl
         }
         comments(first: 20) {
           totalCount
           nodes {
             author {
               login
+              avatarUrl
             }
           }
         }

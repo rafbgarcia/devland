@@ -45,11 +45,18 @@ function PullRequestFeedItem({
   onSelect: (item: ProjectPullRequestFeedItem) => void;
 }) {
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => onSelect(item)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect(item);
+        }
+      }}
       className={cn(
-        'w-full text-left transition-colors hover:bg-muted/50',
+        'w-full cursor-pointer text-left transition-colors hover:bg-muted/50',
         isSelected && 'bg-muted',
       )}
     >
@@ -68,7 +75,7 @@ function PullRequestFeedItem({
             <span className="font-normal text-muted-foreground">(#{item.number})</span>
           </span>
         }
-        aside={
+        sublineAside={
           <PullRequestDiffStats
             commitCount={item.commitCount}
             additions={item.additions}
@@ -76,7 +83,7 @@ function PullRequestFeedItem({
           />
         }
       />
-    </button>
+    </div>
   );
 }
 

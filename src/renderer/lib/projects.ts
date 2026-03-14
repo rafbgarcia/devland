@@ -61,9 +61,6 @@ export const getProjectLabel = (projectPath: string): string => {
   return segments.at(-1) ?? projectPath;
 };
 
-export const formatRelativeTime = (value: string | number): string =>
-  dayjs(value).fromNow();
-
 const PROJECT_VIEW_TAB_SET = new Set<string>(PROJECT_VIEW_TABS);
 
 export const isProjectViewTab = (value: string): value is ProjectViewTab =>

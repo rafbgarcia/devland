@@ -88,9 +88,9 @@ export const ProjectFeedItemBaseSchema = z.object({
   title: z.string().min(1),
   url: z.string().url(),
   state: z.string().min(1),
-  author: GitHubUserSchema.nullable(),
+  author: GitHubUserWithAvatarSchema.nullable(),
   commentCount: z.number().int().nonnegative(),
-  commentAuthors: z.array(GitHubUserSchema.nullable()),
+  commentAuthors: z.array(GitHubUserWithAvatarSchema.nullable()),
   labels: z.array(GitHubLabelSchema),
   createdAt: z.string().min(1),
 });

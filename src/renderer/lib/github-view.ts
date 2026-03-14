@@ -1,19 +1,17 @@
-import type { GitHubUser } from '@/ipc/contracts';
+import type { GitHubUser, GitHubUserWithAvatar } from '@/ipc/contracts';
 
 export const getAuthorLogin = (author: GitHubUser | null): string => author?.login ?? 'unknown';
 
-export const getUniqueCommentAuthorLogins = (
-  authors: Array<GitHubUser | null>,
-): string[] => {
+export const getUniqueCommentAuthors = (
+  authors: Array<GitHubUserWithAvatar | null>,
+): GitHubUserWithAvatar[] => {
   const seen = new Set<string>();
-  const result: string[] = [];
+  const result: GitHubUserWithAvatar[] = [];
 
   for (const author of authors) {
-    const login = author?.login;
-
-    if (login && !seen.has(login)) {
-      seen.add(login);
-      result.push(login);
+    if (author && !seen.has(author.login)) {
+      seen.add(author.login);
+      result.push(author);
     }
   }
 

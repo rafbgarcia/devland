@@ -11,6 +11,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import type { PullRequestDetail } from '@/ipc/contracts';
 import { usePullRequestDetail } from '@/renderer/hooks/use-pull-request-detail';
 import { getAuthorLogin } from '@/renderer/lib/github-view';
+import { Avatar, AvatarFallback, AvatarImage } from '@/shadcn/components/ui/avatar';
 import { Badge } from '@/shadcn/components/ui/badge';
 import { Spinner } from '@/shadcn/components/ui/spinner';
 import { RelativeTime } from '@/ui/relative-time';
@@ -121,9 +122,10 @@ function PullRequestDetailContent({ pr }: { pr: PullRequestDetail }) {
         <div className="rounded-lg border border-border bg-muted/30">
           <div className="flex items-center gap-2 rounded-t-lg border-b border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
-              {pr.author?.avatarUrl && (
-                <img src={pr.author.avatarUrl} alt="" className="size-5 rounded" />
-              )}
+              <Avatar size="sm" className="size-5">
+                {pr.author?.avatarUrl && <AvatarImage src={pr.author.avatarUrl} alt="" />}
+                <AvatarFallback>{pr.author?.login?.[0] ?? '?'}</AvatarFallback>
+              </Avatar>
               {getAuthorLogin(pr.author)}
             </span>
             <RelativeTime value={pr.createdAt} />
@@ -154,9 +156,10 @@ function PullRequestDetailContent({ pr }: { pr: PullRequestDetail }) {
               <div key={comment.id} className="rounded-lg border border-border bg-muted/30">
                 <div className="flex items-center gap-2 rounded-t-lg border-b border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
                   <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
-                    {comment.author?.avatarUrl && (
-                      <img src={comment.author.avatarUrl} alt="" className="size-5 rounded" />
-                    )}
+                    <Avatar size="sm" className="size-5">
+                      {comment.author?.avatarUrl && <AvatarImage src={comment.author.avatarUrl} alt="" />}
+                      <AvatarFallback>{comment.author?.login?.[0] ?? '?'}</AvatarFallback>
+                    </Avatar>
                     {getAuthorLogin(comment.author)}
                   </span>
                   <RelativeTime value={comment.createdAt} />

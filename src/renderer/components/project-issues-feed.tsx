@@ -23,11 +23,18 @@ function IssueFeedItem({
   onSelect: (item: ProjectIssueFeedItem) => void;
 }) {
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => onSelect(item)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect(item);
+        }
+      }}
       className={cn(
-        'w-full text-left transition-colors hover:bg-muted/50',
+        'w-full cursor-pointer text-left transition-colors hover:bg-muted/50',
         isSelected && 'bg-muted',
       )}
     >
@@ -40,7 +47,7 @@ function IssueFeedItem({
           </span>
         }
       />
-    </button>
+    </div>
   );
 }
 

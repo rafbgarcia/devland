@@ -1,7 +1,5 @@
 import { useSyncExternalStore } from 'react';
-
 import { dayjs } from '@/lib/dayjs';
-import { formatRelativeTime } from '@/renderer/lib/projects';
 
 const SECONDS_30 = 30_000;
 
@@ -57,7 +55,7 @@ export function RelativeTime({
   );
 
   const timestamp = dayjs(value);
-  const label = formatRelativeTime(value);
+  const label = dayjs(value).fromNow();
   const isValid = timestamp.isValid();
   const dateTime = isValid ? timestamp.toISOString() : undefined;
   const absoluteLabel = isValid ? timestamp.format('MMM D, YYYY h:mm A') : undefined;

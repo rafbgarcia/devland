@@ -1,10 +1,17 @@
 import type { ReactNode } from 'react';
 
-import { GithubIcon, MoreHorizontalIcon, RefreshCwIcon } from 'lucide-react';
+import { GithubIcon, MessageSquareIcon, RefreshCwIcon } from 'lucide-react';
 
-import type { ProjectFeed, ProjectFeedItemBase } from '@/ipc/contracts';
-import { getAuthorLogin, getUniqueCommentAuthorLogins } from '@/renderer/lib/github-view';
+import type { GitHubUserWithAvatar, ProjectFeed, ProjectFeedItemBase } from '@/ipc/contracts';
+import { getAuthorLogin, getUniqueCommentAuthors } from '@/renderer/lib/github-view';
 import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarGroup,
+  AvatarGroupCount,
+  AvatarImage,
+} from '@/shadcn/components/ui/avatar';
 import { Badge } from '@/shadcn/components/ui/badge';
 import {
   Empty,
@@ -56,32 +63,48 @@ export type ProjectFeedDefinition<TFeed extends ProjectFeed> = {
   renderItem: (item: TFeed['items'][number]) => ReactNode;
 };
 
-function FeedCommentCount({ count, authors }: { count: number; authors: string[] }) {
+function FeedCommentAuthors({
+  count,
+  authors,
+}: {
+  count: number;
+  authors: GitHubUserWithAvatar[];
+}) {
   if (count === 0) {
-    return <span>0 comments</span>;
+    return null;
   }
 
   const visible = authors.slice(0, VISIBLE_AUTHORS_LIMIT);
-  const remaining = authors.slice(VISIBLE_AUTHORS_LIMIT);
+  const remaining = authors.length - VISIBLE_AUTHORS_LIMIT;
 
   return (
-    <span className="inline-flex items-center gap-1">
-      <span>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+          <MessageSquareIcon className="size-3" />
+          <span className="text-xs">{count}</span>
+          {visible.length > 0 && (
+            <AvatarGroup>
+              {visible.map((author) => (
+                <Avatar key={author.login} size="sm" className="size-4">
+                  <AvatarImage src={author.avatarUrl} alt={author.login} />
+                  <AvatarFallback>{author.login[0]}</AvatarFallback>
+                </Avatar>
+              ))}
+              {remaining > 0 && (
+                <AvatarGroupCount className="size-4 text-[0.5rem]">
+                  +{remaining}
+                </AvatarGroupCount>
+              )}
+            </AvatarGroup>
+          )}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>
         {count} {count === 1 ? 'comment' : 'comments'}
-        {visible.length > 0 ? ` by ${visible.join(', ')}` : ''}
-      </span>
-      {remaining.length > 0 ? (
-        <Tooltip>
-          <TooltipTrigger
-            className="inline-flex cursor-default items-center rounded-full bg-muted px-1 py-px text-[0.6rem] font-medium text-muted-foreground"
-          >
-            <MoreHorizontalIcon className="mr-0.5 size-2.5" />
-            +{remaining.length}
-          </TooltipTrigger>
-          <TooltipContent>{remaining.join(', ')}</TooltipContent>
-        </Tooltip>
-      ) : null}
-    </span>
+        {authors.length > 0 && ` by ${authors.map((a) => a.login).join(', ')}`}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -145,34 +168,42 @@ export function ProjectFeedItemFrame<TItem extends ProjectFeedItemBase>({
   item,
   title,
   leadingIcon,
-  aside,
+  sublineAside,
 }: {
   item: TItem;
   title: ReactNode;
   leadingIcon?: ReactNode;
-  aside?: ReactNode;
+  sublineAside?: ReactNode;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 px-5 py-3.5">
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <div className="flex items-center gap-1.5">
+    <div className="flex flex-col gap-1 px-5 py-3.5">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-1.5">
           {leadingIcon}
           {title}
         </div>
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-          <span>{getAuthorLogin(item.author)}</span>
-          <RelativeTime value={item.createdAt} />
-          <span className="text-border">|</span>
-          <FeedCommentCount
-            count={item.commentCount}
-            authors={getUniqueCommentAuthorLogins(item.commentAuthors)}
-          />
-        </div>
-      </div>
-
-      <div className="flex shrink-0 flex-col items-end gap-1.5">
         <FeedLabels labels={item.labels} />
-        {aside}
+      </div>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5">
+            {item.author?.avatarUrl && (
+              <Avatar size="sm">
+                <AvatarImage src={item.author.avatarUrl} alt="" />
+                <AvatarFallback>{item.author.login[0]}</AvatarFallback>
+              </Avatar>
+            )}
+            {getAuthorLogin(item.author)}
+          </span>
+          <RelativeTime value={item.createdAt} />
+        </div>
+        <div className="flex shrink-0 items-center gap-3">
+          <FeedCommentAuthors
+            count={item.commentCount}
+            authors={getUniqueCommentAuthors(item.commentAuthors)}
+          />
+          {sublineAside}
+        </div>
       </div>
     </div>
   );
