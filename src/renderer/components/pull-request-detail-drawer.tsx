@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 import {
-  ChevronRightIcon,
   ExternalLinkIcon,
   GitPullRequestDraftIcon,
   GitPullRequestIcon,
@@ -9,37 +8,12 @@ import {
 import { AnimatePresence, motion } from 'motion/react';
 
 import type { ProjectPullRequestFeedItem } from '@/ipc/contracts';
+import { DrawerCloseButton } from '@/renderer/components/drawer-close-button';
 import { PrReviewButton } from '@/renderer/components/pr-review-button';
 import { getAuthorLogin } from '@/renderer/lib/github-view';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shadcn/components/ui/avatar';
 import { Badge } from '@/shadcn/components/ui/badge';
 import { RelativeTime } from '@/ui/relative-time';
-
-function CloseBar({ onClick }: { onClick: () => void }) {
-  const [hovered, setHovered] = useState(false);
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      className="group flex w-10 shrink-0 items-center justify-center text-gray-500 bg-[linear-gradient(to_right,transparent,var(--background))] transition-all hover:backdrop-blur-sm active:bg-muted"
-    >
-      <span className="sr-only">Close</span>
-      <motion.span
-        className="inline-flex"
-        animate={
-          hovered
-            ? { x: [0, 4, 0], transition: { repeat: Infinity, duration: 0.8 } }
-            : { x: 0 }
-        }
-      >
-        <ChevronRightIcon className="size-4 group-hover:size-5" />
-      </motion.span>
-    </button>
-  );
-}
 
 function PullRequestDiffStats({
   commitCount,
@@ -207,9 +181,9 @@ export function PullRequestDetailDrawer({
           animate={{ x: 0 }}
           exit={{ x: '100%' }}
           transition={{ type: 'tween', duration: 0.15 }}
-          className="fixed inset-y-0 right-0 z-50 flex w-[70vw] flex-row shadow-lg"
+          className="fixed inset-y-0 right-0 z-50 flex w-[60vw] flex-row shadow-lg"
         >
-          <CloseBar onClick={onClose} />
+          <DrawerCloseButton onClick={onClose} />
 
           <div className="flex min-w-0 flex-1 flex-col bg-background">
             {pr === null && (
