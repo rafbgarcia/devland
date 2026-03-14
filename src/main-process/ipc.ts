@@ -18,7 +18,8 @@ import {
   GENERATE_PR_REVIEW_CHANNEL,
   type AppBootstrap,
 } from '../ipc/contracts';
-import { codexExecutable, generatePrReview } from './codex';
+import { codexExecutable } from './codex-cli';
+import { generatePrReview } from './codex-use-cases/pr-review';
 import { ghExecutable } from './gh-cli';
 import { getRepositoryIssueDetail } from './gh-queries/issue-detail';
 import { getRepositoryPullRequestDetail } from './gh-queries/pull-request-detail';

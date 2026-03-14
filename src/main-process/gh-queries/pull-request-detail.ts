@@ -72,7 +72,7 @@ export async function getRepositoryPullRequestDetail(
   return response.data.repository.pullRequest;
 }
 
-export const PULL_REQUEST_DETAIL_QUERY = `
+const PULL_REQUEST_DETAIL_QUERY = `
 query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {

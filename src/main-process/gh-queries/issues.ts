@@ -63,7 +63,7 @@ export async function getRepositoryIssues(
   };
 }
 
-export const ISSUES_QUERY = `
+const ISSUES_QUERY = `
 query($owner: String!, $name: String!) {
   repository(owner: $owner, name: $name) {
     issues(

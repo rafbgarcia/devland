@@ -65,7 +65,7 @@ export async function getRepositoryIssueDetail(
   return response.data.repository.issue;
 }
 
-export const ISSUE_DETAIL_QUERY = `
+const ISSUE_DETAIL_QUERY = `
 query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     issue(number: $number) {

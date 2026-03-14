@@ -66,7 +66,7 @@ function PullRequestFeedItem({
         }
       }}
       className={cn(
-        'group/pr w-full cursor-pointer text-left transition-colors hover:bg-muted/50',
+        'group/pr w-full text-left transition-colors hover:bg-muted/50',
         isSelected && 'bg-muted',
       )}
     >

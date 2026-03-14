@@ -34,7 +34,7 @@ function IssueFeedItem({
         }
       }}
       className={cn(
-        'w-full cursor-pointer text-left transition-colors hover:bg-muted/50',
+        'w-full text-left transition-colors hover:bg-muted/50',
         isSelected && 'bg-muted',
       )}
     >

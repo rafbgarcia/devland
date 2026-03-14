@@ -70,7 +70,7 @@ export async function getRepositoryPullRequests(
   };
 }
 
-export const PULL_REQUESTS_QUERY = `
+const PULL_REQUESTS_QUERY = `
 query($owner: String!, $name: String!) {
   repository(owner: $owner, name: $name) {
     pullRequests(
