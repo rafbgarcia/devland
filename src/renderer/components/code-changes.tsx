@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import type { GitStatusFile, PrCommit } from '@/ipc/contracts';
 import type { DiffCommentAnchor } from '@/lib/diff';
@@ -25,6 +25,20 @@ type CodeChangesRenderProps = {
   viewport: ReactNode;
   historyDrawer: ReactNode;
 };
+
+function areVisibleFileSetsEqual(left: Set<string>, right: Set<string>) {
+  if (left.size !== right.size) {
+    return false;
+  }
+
+  for (const value of left) {
+    if (!right.has(value)) {
+      return false;
+    }
+  }
+
+  return true;
+}
 
 export function CodeChanges({
   repoPath,
@@ -93,19 +107,25 @@ export function CodeChanges({
   const historyError = historyState.status === 'error'
     ? historyState.error
     : null;
+  const renderContext = useMemo(() => {
+    if (selection.type === 'working-tree') {
+      return { kind: 'working-tree', repoPath } as const;
+    }
+
+    if (selectedCommit === null) {
+      return null;
+    }
+
+    return {
+      kind: 'commit',
+      repoPath,
+      commitRevision: selectedCommit.sha,
+      parentRevision: commitDiffState.parentRevision,
+    } as const;
+  }, [commitDiffState.parentRevision, repoPath, selectedCommit, selection.type]);
   const activeRenderFiles = useDiffRenderFiles({
     rawDiff: activeDiffState,
-    context:
-      selection.type === 'working-tree'
-        ? { kind: 'working-tree', repoPath }
-        : selectedCommit === null
-        ? null
-        : {
-            kind: 'commit',
-            repoPath,
-            commitRevision: selectedCommit.sha,
-            parentRevision: commitDiffState.parentRevision,
-          },
+    context: renderContext,
   });
   const workingTreeCommitSelection = useWorkingTreeCommitSelection({
     repoPath,
@@ -168,6 +188,13 @@ export function CodeChanges({
     viewportRef.current?.scrollToFile(path);
     onFileSelect?.();
   };
+  const handleVisibleFilesChange = useCallback((nextVisibleFiles: Set<string>) => {
+    setVisibleFiles((currentVisibleFiles) =>
+      areVisibleFileSetsEqual(currentVisibleFiles, nextVisibleFiles)
+        ? currentVisibleFiles
+        : nextVisibleFiles,
+    );
+  }, []);
 
   const drawerCommits = useMemo(() => historyCommits, [historyCommits]);
 
@@ -213,7 +240,7 @@ export function CodeChanges({
       rawDiff={activeDiffState}
       diffFiles={activeRenderFiles}
       emptyMessage={emptyMessage}
-      onVisibleFilesChange={setVisibleFiles}
+      onVisibleFilesChange={handleVisibleFilesChange}
       getFileSelectionType={
         isWorkingTreeSelection
           ? workingTreeCommitSelection.getFileSelectionType

@@ -63,6 +63,20 @@ const FILE_GAP_PX = 16;
 const VIEWPORT_OVERSCAN_PX = 480;
 const VIEWPORT_INSET_PX = 16;
 
+function areVisibleFileSetsEqual(left: Set<string>, right: Set<string>) {
+  if (left.size !== right.size) {
+    return false;
+  }
+
+  for (const value of left) {
+    if (!right.has(value)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function estimateFileHeight(file: DiffRenderFile) {
   return (
     FILE_HEADER_HEIGHT_PX +
@@ -387,8 +401,14 @@ export const CodeChangesFilesViewport = forwardRef<CodeChangesViewportHandle, Co
     () => new Set(diffFiles.slice(visibleRange.start, visibleRange.end).map((file) => file.path)),
     [diffFiles, visibleRange.end, visibleRange.start],
   );
+  const lastReportedVisibleFilesRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
+    if (areVisibleFileSetsEqual(lastReportedVisibleFilesRef.current, visibleFiles)) {
+      return;
+    }
+
+    lastReportedVisibleFilesRef.current = visibleFiles;
     onVisibleFilesChange?.(visibleFiles);
   }, [visibleFiles, onVisibleFilesChange]);
 
