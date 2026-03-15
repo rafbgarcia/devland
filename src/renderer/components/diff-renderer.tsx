@@ -6,6 +6,7 @@ import {
   buildDiffCommentAnchor,
   getCommentableLineNumber,
   type DiffCommentAnchor,
+  type DiffDisplayMode,
   type DiffCommentSide,
   type DiffSelectionType,
 } from '@/lib/diff';
@@ -255,6 +256,62 @@ function HunkRow({
   );
 }
 
+function UnifiedLine({
+  oldLineNumber,
+  newLineNumber,
+  marker,
+  content,
+  className,
+  selectionType,
+  onToggleSelection,
+  commentButton,
+  commentHighlighted = false,
+  onCommentLaneEnter,
+}: {
+  oldLineNumber: number | null;
+  newLineNumber: number | null;
+  marker: string;
+  content: ReactNode;
+  className?: string;
+  selectionType?: DiffSelectionType | undefined;
+  onToggleSelection?: (() => void) | undefined;
+  commentButton?: ReactNode;
+  commentHighlighted?: boolean;
+  onCommentLaneEnter?: (() => void) | undefined;
+}) {
+  return (
+    <div className="flex">
+      {selectionType ? (
+        <div className={SELECTION_GUTTER_CLASS}>
+          {onToggleSelection ? (
+            <SelectionToggle selectionType={selectionType} onClick={onToggleSelection} />
+          ) : null}
+        </div>
+      ) : null}
+      <div
+        className={cn(
+          'group/column min-w-0 flex-1',
+          commentHighlighted && 'bg-amber-500/10 ring-1 ring-inset ring-amber-500/30',
+          className,
+        )}
+        onMouseEnter={onCommentLaneEnter}
+      >
+        <div className={cn('flex min-w-0', ROW_BASE_CLASS)}>
+          <span className={GUTTER_CLASS}>{oldLineNumber ?? ''}</span>
+          <span className="relative w-[52px] shrink-0 select-none border-r border-border/40 px-2 text-right text-[12px] text-muted-foreground/75">
+            {newLineNumber ?? ''}
+            {commentButton}
+          </span>
+          <span className={MARKER_CLASS}>{marker}</span>
+          <span className="diff-syntax min-w-0 flex-1 overflow-hidden whitespace-pre px-2">
+            {content}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ContextRow({
   file,
   row,
@@ -473,7 +530,175 @@ function ModifiedRow({
   );
 }
 
+function UnifiedContextRow({
+  file,
+  row,
+  selectionType,
+  afterCommentButton,
+  afterCommentHighlighted = false,
+  onAfterCommentLaneEnter,
+}: {
+  file: DiffRenderFile;
+  row: Extract<DiffRenderFile['rows'][number], { kind: 'context' }>;
+  selectionType?: DiffSelectionType | undefined;
+  afterCommentButton?: ReactNode;
+  afterCommentHighlighted?: boolean;
+  onAfterCommentLaneEnter?: (() => void) | undefined;
+}) {
+  const oldTokens = getHighlightTokensForLine(row.beforeLineNumber, file.syntaxTokens?.oldTokens);
+  const newTokens = getHighlightTokensForLine(row.afterLineNumber, file.syntaxTokens?.newTokens);
+
+  return (
+    <UnifiedLine
+      oldLineNumber={row.beforeLineNumber}
+      newLineNumber={row.afterLineNumber}
+      marker=""
+      selectionType={selectionType}
+      content={renderHighlightedText(row.content, [newTokens ?? oldTokens])}
+      commentButton={afterCommentButton}
+      commentHighlighted={afterCommentHighlighted}
+      onCommentLaneEnter={onAfterCommentLaneEnter}
+    />
+  );
+}
+
+function UnifiedDeletedRow({
+  file,
+  row,
+  selectionType,
+  onToggleSelection,
+  beforeCommentButton,
+  beforeCommentHighlighted = false,
+  onBeforeCommentLaneEnter,
+}: {
+  file: DiffRenderFile;
+  row: Extract<DiffRenderFile['rows'][number], { kind: 'deleted' }>;
+  selectionType?: DiffSelectionType | undefined;
+  onToggleSelection?: (() => void) | undefined;
+  beforeCommentButton?: ReactNode;
+  beforeCommentHighlighted?: boolean;
+  onBeforeCommentLaneEnter?: (() => void) | undefined;
+}) {
+  const syntaxTokens = getHighlightTokensForLine(row.data.lineNumber, file.syntaxTokens?.oldTokens);
+
+  return (
+    <UnifiedLine
+      oldLineNumber={row.data.lineNumber}
+      newLineNumber={null}
+      marker="-"
+      className="bg-rose-500/12"
+      selectionType={selectionType}
+      onToggleSelection={onToggleSelection}
+      content={renderHighlightedText(row.data.content, [syntaxTokens])}
+      commentButton={beforeCommentButton}
+      commentHighlighted={beforeCommentHighlighted}
+      onCommentLaneEnter={onBeforeCommentLaneEnter}
+    />
+  );
+}
+
+function UnifiedAddedRow({
+  file,
+  row,
+  selectionType,
+  onToggleSelection,
+  afterCommentButton,
+  afterCommentHighlighted = false,
+  onAfterCommentLaneEnter,
+}: {
+  file: DiffRenderFile;
+  row: Extract<DiffRenderFile['rows'][number], { kind: 'added' }>;
+  selectionType?: DiffSelectionType | undefined;
+  onToggleSelection?: (() => void) | undefined;
+  afterCommentButton?: ReactNode;
+  afterCommentHighlighted?: boolean;
+  onAfterCommentLaneEnter?: (() => void) | undefined;
+}) {
+  const syntaxTokens = getHighlightTokensForLine(row.data.lineNumber, file.syntaxTokens?.newTokens);
+
+  return (
+    <UnifiedLine
+      oldLineNumber={null}
+      newLineNumber={row.data.lineNumber}
+      marker="+"
+      className="bg-emerald-500/12"
+      selectionType={selectionType}
+      onToggleSelection={onToggleSelection}
+      content={renderHighlightedText(row.data.content, [syntaxTokens])}
+      commentButton={afterCommentButton}
+      commentHighlighted={afterCommentHighlighted}
+      onCommentLaneEnter={onAfterCommentLaneEnter}
+    />
+  );
+}
+
+function UnifiedModifiedRow({
+  file,
+  row,
+  selectionType,
+  onToggleSelection,
+  beforeCommentButton,
+  afterCommentButton,
+  beforeCommentHighlighted = false,
+  afterCommentHighlighted = false,
+  onBeforeCommentLaneEnter,
+  onAfterCommentLaneEnter,
+}: {
+  file: DiffRenderFile;
+  row: Extract<DiffRenderFile['rows'][number], { kind: 'modified' }>;
+  selectionType?: DiffSelectionType | undefined;
+  onToggleSelection?: (() => void) | undefined;
+  beforeCommentButton?: ReactNode;
+  afterCommentButton?: ReactNode;
+  beforeCommentHighlighted?: boolean;
+  afterCommentHighlighted?: boolean;
+  onBeforeCommentLaneEnter?: (() => void) | undefined;
+  onAfterCommentLaneEnter?: (() => void) | undefined;
+}) {
+  const beforeSyntaxTokens = getHighlightTokensForLine(row.before.lineNumber, file.syntaxTokens?.oldTokens);
+  const afterSyntaxTokens = getHighlightTokensForLine(row.after.lineNumber, file.syntaxTokens?.newTokens);
+  const intraLineTokens = row.canIntraLineDiff
+    ? getIntraLineDiffTokens(row.before.content, row.after.content)
+    : null;
+
+  return (
+    <>
+      <UnifiedLine
+        oldLineNumber={row.before.lineNumber}
+        newLineNumber={null}
+        marker="-"
+        className="bg-rose-500/12"
+        selectionType={selectionType}
+        onToggleSelection={onToggleSelection}
+        content={renderHighlightedText(row.before.content, [
+          beforeSyntaxTokens,
+          intraLineTokens?.before,
+        ])}
+        commentButton={beforeCommentButton}
+        commentHighlighted={beforeCommentHighlighted}
+        onCommentLaneEnter={onBeforeCommentLaneEnter}
+      />
+      <UnifiedLine
+        oldLineNumber={null}
+        newLineNumber={row.after.lineNumber}
+        marker="+"
+        className="bg-emerald-500/12"
+        selectionType={selectionType}
+        onToggleSelection={onToggleSelection}
+        content={renderHighlightedText(row.after.content, [
+          afterSyntaxTokens,
+          intraLineTokens?.after,
+        ])}
+        commentButton={afterCommentButton}
+        commentHighlighted={afterCommentHighlighted}
+        onCommentLaneEnter={onAfterCommentLaneEnter}
+      />
+    </>
+  );
+}
+
 function DiffBodyRow({
+  displayMode,
   file,
   row,
   selectionType,
@@ -486,6 +711,7 @@ function DiffBodyRow({
   onBeforeCommentLaneEnter,
   onAfterCommentLaneEnter,
 }: {
+  displayMode: DiffDisplayMode;
   file: DiffRenderFile;
   row: DiffRenderFile['rows'][number];
   selectionType?: DiffSelectionType | undefined;
@@ -512,63 +738,114 @@ function DiffBodyRow({
         />
       );
     case 'context':
-      return (
-        <ContextRow
-          file={file}
-          row={row}
-          selectionType={selectionType}
-          beforeCommentButton={beforeCommentButton}
-          afterCommentButton={afterCommentButton}
-          beforeCommentHighlighted={beforeCommentHighlighted}
-          afterCommentHighlighted={afterCommentHighlighted}
-          onBeforeCommentLaneEnter={onBeforeCommentLaneEnter}
-          onAfterCommentLaneEnter={onAfterCommentLaneEnter}
-        />
-      );
+      return displayMode === 'unified'
+        ? (
+            <UnifiedContextRow
+              file={file}
+              row={row}
+              selectionType={selectionType}
+              afterCommentButton={afterCommentButton}
+              afterCommentHighlighted={afterCommentHighlighted}
+              onAfterCommentLaneEnter={onAfterCommentLaneEnter}
+            />
+          )
+        : (
+            <ContextRow
+              file={file}
+              row={row}
+              selectionType={selectionType}
+              beforeCommentButton={beforeCommentButton}
+              afterCommentButton={afterCommentButton}
+              beforeCommentHighlighted={beforeCommentHighlighted}
+              afterCommentHighlighted={afterCommentHighlighted}
+              onBeforeCommentLaneEnter={onBeforeCommentLaneEnter}
+              onAfterCommentLaneEnter={onAfterCommentLaneEnter}
+            />
+          );
     case 'deleted':
-      return (
-        <DeletedRow
-          file={file}
-          row={row}
-          selectionType={selectionType}
-          onToggleSelection={onToggleSelection}
-          beforeCommentButton={beforeCommentButton}
-          beforeCommentHighlighted={beforeCommentHighlighted}
-          onBeforeCommentLaneEnter={onBeforeCommentLaneEnter}
-        />
-      );
+      return displayMode === 'unified'
+        ? (
+            <UnifiedDeletedRow
+              file={file}
+              row={row}
+              selectionType={selectionType}
+              onToggleSelection={onToggleSelection}
+              beforeCommentButton={beforeCommentButton}
+              beforeCommentHighlighted={beforeCommentHighlighted}
+              onBeforeCommentLaneEnter={onBeforeCommentLaneEnter}
+            />
+          )
+        : (
+            <DeletedRow
+              file={file}
+              row={row}
+              selectionType={selectionType}
+              onToggleSelection={onToggleSelection}
+              beforeCommentButton={beforeCommentButton}
+              beforeCommentHighlighted={beforeCommentHighlighted}
+              onBeforeCommentLaneEnter={onBeforeCommentLaneEnter}
+            />
+          );
     case 'added':
-      return (
-        <AddedRow
-          file={file}
-          row={row}
-          selectionType={selectionType}
-          onToggleSelection={onToggleSelection}
-          afterCommentButton={afterCommentButton}
-          afterCommentHighlighted={afterCommentHighlighted}
-          onAfterCommentLaneEnter={onAfterCommentLaneEnter}
-        />
-      );
+      return displayMode === 'unified'
+        ? (
+            <UnifiedAddedRow
+              file={file}
+              row={row}
+              selectionType={selectionType}
+              onToggleSelection={onToggleSelection}
+              afterCommentButton={afterCommentButton}
+              afterCommentHighlighted={afterCommentHighlighted}
+              onAfterCommentLaneEnter={onAfterCommentLaneEnter}
+            />
+          )
+        : (
+            <AddedRow
+              file={file}
+              row={row}
+              selectionType={selectionType}
+              onToggleSelection={onToggleSelection}
+              afterCommentButton={afterCommentButton}
+              afterCommentHighlighted={afterCommentHighlighted}
+              onAfterCommentLaneEnter={onAfterCommentLaneEnter}
+            />
+          );
     case 'modified':
-      return (
-        <ModifiedRow
-          file={file}
-          row={row}
-          selectionType={selectionType}
-          onToggleSelection={onToggleSelection}
-          beforeCommentButton={beforeCommentButton}
-          afterCommentButton={afterCommentButton}
-          beforeCommentHighlighted={beforeCommentHighlighted}
-          afterCommentHighlighted={afterCommentHighlighted}
-          onBeforeCommentLaneEnter={onBeforeCommentLaneEnter}
-          onAfterCommentLaneEnter={onAfterCommentLaneEnter}
-        />
-      );
+      return displayMode === 'unified'
+        ? (
+            <UnifiedModifiedRow
+              file={file}
+              row={row}
+              selectionType={selectionType}
+              onToggleSelection={onToggleSelection}
+              beforeCommentButton={beforeCommentButton}
+              afterCommentButton={afterCommentButton}
+              beforeCommentHighlighted={beforeCommentHighlighted}
+              afterCommentHighlighted={afterCommentHighlighted}
+              onBeforeCommentLaneEnter={onBeforeCommentLaneEnter}
+              onAfterCommentLaneEnter={onAfterCommentLaneEnter}
+            />
+          )
+        : (
+            <ModifiedRow
+              file={file}
+              row={row}
+              selectionType={selectionType}
+              onToggleSelection={onToggleSelection}
+              beforeCommentButton={beforeCommentButton}
+              afterCommentButton={afterCommentButton}
+              beforeCommentHighlighted={beforeCommentHighlighted}
+              afterCommentHighlighted={afterCommentHighlighted}
+              onBeforeCommentLaneEnter={onBeforeCommentLaneEnter}
+              onAfterCommentLaneEnter={onAfterCommentLaneEnter}
+            />
+          );
   }
 }
 
 export function DiffFileSection({
   file,
+  displayMode,
   sectionRef,
   selectionType,
   getRowSelectionType,
@@ -580,6 +857,7 @@ export function DiffFileSection({
   hideHeader = false,
 }: {
   file: DiffRenderFile;
+  displayMode: DiffDisplayMode;
   sectionRef: (el: HTMLDivElement | null) => void;
   selectionType?: DiffSelectionType | undefined;
   getRowSelectionType?: ((row: DiffRenderFile['rows'][number]) => DiffSelectionType) | undefined;
@@ -747,7 +1025,7 @@ export function DiffFileSection({
         </div>
       ) : null}
       <div className="overflow-x-auto">
-        <div className="min-w-[960px]">
+        <div className={cn(displayMode === 'split' ? 'min-w-[960px]' : 'min-w-[720px]')}>
           {file.rows.map((row, rowIndex) => {
             const key =
               row.kind === 'hunk'
@@ -766,6 +1044,7 @@ export function DiffFileSection({
             return (
               <div key={key}>
                 <DiffBodyRow
+                  displayMode={displayMode}
                   file={file}
                   row={row}
                   selectionType={

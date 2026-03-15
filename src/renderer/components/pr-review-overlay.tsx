@@ -5,9 +5,10 @@ import Markdown from 'react-markdown';
 import { AnimatePresence, motion } from 'motion/react';
 
 import type { PrReview } from '@/ipc/contracts';
-import type { DiffCommentAnchor } from '@/lib/diff';
+import { getDiffRowsRenderLineCount, type DiffCommentAnchor } from '@/lib/diff';
 import { DiffFileSection } from '@/renderer/components/diff-renderer';
 import { useDiffRenderFiles, type DiffRenderFile } from '@/renderer/hooks/use-diff-render-files';
+import { useUserPreferences } from '@/renderer/hooks/use-user-preferences';
 import { Button } from '@/shadcn/components/ui/button';
 import { Spinner } from '@/shadcn/components/ui/spinner';
 
@@ -99,6 +100,7 @@ function ReviewFileDiff({
   lineRange: LineRange | null;
   onSubmitComment?: ((anchor: DiffCommentAnchor, body: string) => Promise<void>) | undefined;
 }) {
+  const { preferences } = useUserPreferences();
   const renderFiles = useDiffRenderFiles({
     rawDiff: { status: 'ready', data: rawDiff },
     context: {
@@ -107,6 +109,7 @@ function ReviewFileDiff({
       oldRevision: baseRevision,
       newRevision: headRevision,
     },
+    displayMode: preferences.diffDisplayMode,
   });
   const renderFile = renderFiles[0] ?? null;
   const excerptFile = useMemo(() => {
@@ -127,9 +130,9 @@ function ReviewFileDiff({
     return {
       ...renderFile,
       rows,
-      renderLineCount: rows.length,
+      renderLineCount: getDiffRowsRenderLineCount(rows, preferences.diffDisplayMode),
     };
-  }, [lineRange, renderFile]);
+  }, [lineRange, preferences.diffDisplayMode, renderFile]);
 
   if (excerptFile === null) return null;
 
@@ -149,6 +152,7 @@ function ReviewFileDiff({
       <div className="overflow-x-auto">
         <DiffFileSection
           file={excerptFile}
+          displayMode={preferences.diffDisplayMode}
           sectionRef={() => {}}
           onSubmitComment={onSubmitComment}
           hideHeader

@@ -6,6 +6,7 @@ import {
   CodeChangesFilesViewport,
   type CodeChangesViewportHandle,
 } from '@/renderer/components/code-changes-files-viewport';
+import { DiffDisplayModeToolbar } from '@/renderer/components/diff-display-mode-toolbar';
 import { CodeChangesHistoryDrawer } from '@/renderer/components/code-changes-history-drawer';
 import { CodeChangesSidebar } from '@/renderer/components/code-changes-sidebar';
 import {
@@ -14,6 +15,7 @@ import {
   useGitWorkingTreeDiff,
 } from '@/renderer/hooks/use-git-code-changes';
 import { useDiffRenderFiles } from '@/renderer/hooks/use-diff-render-files';
+import { useUserPreferences } from '@/renderer/hooks/use-user-preferences';
 import { useWorkingTreeCommitSelection } from '@/renderer/hooks/use-working-tree-commit-selection';
 
 type CodeChangesSelection =
@@ -65,6 +67,7 @@ export function CodeChanges({
   const [selection, setSelection] = useState<CodeChangesSelection>({ type: 'working-tree' });
   const [visibleFiles, setVisibleFiles] = useState<Set<string>>(new Set());
   const viewportRef = useRef<CodeChangesViewportHandle>(null);
+  const { preferences } = useUserPreferences();
 
   const { historyState } = useGitBranchHistory({
     repoPath,
@@ -120,6 +123,7 @@ export function CodeChanges({
   const activeRenderFiles = useDiffRenderFiles({
     rawDiff: activeDiffState,
     context: renderContext,
+    displayMode: preferences.diffDisplayMode,
   });
   const workingTreeCommitSelection = useWorkingTreeCommitSelection({
     repoPath,
@@ -232,6 +236,8 @@ export function CodeChanges({
       ref={viewportRef}
       rawDiff={activeDiffState}
       diffFiles={activeRenderFiles}
+      displayMode={preferences.diffDisplayMode}
+      mainTop={<DiffDisplayModeToolbar />}
       emptyMessage={emptyMessage}
       onVisibleFilesChange={handleVisibleFilesChange}
       getFileSelectionType={

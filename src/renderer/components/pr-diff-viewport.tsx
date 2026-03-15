@@ -1,9 +1,12 @@
+import type { ReactNode } from 'react';
+
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
 } from 'lucide-react';
 
 import type { PrCommit } from '@/ipc/contracts';
+import type { DiffDisplayMode } from '@/lib/diff';
 import { CodeChangesCommitsList } from '@/renderer/components/code-changes-commits-list';
 import {
   CodeChangesFilesViewport,
@@ -103,6 +106,8 @@ export function PrDiffViewport({
   headBranch,
   rawDiff,
   diffFiles,
+  diffDisplayToolbar,
+  displayMode,
 }: {
   commits: PrCommit[];
   selection: DiffSelection;
@@ -112,11 +117,14 @@ export function PrDiffViewport({
   headBranch: string;
   rawDiff: AsyncState<string>;
   diffFiles: DiffRenderFile[];
+  diffDisplayToolbar: ReactNode;
+  displayMode: DiffDisplayMode;
 }) {
   return (
     <CodeChangesFilesViewport
       rawDiff={rawDiff}
       diffFiles={diffFiles}
+      displayMode={displayMode}
       emptyMessage="No file changes in this commit."
       sidebar={({ diffFiles: sidebarDiffFiles, visibleFiles, onSelectFile }) => (
         <FilesChangedList
@@ -134,13 +142,16 @@ export function PrDiffViewport({
         />
       )}
       mainTop={(
-        <CommitCarousel
-          commits={commits}
-          selection={selection}
-          onSelectCommit={onSelectCommit}
-          baseBranch={baseBranch}
-          headBranch={headBranch}
-        />
+        <>
+          {diffDisplayToolbar}
+          <CommitCarousel
+            commits={commits}
+            selection={selection}
+            onSelectCommit={onSelectCommit}
+            baseBranch={baseBranch}
+            headBranch={headBranch}
+          />
+        </>
       )}
     />
   );

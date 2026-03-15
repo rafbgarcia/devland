@@ -1,4 +1,10 @@
-import type { DiffChangedLine, DiffFile, DiffLine, DiffRow } from '@/lib/diff/types';
+import type {
+  DiffChangedLine,
+  DiffDisplayMode,
+  DiffFile,
+  DiffLine,
+  DiffRow,
+} from '@/lib/diff/types';
 
 type ModifiedLineCandidate = {
   line: DiffLine;
@@ -119,6 +125,16 @@ export function projectDiffRows(file: DiffFile): DiffRow[] {
 
 export function shouldComputeIntraLineDiff(before: string, after: string) {
   return before.length < MAX_INTRA_LINE_DIFF_LENGTH && after.length < MAX_INTRA_LINE_DIFF_LENGTH;
+}
+
+export function getDiffRowsRenderLineCount(rows: readonly DiffRow[], displayMode: DiffDisplayMode) {
+  return rows.reduce((count, row) => {
+    if (displayMode === 'unified' && row.kind === 'modified') {
+      return count + 2;
+    }
+
+    return count + 1;
+  }, 0);
 }
 
 export { MAX_INTRA_LINE_DIFF_LENGTH };

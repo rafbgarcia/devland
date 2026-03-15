@@ -1,9 +1,11 @@
 import { LayersIcon } from 'lucide-react';
 
 import type { PrDiffMetaResult } from '@/ipc/contracts';
+import { DiffDisplayModeToolbar } from '@/renderer/components/diff-display-mode-toolbar';
 import { PrDiffViewport } from '@/renderer/components/pr-diff-viewport';
 import { useDiffRenderFiles } from '@/renderer/hooks/use-diff-render-files';
 import { usePrDiffData, type AsyncState } from '@/renderer/hooks/use-pr-diff-data';
+import { useUserPreferences } from '@/renderer/hooks/use-user-preferences';
 import {
   Alert,
   AlertAction,
@@ -51,6 +53,7 @@ export function PrCodeChanges({
     prNumber,
     metaState,
   });
+  const { preferences } = useUserPreferences();
   const renderFiles = useDiffRenderFiles({
     rawDiff,
     context:
@@ -69,6 +72,7 @@ export function PrCodeChanges({
             commitRevision: diffContext.commitRevision,
             parentRevision: diffContext.parentRevision,
           },
+    displayMode: preferences.diffDisplayMode,
   });
 
   if (metaState.status === 'idle' || metaState.status === 'loading') {
@@ -177,6 +181,8 @@ export function PrCodeChanges({
         headBranch={headBranch}
         rawDiff={rawDiff}
         diffFiles={renderFiles}
+        diffDisplayToolbar={<DiffDisplayModeToolbar className="border-b-0" />}
+        displayMode={preferences.diffDisplayMode}
       />
     </div>
   );

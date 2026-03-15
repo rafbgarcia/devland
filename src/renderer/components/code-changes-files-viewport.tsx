@@ -12,7 +12,12 @@ import {
 
 import { CheckIcon, FileCodeIcon, MinusIcon } from 'lucide-react';
 
-import type { DiffCommentAnchor, DiffSelectionType } from '@/lib/diff';
+import {
+  getDiffRowsRenderLineCount,
+  type DiffCommentAnchor,
+  type DiffDisplayMode,
+  type DiffSelectionType,
+} from '@/lib/diff';
 import { DiffFileSection } from '@/renderer/components/diff-renderer';
 import { TruncatedFilePath } from '@/renderer/components/truncated-file-path';
 import { type DiffRenderFile } from '@/renderer/hooks/use-diff-render-files';
@@ -77,11 +82,11 @@ function areVisibleFileSetsEqual(left: Set<string>, right: Set<string>) {
   return true;
 }
 
-function estimateFileHeight(file: DiffRenderFile) {
+function estimateFileHeight(file: DiffRenderFile, displayMode: DiffDisplayMode) {
   return (
     FILE_HEADER_HEIGHT_PX +
     FILE_SECTION_FRAME_PX +
-    file.renderLineCount * DIFF_ROW_HEIGHT_PX +
+    getDiffRowsRenderLineCount(file.rows, displayMode) * DIFF_ROW_HEIGHT_PX +
     FILE_GAP_PX
   );
 }
@@ -231,6 +236,7 @@ export type CodeChangesViewportHandle = {
 type CodeChangesFilesViewportProps = {
   rawDiff: AsyncState<string>;
   diffFiles: DiffRenderFile[];
+  displayMode: DiffDisplayMode;
   sidebar?: ReactNode | ((props: CodeChangesSidebarRenderProps) => ReactNode);
   mainTop?: ReactNode;
   emptyMessage: string;
@@ -248,6 +254,7 @@ export const CodeChangesFilesViewport = forwardRef<CodeChangesViewportHandle, Co
   function CodeChangesFilesViewport({
     rawDiff,
     diffFiles,
+    displayMode,
     sidebar,
     mainTop,
     emptyMessage,
@@ -269,6 +276,10 @@ export const CodeChangesFilesViewport = forwardRef<CodeChangesViewportHandle, Co
   const fileRefCallbacksRef = useRef<Map<string, (el: HTMLDivElement | null) => void>>(new Map());
   const sizeCacheRef = useRef<Map<string, number>>(new Map());
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const diffFilesKey = useMemo(
+    () => diffFiles.map((file) => file.path).join('\0'),
+    [diffFiles],
+  );
 
   useEffect(() => {
     fileElementRefsRef.current.clear();
@@ -277,7 +288,12 @@ export const CodeChangesFilesViewport = forwardRef<CodeChangesViewportHandle, Co
     setScrollTop(0);
     setLayoutVersion(0);
     scrollContainerRef.current?.scrollTo(0, 0);
-  }, [diffFiles]);
+  }, [diffFilesKey]);
+
+  useEffect(() => {
+    sizeCacheRef.current.clear();
+    setLayoutVersion((current) => current + 1);
+  }, [displayMode]);
 
   useEffect(() => {
     const scrollContainer = scrollContainerRef.current;
@@ -360,8 +376,8 @@ export const CodeChangesFilesViewport = forwardRef<CodeChangesViewportHandle, Co
   }, []);
 
   const itemHeights = useMemo(
-    () => diffFiles.map((file) => sizeCacheRef.current.get(file.path) ?? estimateFileHeight(file)),
-    [diffFiles, layoutVersion],
+    () => diffFiles.map((file) => sizeCacheRef.current.get(file.path) ?? estimateFileHeight(file, displayMode)),
+    [diffFiles, displayMode, layoutVersion],
   );
 
   const offsets = useMemo(() => {
@@ -497,6 +513,7 @@ export const CodeChangesFilesViewport = forwardRef<CodeChangesViewportHandle, Co
                   >
                     <DiffFileSection
                       file={file}
+                      displayMode={displayMode}
                       sectionRef={getSectionRef(file.path)}
                       selectionType={getFileSelectionType?.(file.path)}
                       getRowSelectionType={getRowSelectionType ? (row) => getRowSelectionType(file.path, row) : undefined}

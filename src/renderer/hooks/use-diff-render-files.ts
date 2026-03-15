@@ -4,9 +4,11 @@ import {
   createCommitContentPair,
   createComparisonContentPair,
   createWorkingTreeContentPair,
+  getDiffRowsRenderLineCount,
   parseUnifiedDiffDocument,
   projectDiffRows,
   type DiffContentPair,
+  type DiffDisplayMode,
   type DiffFile,
   type DiffRow,
 } from '@/lib/diff';
@@ -74,9 +76,11 @@ function getSyntaxCacheKey(file: DiffFile, pair: DiffContentPair) {
 export function useDiffRenderFiles({
   rawDiff,
   context,
+  displayMode,
 }: {
   rawDiff: AsyncState<string>;
   context: DiffRenderContext | null;
+  displayMode: DiffDisplayMode;
 }) {
   const [syntaxTokensByPath, setSyntaxTokensByPath] = useState<Record<string, DiffFileTokens | null>>({});
   const syntaxCacheRef = useRef<Map<string, Promise<DiffFileTokens> | DiffFileTokens>>(new Map());
@@ -95,14 +99,14 @@ export function useDiffRenderFiles({
         status: file.status,
         additions: file.additions,
         deletions: file.deletions,
-        renderLineCount: rows.length,
+        renderLineCount: getDiffRowsRenderLineCount(rows, displayMode),
         diff: file,
         rows,
         contentPair,
         syntaxTokens: null,
       } satisfies DiffRenderFile;
     });
-  }, [context, rawDiff]);
+  }, [context, displayMode, rawDiff]);
 
   useEffect(() => {
     if (rawDiff.status !== 'ready' || context === null || baseFiles.length === 0) {
