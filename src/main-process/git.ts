@@ -34,6 +34,8 @@ const getGitExecOptions = () => ({
   windowsHide: true,
 });
 
+const DEFAULT_TEXT_READ_MAX_BYTES = 256 * 1024;
+
 const normalizeGitHubSlug = (value: string): string | null => {
   const normalizedValue = value.trim().replace(/\.git$/i, '').replace(/\/$/, '');
 
@@ -498,6 +500,54 @@ export const getGitWorkingTreeDiff = async (repoPath: string): Promise<string> =
     .join('\n');
 };
 
+export const getGitBlobText = async ({
+  repoPath,
+  revision,
+  filePath,
+  maxBytes = DEFAULT_TEXT_READ_MAX_BYTES,
+}: {
+  repoPath: string;
+  revision: string;
+  filePath: string;
+  maxBytes?: number;
+}): Promise<string | null> => {
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['-C', repoPath, 'show', `${revision}:${filePath}`],
+      {
+        timeout: 15000,
+        windowsHide: true,
+        maxBuffer: Math.max(maxBytes * 2, DEFAULT_TEXT_READ_MAX_BYTES),
+        encoding: 'buffer',
+      },
+    );
+
+    return Buffer.from(stdout).subarray(0, maxBytes).toString('utf8');
+  } catch {
+    return null;
+  }
+};
+
+export const getWorkingTreeFileText = async ({
+  repoPath,
+  filePath,
+  maxBytes = DEFAULT_TEXT_READ_MAX_BYTES,
+}: {
+  repoPath: string;
+  filePath: string;
+  maxBytes?: number;
+}): Promise<string | null> => {
+  try {
+    const absolutePath = path.join(repoPath, filePath);
+    const content = readFileSync(absolutePath);
+
+    return content.subarray(0, maxBytes).toString('utf8');
+  } catch {
+    return null;
+  }
+};
+
 export const createGitWorktree = async (
   repoPath: string,
   baseBranch: string,
@@ -612,6 +662,23 @@ const resolveExistingRevision = async (
   }
 
   throw new Error(`Could not resolve any of these revisions: ${revisions.join(', ')}`);
+};
+
+export const getCommitParent = async (
+  repoPath: string,
+  commitSha: string,
+): Promise<string | null> => {
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['-C', repoPath, 'rev-parse', `${commitSha}^`],
+      { timeout: 5000, windowsHide: true },
+    );
+
+    return stdout.trim() || null;
+  } catch {
+    return null;
+  }
 };
 
 const getBaseBranchRevision = async (
@@ -837,6 +904,8 @@ const loadLocalPrDiffMeta = async (
     status: 'ready',
     baseBranch: snapshot.metadata.baseBranch,
     headBranch: snapshot.metadata.headBranch,
+    baseRevision: snapshot.baseRevision,
+    headRevision: snapshot.headRef,
     commits,
   });
 };

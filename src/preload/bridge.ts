@@ -31,6 +31,9 @@ import {
   GET_PR_DIFF_META_CHANNEL,
   GET_COMMIT_DIFF_CHANNEL,
   GET_PR_DIFF_CHANNEL,
+  GET_GIT_BLOB_TEXT_CHANNEL,
+  GET_WORKING_TREE_FILE_TEXT_CHANNEL,
+  GET_COMMIT_PARENT_CHANNEL,
   GitStateChangedEventSchema,
   START_GIT_STATE_WATCH_CHANNEL,
   STOP_GIT_STATE_WATCH_CHANNEL,
@@ -127,6 +130,12 @@ export const electronApi: ElectronApi = {
     ipcRenderer.invoke(GET_COMMIT_DIFF_CHANNEL, repoPath, commitSha),
   getPrDiff: (repoPath, prNumber) =>
     ipcRenderer.invoke(GET_PR_DIFF_CHANNEL, repoPath, prNumber),
+  getGitBlobText: (input) =>
+    ipcRenderer.invoke(GET_GIT_BLOB_TEXT_CHANNEL, input),
+  getWorkingTreeFileText: (input) =>
+    ipcRenderer.invoke(GET_WORKING_TREE_FILE_TEXT_CHANNEL, input),
+  getCommitParent: (repoPath, commitSha) =>
+    ipcRenderer.invoke(GET_COMMIT_PARENT_CHANNEL, repoPath, commitSha),
   sendCodexSessionPrompt: (input) =>
     ipcRenderer.invoke(SEND_CODEX_SESSION_PROMPT_CHANNEL, input),
   interruptCodexSession: (sessionId) =>

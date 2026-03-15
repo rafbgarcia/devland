@@ -28,6 +28,9 @@ import {
   GET_PR_DIFF_META_CHANNEL,
   GET_COMMIT_DIFF_CHANNEL,
   GET_PR_DIFF_CHANNEL,
+  GET_GIT_BLOB_TEXT_CHANNEL,
+  GET_WORKING_TREE_FILE_TEXT_CHANNEL,
+  GET_COMMIT_PARENT_CHANNEL,
   START_GIT_STATE_WATCH_CHANNEL,
   STOP_GIT_STATE_WATCH_CHANNEL,
   INTERRUPT_CODEX_SESSION_CHANNEL,
@@ -52,7 +55,9 @@ import {
   findLocalGithubRepoPath,
   getGitBranchCompareDiff,
   getGitBranchCompareMeta,
+  getGitBlobText,
   getCommitDiff,
+  getCommitParent,
   getGitBranches,
   getGitDefaultBranch,
   getGitBranchHistory,
@@ -64,6 +69,7 @@ import {
   getPrDiffMeta,
   promoteGitWorktreeBranch,
   syncRepoReviewRefs,
+  getWorkingTreeFileText,
   validateLocalGitRepository,
 } from './git';
 import { gitStateWatcher } from './git-state-watcher';
@@ -237,6 +243,21 @@ export const registerAppIpcHandlers = (
     GET_PR_DIFF_CHANNEL,
     (_event, repoPath: string, prNumber: number) =>
       getPrDiff(repoPath, prNumber),
+  );
+  ipcMain.handle(
+    GET_GIT_BLOB_TEXT_CHANNEL,
+    (_event, input: { repoPath: string; revision: string; filePath: string; maxBytes?: number }) =>
+      getGitBlobText(input),
+  );
+  ipcMain.handle(
+    GET_WORKING_TREE_FILE_TEXT_CHANNEL,
+    (_event, input: { repoPath: string; filePath: string; maxBytes?: number }) =>
+      getWorkingTreeFileText(input),
+  );
+  ipcMain.handle(
+    GET_COMMIT_PARENT_CHANNEL,
+    (_event, repoPath: string, commitSha: string) =>
+      getCommitParent(repoPath, commitSha),
   );
   ipcMain.handle(
     SEND_CODEX_SESSION_PROMPT_CHANNEL,

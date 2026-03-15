@@ -35,6 +35,9 @@ export const CODEX_SESSION_EVENT_CHANNEL = 'app:codex-session-event';
 export const GET_PR_DIFF_META_CHANNEL = 'app:get-pr-diff-meta';
 export const GET_COMMIT_DIFF_CHANNEL = 'app:get-commit-diff';
 export const GET_PR_DIFF_CHANNEL = 'app:get-pr-diff';
+export const GET_GIT_BLOB_TEXT_CHANNEL = 'app:get-git-blob-text';
+export const GET_WORKING_TREE_FILE_TEXT_CHANNEL = 'app:get-working-tree-file-text';
+export const GET_COMMIT_PARENT_CHANNEL = 'app:get-commit-parent';
 
 export const PROJECT_VIEW_TABS = [
   'code',
@@ -349,6 +352,8 @@ export type GitBranchHistory = z.infer<typeof GitBranchHistorySchema>;
 
 export const PrDiffMetaSchema = CodeChangesMetaSchema.extend({
   status: z.literal('ready'),
+  baseRevision: z.string().min(1),
+  headRevision: z.string().min(1),
 });
 export type PrDiffMeta = z.infer<typeof PrDiffMetaSchema>;
 
@@ -437,6 +442,18 @@ export interface ElectronApi {
   syncRepoReviewRefs: (repoPath: string, owner: string, name: string) => Promise<void>;
   getCommitDiff: (repoPath: string, commitSha: string) => Promise<string>;
   getPrDiff: (repoPath: string, prNumber: number) => Promise<string>;
+  getGitBlobText: (input: {
+    repoPath: string;
+    revision: string;
+    filePath: string;
+    maxBytes?: number;
+  }) => Promise<string | null>;
+  getWorkingTreeFileText: (input: {
+    repoPath: string;
+    filePath: string;
+    maxBytes?: number;
+  }) => Promise<string | null>;
+  getCommitParent: (repoPath: string, commitSha: string) => Promise<string | null>;
   sendCodexSessionPrompt: (input: {
     sessionId: string;
     cwd: string;
