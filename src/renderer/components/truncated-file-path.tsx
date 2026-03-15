@@ -1,20 +1,19 @@
-import {
-  useEffectEvent,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { Component, createRef } from 'react';
 
 import { getTruncatedFilePathParts } from '@/lib/truncate-filepath';
 import { cn } from '@/shadcn/lib/utils';
 
 const FILE_PATH_FITTING_TOLERANCE_PX = 3;
 
-type FilePathMeasureState = {
+type FilePathDisplayState = {
+  directoryText: string;
+  fileText: string;
+  length: number;
+};
+
+type FilePathState = FilePathDisplayState & {
   availableWidth: number | undefined;
   fullTextWidth: number | undefined;
-  length: number;
   longestFit: number;
   shortestNonFit: number | undefined;
 };
@@ -23,252 +22,284 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(Math.max(value, minimum), maximum);
 }
 
-function createFilePathMeasureState(
-  path: string,
-  length = path.length,
-): FilePathMeasureState {
+function createDisplayState(path: string, length = path.length): FilePathDisplayState {
+  if (length <= 0) {
+    return {
+      directoryText: '',
+      fileText: '',
+      length,
+    };
+  }
+
+  const { directory, fileName } = getTruncatedFilePathParts(path, length);
+
   return {
-    availableWidth: undefined,
-    fullTextWidth: undefined,
+    directoryText: directory,
+    fileText: fileName,
     length,
-    longestFit: 0,
-    shortestNonFit: undefined,
   };
 }
 
-function areFilePathMeasureStatesEqual(
-  current: FilePathMeasureState,
-  next: FilePathMeasureState,
-) {
+function createState(path: string, length?: number): FilePathState {
+  return {
+    availableWidth: undefined,
+    fullTextWidth: undefined,
+    longestFit: 0,
+    shortestNonFit: undefined,
+    ...createDisplayState(path, length),
+  };
+}
+
+function areStatesEqual(current: FilePathState, next: FilePathState) {
   return (
     current.availableWidth === next.availableWidth &&
     current.fullTextWidth === next.fullTextWidth &&
-    current.length === next.length &&
     current.longestFit === next.longestFit &&
-    current.shortestNonFit === next.shortestNonFit
+    current.shortestNonFit === next.shortestNonFit &&
+    current.directoryText === next.directoryText &&
+    current.fileText === next.fileText &&
+    current.length === next.length
   );
 }
 
-export function TruncatedFilePath({
-  path,
-  className,
-}: {
+type TruncatedFilePathProps = {
   path: string;
   className?: string;
-}) {
-  const containerRef = useRef<HTMLSpanElement>(null);
-  const contentRef = useRef<HTMLSpanElement>(null);
-  const [measureState, setMeasureState] = useState(() => createFilePathMeasureState(path));
+};
 
-  const truncatedPath = useMemo(
-    () => getTruncatedFilePathParts(path, measureState.length),
-    [measureState.length, path],
-  );
+export class TruncatedFilePath extends Component<TruncatedFilePathProps, FilePathState> {
+  public override state: FilePathState = createState(this.props.path);
 
-  useLayoutEffect(() => {
-    setMeasureState(createFilePathMeasureState(path));
-  }, [path]);
+  private readonly containerRef = createRef<HTMLDivElement>();
+  private innerElement: HTMLSpanElement | null = null;
+  private resizeObserver: ResizeObserver | null = null;
 
-  const resizeIfNecessary = useEffectEvent(() => {
-    const containerElement = containerRef.current;
-    const contentElement = contentRef.current;
-    if (!containerElement || !contentElement) {
+  public override componentDidMount() {
+    this.resizeIfNecessary();
+
+    if (this.containerRef.current) {
+      this.resizeObserver = new ResizeObserver(() => {
+        this.resizeIfNecessary();
+      });
+      this.resizeObserver.observe(this.containerRef.current);
+    }
+  }
+
+  public override componentDidUpdate(prevProps: Readonly<TruncatedFilePathProps>) {
+    if (prevProps.path !== this.props.path) {
+      const nextState = createState(this.props.path);
+
+      if (!areStatesEqual(this.state, nextState)) {
+        this.setState(nextState);
+        return;
+      }
+    }
+
+    this.resizeIfNecessary();
+  }
+
+  public override componentWillUnmount() {
+    this.resizeObserver?.disconnect();
+  }
+
+  public override render() {
+    const truncated = this.state.length < this.props.path.length;
+
+    return (
+      <div
+        ref={this.containerRef}
+        className={cn('min-w-0 overflow-hidden whitespace-nowrap', this.props.className)}
+        title={truncated ? this.props.path : undefined}
+      >
+        <span ref={this.onInnerElementRef}>
+          {this.state.directoryText.length > 0 ? (
+            <span className="text-muted-foreground">{this.state.directoryText}</span>
+          ) : null}
+          <span className="font-bold">{this.state.fileText}</span>
+        </span>
+      </div>
+    );
+  }
+
+  private readonly onInnerElementRef = (element: HTMLSpanElement | null) => {
+    this.innerElement = element;
+  };
+
+  private resizeIfNecessary() {
+    if (!this.containerRef.current || !this.innerElement) {
       return;
     }
 
-    const availableWidth = Math.max(containerElement.getBoundingClientRect().width, 0);
+    const availableWidth = Math.max(
+      this.containerRef.current.getBoundingClientRect().width,
+      0,
+    );
 
     if (
-      measureState.fullTextWidth !== undefined &&
-      measureState.fullTextWidth <= availableWidth
+      this.state.fullTextWidth !== undefined &&
+      this.state.fullTextWidth <= availableWidth
     ) {
-      if (measureState.length === path.length) {
-        if (availableWidth !== measureState.availableWidth) {
-          setMeasureState((current) => {
+      if (this.state.length === this.props.path.length) {
+        if (availableWidth !== this.state.availableWidth) {
+          this.setState((current) => {
             const nextState = { ...current, availableWidth };
-            return areFilePathMeasureStatesEqual(current, nextState) ? current : nextState;
+            return areStatesEqual(current, nextState) ? null : nextState;
           });
         }
 
         return;
       }
 
-      const nextState = {
-        ...createFilePathMeasureState(path),
-        availableWidth,
-        fullTextWidth: measureState.fullTextWidth,
-        length: path.length,
-        longestFit: path.length,
-      };
-      setMeasureState((current) => (
-        areFilePathMeasureStatesEqual(current, nextState) ? current : nextState
-      ));
+      this.setState((current) => {
+        const nextState = {
+          ...current,
+          ...createDisplayState(this.props.path),
+          availableWidth,
+        };
+
+        return areStatesEqual(current, nextState) ? null : nextState;
+      });
       return;
     }
 
     if (
-      measureState.availableWidth !== undefined &&
-      measureState.availableWidth !== availableWidth
+      this.state.availableWidth !== undefined &&
+      this.state.availableWidth !== availableWidth
     ) {
-      const nextState = createFilePathMeasureState(path, measureState.length);
+      const resetState = createState(this.props.path, this.state.length);
 
-      if (availableWidth < measureState.availableWidth) {
-        const smallerWidthState = {
-          ...nextState,
+      if (availableWidth < this.state.availableWidth) {
+        const nextState = {
+          ...resetState,
           availableWidth,
-          fullTextWidth: measureState.fullTextWidth,
-          shortestNonFit: measureState.shortestNonFit,
+          fullTextWidth: this.state.fullTextWidth,
+          shortestNonFit: this.state.shortestNonFit,
         };
-        setMeasureState((current) => (
-          areFilePathMeasureStatesEqual(current, smallerWidthState) ? current : smallerWidthState
-        ));
+
+        if (!areStatesEqual(this.state, nextState)) {
+          this.setState(nextState);
+        }
+
         return;
       }
 
-      if (availableWidth > measureState.availableWidth) {
-        const largerWidthState = {
-          ...nextState,
+      if (availableWidth > this.state.availableWidth) {
+        const nextState = {
+          ...resetState,
           availableWidth,
-          fullTextWidth: measureState.fullTextWidth,
-          longestFit: measureState.longestFit,
+          fullTextWidth: this.state.fullTextWidth,
+          longestFit: this.state.longestFit,
         };
-        setMeasureState((current) => (
-          areFilePathMeasureStatesEqual(current, largerWidthState) ? current : largerWidthState
-        ));
+
+        if (!areStatesEqual(this.state, nextState)) {
+          this.setState(nextState);
+        }
+
         return;
       }
     }
 
     if (availableWidth === 0) {
-      if (measureState.length !== 0) {
-        const zeroWidthState = {
-          availableWidth,
-          fullTextWidth: measureState.fullTextWidth,
-          length: 0,
-          longestFit: 0,
-          shortestNonFit: 1,
-        };
-        setMeasureState((current) => (
-          areFilePathMeasureStatesEqual(current, zeroWidthState) ? current : zeroWidthState
-        ));
+      const nextState = {
+        ...this.state,
+        ...createDisplayState(this.props.path, 0),
+        availableWidth,
+        longestFit: 0,
+        shortestNonFit: 1,
+      };
+
+      if (!areStatesEqual(this.state, nextState)) {
+        this.setState(nextState);
       }
 
       return;
     }
 
-    const actualWidth = contentElement.getBoundingClientRect().width;
+    const actualWidth = this.innerElement.getBoundingClientRect().width;
     const fullTextWidth =
-      measureState.length === path.length ? actualWidth : measureState.fullTextWidth;
+      this.state.length === this.props.path.length
+        ? actualWidth
+        : this.state.fullTextWidth;
     const ratio = actualWidth === 0 ? 0.5 : availableWidth / actualWidth;
 
     if (actualWidth <= availableWidth) {
-      if (measureState.length === path.length) {
-        setMeasureState((current) => {
-          const nextState = {
-            ...current,
-            availableWidth,
-            fullTextWidth,
-          };
-          return areFilePathMeasureStatesEqual(current, nextState) ? current : nextState;
-        });
+      if (this.state.length === this.props.path.length) {
+        const nextState = {
+          ...this.state,
+          availableWidth,
+          fullTextWidth,
+        };
+
+        if (!areStatesEqual(this.state, nextState)) {
+          this.setState(nextState);
+        }
+
         return;
       }
 
-      const longestFit = measureState.length;
-      const maxChars = measureState.shortestNonFit !== undefined
-        ? measureState.shortestNonFit - 1
-        : path.length;
+      const longestFit = this.state.length;
+      const maxChars =
+        this.state.shortestNonFit !== undefined
+          ? this.state.shortestNonFit - 1
+          : this.props.path.length;
       const minChars = longestFit + 1;
 
       if (
         minChars >= maxChars ||
         availableWidth - actualWidth < FILE_PATH_FITTING_TOLERANCE_PX
       ) {
-        setMeasureState((current) => {
-          const nextState = {
-            ...current,
-            availableWidth,
-            fullTextWidth,
-            longestFit,
-          };
-          return areFilePathMeasureStatesEqual(current, nextState) ? current : nextState;
-        });
+        const nextState = {
+          ...this.state,
+          longestFit,
+          availableWidth,
+          fullTextWidth,
+        };
+
+        if (!areStatesEqual(this.state, nextState)) {
+          this.setState(nextState);
+        }
+
         return;
       }
 
       const length = clamp(
-        Math.floor(measureState.length * ratio),
+        Math.floor(this.state.length * ratio),
         minChars,
         maxChars,
       );
-
       const nextState = {
-        ...measureState,
+        ...this.state,
+        ...createDisplayState(this.props.path, length),
+        longestFit,
         availableWidth,
         fullTextWidth,
-        length,
-        longestFit,
       };
-      setMeasureState((current) => (
-        areFilePathMeasureStatesEqual(current, nextState) ? current : nextState
-      ));
+
+      if (!areStatesEqual(this.state, nextState)) {
+        this.setState(nextState);
+      }
+
       return;
     }
 
-    const shortestNonFit = measureState.length;
+    const shortestNonFit = this.state.length;
     const maxChars = shortestNonFit - 1;
-    const minChars = measureState.longestFit || 0;
+    const minChars = this.state.longestFit;
     const length = clamp(
-      Math.floor(measureState.length * ratio),
+      Math.floor(this.state.length * ratio),
       minChars,
       maxChars,
     );
-
     const nextState = {
-      ...measureState,
+      ...this.state,
+      ...createDisplayState(this.props.path, length),
       availableWidth,
       fullTextWidth,
-      length,
       shortestNonFit,
     };
-    setMeasureState((current) => (
-      areFilePathMeasureStatesEqual(current, nextState) ? current : nextState
-    ));
-  });
 
-  useLayoutEffect(() => {
-    resizeIfNecessary();
-  }, [measureState.length, path, resizeIfNecessary, truncatedPath.path]);
-
-  useLayoutEffect(() => {
-    const containerElement = containerRef.current;
-    if (!containerElement) {
-      return;
+    if (!areStatesEqual(this.state, nextState)) {
+      this.setState(nextState);
     }
-
-    const observer = new ResizeObserver(() => {
-      resizeIfNecessary();
-    });
-
-    observer.observe(containerElement);
-    return () => observer.disconnect();
-  }, [resizeIfNecessary]);
-
-  return (
-    <span
-      ref={containerRef}
-      className={cn('block min-w-0 overflow-hidden whitespace-nowrap', className)}
-      title={truncatedPath.isTruncated ? path : undefined}
-    >
-      <span
-        ref={contentRef}
-        className="inline-flex max-w-none items-baseline whitespace-nowrap"
-      >
-        {truncatedPath.directory ? (
-          <span className="text-muted-foreground">{truncatedPath.directory}</span>
-        ) : null}
-        <span className="font-bold">{truncatedPath.fileName}</span>
-      </span>
-    </span>
-  );
+  }
 }
