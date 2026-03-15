@@ -9,11 +9,13 @@ import { z } from 'zod';
 import {
   CodeChangesMetaSchema,
   CreateGitWorktreeResultSchema,
+  GitBranchHistorySchema,
   PrDiffMetaResultSchema,
   PromoteGitWorktreeBranchResultSchema,
   RepoDetailsSchema,
   type CodeChangesMeta,
   type CreateGitWorktreeResult,
+  type GitBranchHistory,
   type GitBranch,
   type GitFileStatus,
   type GitStatus,
@@ -928,6 +930,33 @@ export const getGitBranchCompareMeta = async (
   return CodeChangesMetaSchema.parse({
     baseBranch,
     headBranch,
+    commits: parsePrCommitLogOutput(logOutput),
+  });
+};
+
+export const getGitBranchHistory = async (
+  repoPath: string,
+  branchName: string,
+): Promise<GitBranchHistory> => {
+  const branchRevision = await getHeadBranchRevision(repoPath, branchName);
+  const US = '%x1f';
+  const RS = '%x1e';
+  const format = `${US}%H${US}%h${US}%s${US}%an${US}%aI${US}%b${RS}`;
+
+  const { stdout: logOutput } = await execFileAsync(
+    'git',
+    [
+      '-C', repoPath, 'log',
+      branchRevision,
+      `--format=${format}`,
+      '--date-order',
+      '--max-count=200',
+    ],
+    { timeout: 15000, windowsHide: true },
+  );
+
+  return GitBranchHistorySchema.parse({
+    branch: branchName,
     commits: parsePrCommitLogOutput(logOutput),
   });
 };

@@ -8,8 +8,8 @@ import {
 import { CodeChangesHistoryDrawer } from '@/renderer/components/code-changes-history-drawer';
 import { CodeChangesSidebar } from '@/renderer/components/code-changes-sidebar';
 import {
+  useGitBranchHistory,
   useGitCommitDiff,
-  useGitHistoryMeta,
   useGitWorkingTreeDiff,
 } from '@/renderer/hooks/use-git-code-changes';
 
@@ -43,10 +43,9 @@ export function CodeChanges({
   const [visibleFiles, setVisibleFiles] = useState<Set<string>>(new Set());
   const viewportRef = useRef<CodeChangesViewportHandle>(null);
 
-  const { metaState: historyMetaState, refetch: refetchHistoryMeta } = useGitHistoryMeta({
+  const { historyState, refetch: refetchHistory } = useGitBranchHistory({
     repoPath,
-    baseBranch: baseBranchName,
-    headBranch: branchName,
+    branchName,
   });
   const workingTreeState = useGitWorkingTreeDiff({
     repoPath,
@@ -71,14 +70,14 @@ export function CodeChanges({
   const emptyMessage = selection.type === 'working-tree'
     ? 'Working tree is clean.'
     : 'No file changes in this commit.';
-  const historyCommits = historyMetaState.status === 'ready'
-    ? historyMetaState.data.commits
+  const historyCommits = historyState.status === 'ready'
+    ? historyState.data.commits
     : [];
   const selectedCommit = selection.type === 'commit' ? selection.commit : null;
   const historySelectedCommitSha = selectedCommit?.sha ?? null;
-  const historyIsLoading = historyMetaState.status === 'loading';
-  const historyError = historyMetaState.status === 'error'
-    ? historyMetaState.error
+  const historyIsLoading = historyState.status === 'loading';
+  const historyError = historyState.status === 'error'
+    ? historyState.error
     : null;
 
   const handleRestoreWorkingTree = () => {
@@ -105,7 +104,7 @@ export function CodeChanges({
       selectedCommit={selectedCommit}
       isDiffLoading={activeDiffState.status === 'loading'}
       onOpenHistory={() => {
-        void refetchHistoryMeta();
+        void refetchHistory();
         setIsHistoryOpen(true);
       }}
       onRestoreBranchState={handleRestoreWorkingTree}

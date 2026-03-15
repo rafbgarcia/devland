@@ -13,6 +13,7 @@ import {
   CLONE_GITHUB_REPO_PROGRESS_CHANNEL,
   GET_GIT_BRANCHES_CHANNEL,
   GET_GIT_DEFAULT_BRANCH_CHANNEL,
+  GET_GIT_BRANCH_HISTORY_CHANNEL,
   GET_GIT_BRANCH_COMPARE_META_CHANNEL,
   GET_GIT_BRANCH_COMPARE_DIFF_CHANNEL,
   GET_GIT_STATUS_CHANNEL,
@@ -51,6 +52,7 @@ import {
   getCommitDiff,
   getGitBranches,
   getGitDefaultBranch,
+  getGitBranchHistory,
   getGitFileDiff,
   getGitWorkingTreeDiff,
   getGitStatus,
@@ -140,6 +142,11 @@ export const registerAppIpcHandlers = (
   ipcMain.handle(
     GET_GIT_DEFAULT_BRANCH_CHANNEL,
     (_event, repoPath: string) => getGitDefaultBranch(repoPath),
+  );
+  ipcMain.handle(
+    GET_GIT_BRANCH_HISTORY_CHANNEL,
+    (_event, repoPath: string, branchName: string) =>
+      getGitBranchHistory(repoPath, branchName),
   );
   ipcMain.handle(
     GET_GIT_BRANCH_COMPARE_META_CHANNEL,

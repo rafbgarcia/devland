@@ -12,6 +12,7 @@ export const CLONE_GITHUB_REPO_CHANNEL = 'app:clone-github-repo';
 export const CLONE_GITHUB_REPO_PROGRESS_CHANNEL = 'app:clone-github-repo-progress';
 export const GET_GIT_BRANCHES_CHANNEL = 'app:get-git-branches';
 export const GET_GIT_DEFAULT_BRANCH_CHANNEL = 'app:get-git-default-branch';
+export const GET_GIT_BRANCH_HISTORY_CHANNEL = 'app:get-git-branch-history';
 export const GET_GIT_BRANCH_COMPARE_META_CHANNEL = 'app:get-git-branch-compare-meta';
 export const GET_GIT_BRANCH_COMPARE_DIFF_CHANNEL = 'app:get-git-branch-compare-diff';
 export const GET_GIT_STATUS_CHANNEL = 'app:get-git-status';
@@ -332,6 +333,12 @@ export const CodeChangesMetaSchema = z.object({
 });
 export type CodeChangesMeta = z.infer<typeof CodeChangesMetaSchema>;
 
+export const GitBranchHistorySchema = z.object({
+  branch: z.string().min(1),
+  commits: z.array(PrCommitSchema),
+});
+export type GitBranchHistory = z.infer<typeof GitBranchHistorySchema>;
+
 export const PrDiffMetaSchema = CodeChangesMetaSchema.extend({
   status: z.literal('ready'),
 });
@@ -391,6 +398,10 @@ export interface ElectronApi {
   onCloneProgress: (listener: (line: string) => void) => () => void;
   getGitBranches: (repoPath: string) => Promise<GitBranch[]>;
   getGitDefaultBranch: (repoPath: string) => Promise<string>;
+  getGitBranchHistory: (
+    repoPath: string,
+    branchName: string,
+  ) => Promise<GitBranchHistory>;
   getGitBranchCompareMeta: (
     repoPath: string,
     baseBranch: string,

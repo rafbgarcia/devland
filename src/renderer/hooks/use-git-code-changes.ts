@@ -1,51 +1,49 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import type { CodeChangesMeta, GitStatusFile } from '@/ipc/contracts';
+import type { GitBranchHistory, GitStatusFile } from '@/ipc/contracts';
 import { parseDiffFiles, type DiffFile } from '@/renderer/lib/code-diff';
 import { type AsyncState } from '@/renderer/hooks/use-pr-diff-data';
 
-export function useGitHistoryMeta({
+export function useGitBranchHistory({
   repoPath,
-  baseBranch,
-  headBranch,
+  branchName,
 }: {
   repoPath: string;
-  baseBranch: string;
-  headBranch: string;
+  branchName: string;
 }) {
-  const [metaState, setMetaState] = useState<AsyncState<CodeChangesMeta>>({ status: 'loading' });
+  const [historyState, setHistoryState] = useState<AsyncState<GitBranchHistory>>({ status: 'loading' });
   const fetchIdRef = useRef(0);
   const fetchMeta = useCallback(() => {
       const fetchId = ++fetchIdRef.current;
-      setMetaState({ status: 'loading' });
+      setHistoryState({ status: 'loading' });
 
-      window.electronAPI.getGitBranchCompareMeta(repoPath, baseBranch, headBranch)
-        .then((meta) => {
+      window.electronAPI.getGitBranchHistory(repoPath, branchName)
+        .then((history) => {
           if (fetchIdRef.current !== fetchId) {
             return;
           }
 
-          setMetaState({ status: 'ready', data: meta });
+          setHistoryState({ status: 'ready', data: history });
         })
         .catch((error) => {
           if (fetchIdRef.current !== fetchId) {
             return;
           }
 
-          setMetaState({
+          setHistoryState({
             status: 'error',
             error: error instanceof Error ? error.message : 'Failed to load branch history.',
           });
         });
     },
-    [baseBranch, headBranch, repoPath],
+    [branchName, repoPath],
   );
 
   useEffect(() => {
     fetchMeta();
   }, [fetchMeta]);
 
-  return { metaState, refetch: fetchMeta };
+  return { historyState, refetch: fetchMeta };
 }
 
 export function useGitWorkingTreeDiff({

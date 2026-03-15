@@ -16,6 +16,7 @@ import {
   CLONE_GITHUB_REPO_PROGRESS_CHANNEL,
   GET_GIT_BRANCHES_CHANNEL,
   GET_GIT_DEFAULT_BRANCH_CHANNEL,
+  GET_GIT_BRANCH_HISTORY_CHANNEL,
   GET_GIT_BRANCH_COMPARE_META_CHANNEL,
   GET_GIT_BRANCH_COMPARE_DIFF_CHANNEL,
   GET_GIT_STATUS_CHANNEL,
@@ -75,6 +76,8 @@ export const electronApi: ElectronApi = {
     ipcRenderer.invoke(GET_GIT_BRANCHES_CHANNEL, repoPath),
   getGitDefaultBranch: (repoPath) =>
     ipcRenderer.invoke(GET_GIT_DEFAULT_BRANCH_CHANNEL, repoPath),
+  getGitBranchHistory: (repoPath, branchName) =>
+    ipcRenderer.invoke(GET_GIT_BRANCH_HISTORY_CHANNEL, repoPath, branchName),
   getGitBranchCompareMeta: (repoPath, baseBranch, headBranch) =>
     ipcRenderer.invoke(
       GET_GIT_BRANCH_COMPARE_META_CHANNEL,
