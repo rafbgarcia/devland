@@ -16,6 +16,7 @@ export type DiffDocument = {
 };
 
 export type DiffFileHeader = {
+  diffHeaderLine: string;
   oldPath: string | null;
   newPath: string | null;
   displayPath: string;

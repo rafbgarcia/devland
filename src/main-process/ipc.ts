@@ -22,6 +22,7 @@ import {
   CHECKOUT_GIT_BRANCH_CHANNEL,
   GET_GIT_FILE_DIFF_CHANNEL,
   CREATE_GIT_WORKTREE_CHANNEL,
+  COMMIT_WORKING_TREE_SELECTION_CHANNEL,
   PROMOTE_GIT_WORKTREE_BRANCH_CHANNEL,
   GENERATE_PR_REVIEW_CHANNEL,
   SYNC_REPO_REVIEW_REFS_CHANNEL,
@@ -52,6 +53,7 @@ import {
   checkoutGitBranch,
   createGitWorktree,
   cloneGithubRepo,
+  commitWorkingTreeSelection,
   findLocalGithubRepoPath,
   getGitBranchCompareDiff,
   getGitBranchCompareMeta,
@@ -208,6 +210,10 @@ export const registerAppIpcHandlers = (
     PROMOTE_GIT_WORKTREE_BRANCH_CHANNEL,
     (_event, repoPath: string, currentBranch: string, prompt: string) =>
       promoteGitWorktreeBranch(repoPath, currentBranch, prompt),
+  );
+  ipcMain.handle(
+    COMMIT_WORKING_TREE_SELECTION_CHANNEL,
+    (_event, input) => commitWorkingTreeSelection(input),
   );
   ipcMain.handle(
     GENERATE_PR_REVIEW_CHANNEL,

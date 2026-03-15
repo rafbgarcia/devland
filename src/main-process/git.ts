@@ -1,19 +1,23 @@
 import { randomBytes } from 'node:crypto';
 import { execFile, spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { z } from 'zod';
 
 import {
   CodeChangesMetaSchema,
+  CommitWorkingTreeSelectionInputSchema,
+  CommitWorkingTreeSelectionResultSchema,
   CreateGitWorktreeResultSchema,
   GitBranchHistorySchema,
   PrDiffMetaResultSchema,
   PromoteGitWorktreeBranchResultSchema,
   RepoDetailsSchema,
   type CodeChangesMeta,
+  type CommitWorkingTreeSelectionInput,
+  type CommitWorkingTreeSelectionResult,
   type CreateGitWorktreeResult,
   type GitBranchHistory,
   type GitBranch,
@@ -32,6 +36,11 @@ const GITHUB_REPO_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const getGitExecOptions = () => ({
   timeout: 8000,
   windowsHide: true,
+});
+
+const getGitExecOptionsWithEnv = (env?: NodeJS.ProcessEnv) => ({
+  ...getGitExecOptions(),
+  env: env ? { ...process.env, ...env } : process.env,
 });
 
 const DEFAULT_TEXT_READ_MAX_BYTES = 256 * 1024;
@@ -254,6 +263,30 @@ const parseGitFileStatus = (xy: string): GitFileStatus => {
   return 'modified';
 };
 
+const parseGitStatusColumn = (value: string): GitFileStatus | null => {
+  if (value === ' ' || value === '.') {
+    return null;
+  }
+
+  if (value === '?') {
+    return 'untracked';
+  }
+
+  if (value === 'R') {
+    return 'renamed';
+  }
+
+  if (value === 'A' || value === 'C') {
+    return 'added';
+  }
+
+  if (value === 'D') {
+    return 'deleted';
+  }
+
+  return 'modified';
+};
+
 const CODEX_WORKTREE_BRANCH_PREFIX = 'codex';
 const TEMPORARY_WORKTREE_BRANCH_PATTERN = /^codex\/[0-9a-f]{8}$/;
 
@@ -363,11 +396,22 @@ export const getGitStatus = async (repoPath: string): Promise<GitStatus> => {
     .map((line) => {
       const xy = line.slice(0, 2);
       const filePath = line.slice(3);
+      const indexStatus = parseGitStatusColumn(xy[0] ?? ' ');
+      const workingTreeStatus = parseGitStatusColumn(xy[1] ?? ' ');
 
-      return { path: filePath, status: parseGitFileStatus(xy) };
+      return {
+        path: filePath,
+        status: parseGitFileStatus(xy),
+        hasStagedChanges: indexStatus !== null,
+        hasUnstagedChanges: workingTreeStatus !== null,
+      };
     });
 
-  return { branch, files };
+  return {
+    branch,
+    files,
+    hasStagedChanges: files.some((file) => file.hasStagedChanges),
+  };
 };
 
 export const checkoutGitBranch = async (
@@ -596,6 +640,151 @@ export const promoteGitWorktreeBranch = async (
   return PromoteGitWorktreeBranchResultSchema.parse({
     branch: nextBranch,
   });
+};
+
+const hasHeadCommit = async (repoPath: string): Promise<boolean> => {
+  try {
+    await execFileAsync(
+      'git',
+      ['-C', repoPath, 'rev-parse', '--verify', 'HEAD'],
+      getGitExecOptions(),
+    );
+
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const applyPatchToIndex = async (
+  repoPath: string,
+  gitEnv: NodeJS.ProcessEnv,
+  patch: string,
+  scratchDir: string,
+  filePath: string,
+) => {
+  const patchPath = path.join(
+    scratchDir,
+    `${filePath.replace(/[\\/]/g, '_') || 'selection'}.patch`,
+  );
+  writeFileSync(patchPath, patch, 'utf8');
+
+  await execFileAsync(
+    'git',
+    ['-C', repoPath, 'apply', '--cached', '--whitespace=nowarn', patchPath],
+    getGitExecOptionsWithEnv(gitEnv),
+  );
+};
+
+const stageWholeFileInIndex = async (
+  repoPath: string,
+  gitEnv: NodeJS.ProcessEnv,
+  filePaths: string[],
+) => {
+  await execFileAsync(
+    'git',
+    ['-C', repoPath, 'add', '-A', '--', ...filePaths],
+    getGitExecOptionsWithEnv(gitEnv),
+  );
+};
+
+const ensureSelectionProducesChanges = async (
+  repoPath: string,
+  gitEnv: NodeJS.ProcessEnv,
+) => {
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['-C', repoPath, 'diff', '--cached', '--name-only'],
+      getGitExecOptionsWithEnv(gitEnv),
+    );
+
+    if (stdout.trim().length === 0) {
+      throw new Error('No changes are selected for commit.');
+    }
+  } catch (error) {
+    throw error instanceof Error
+      ? error
+      : new Error('No changes are selected for commit.');
+  }
+};
+
+export const commitWorkingTreeSelection = async (
+  input: CommitWorkingTreeSelectionInput,
+): Promise<CommitWorkingTreeSelectionResult> => {
+  const parsedInput = CommitWorkingTreeSelectionInputSchema.parse(input);
+  const status = await getGitStatus(parsedInput.repoPath);
+
+  if (status.hasStagedChanges) {
+    throw new Error(
+      'This repository already has staged changes. Clear the staged state before using Devland commit selection.',
+    );
+  }
+
+  const scratchDir = mkdtempSync(path.join(tmpdir(), 'devland-commit-'));
+  const tempIndexPath = path.join(scratchDir, 'index');
+  const gitEnv = { GIT_INDEX_FILE: tempIndexPath };
+
+  try {
+    if (await hasHeadCommit(parsedInput.repoPath)) {
+      await execFileAsync(
+        'git',
+        ['-C', parsedInput.repoPath, 'read-tree', 'HEAD'],
+        getGitExecOptionsWithEnv(gitEnv),
+      );
+    }
+
+    for (const file of parsedInput.files) {
+      if (file.kind === 'partial') {
+        if (!file.patch) {
+          throw new Error(`Missing partial patch for ${file.path}.`);
+        }
+
+        await applyPatchToIndex(
+          parsedInput.repoPath,
+          gitEnv,
+          file.patch,
+          scratchDir,
+          file.path,
+        );
+        continue;
+      }
+
+      await stageWholeFileInIndex(parsedInput.repoPath, gitEnv, file.paths);
+    }
+
+    await ensureSelectionProducesChanges(parsedInput.repoPath, gitEnv);
+
+    const commitArgs = ['-C', parsedInput.repoPath, 'commit', '--cleanup=strip', '-m', parsedInput.summary];
+
+    if (parsedInput.description.trim().length > 0) {
+      commitArgs.push('-m', parsedInput.description.trim());
+    }
+
+    await execFileAsync(
+      'git',
+      commitArgs,
+      getGitExecOptionsWithEnv(gitEnv),
+    );
+
+    await execFileAsync(
+      'git',
+      ['-C', parsedInput.repoPath, 'reset', '--mixed', '--quiet', 'HEAD'],
+      getGitExecOptions(),
+    );
+
+    const { stdout } = await execFileAsync(
+      'git',
+      ['-C', parsedInput.repoPath, 'rev-parse', 'HEAD'],
+      getGitExecOptions(),
+    );
+
+    return CommitWorkingTreeSelectionResultSchema.parse({
+      commitSha: stdout.trim(),
+    });
+  } finally {
+    rmSync(scratchDir, { recursive: true, force: true });
+  }
 };
 
 export const splitDiffByFile = (rawDiff: string): Record<string, string> => {

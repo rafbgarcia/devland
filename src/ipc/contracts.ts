@@ -24,6 +24,7 @@ export const CHECKOUT_GIT_BRANCH_CHANNEL = 'app:checkout-git-branch';
 export const GET_GIT_FILE_DIFF_CHANNEL = 'app:get-git-file-diff';
 export const CREATE_GIT_WORKTREE_CHANNEL = 'app:create-git-worktree';
 export const PROMOTE_GIT_WORKTREE_BRANCH_CHANNEL = 'app:promote-git-worktree-branch';
+export const COMMIT_WORKING_TREE_SELECTION_CHANNEL = 'app:commit-working-tree-selection';
 export const GENERATE_PR_REVIEW_CHANNEL = 'app:generate-pr-review';
 export const SYNC_REPO_REVIEW_REFS_CHANNEL = 'app:sync-repo-review-refs';
 export const SEND_CODEX_SESSION_PROMPT_CHANNEL = 'app:send-codex-session-prompt';
@@ -195,12 +196,15 @@ export type GitBranch = z.infer<typeof GitBranchSchema>;
 export const GitStatusFileSchema = z.object({
   path: z.string().min(1),
   status: GitFileStatusSchema,
+  hasStagedChanges: z.boolean(),
+  hasUnstagedChanges: z.boolean(),
 });
 export type GitStatusFile = z.infer<typeof GitStatusFileSchema>;
 
 export const GitStatusSchema = z.object({
   branch: z.string(),
   files: z.array(GitStatusFileSchema),
+  hasStagedChanges: z.boolean(),
 });
 export type GitStatus = z.infer<typeof GitStatusSchema>;
 
@@ -233,6 +237,27 @@ export const PromoteGitWorktreeBranchResultSchema = z.object({
   branch: z.string().min(1),
 });
 export type PromoteGitWorktreeBranchResult = z.infer<typeof PromoteGitWorktreeBranchResultSchema>;
+
+export const CommitWorkingTreeSelectionFileSchema = z.object({
+  path: z.string().min(1),
+  paths: z.array(z.string().min(1)).min(1),
+  kind: z.enum(['full', 'partial']),
+  patch: z.string().min(1).nullable().optional(),
+});
+export type CommitWorkingTreeSelectionFile = z.infer<typeof CommitWorkingTreeSelectionFileSchema>;
+
+export const CommitWorkingTreeSelectionInputSchema = z.object({
+  repoPath: z.string().min(1),
+  summary: z.string().min(1),
+  description: z.string().default(''),
+  files: z.array(CommitWorkingTreeSelectionFileSchema).min(1),
+});
+export type CommitWorkingTreeSelectionInput = z.infer<typeof CommitWorkingTreeSelectionInputSchema>;
+
+export const CommitWorkingTreeSelectionResultSchema = z.object({
+  commitSha: z.string().min(1),
+});
+export type CommitWorkingTreeSelectionResult = z.infer<typeof CommitWorkingTreeSelectionResultSchema>;
 
 export const CodexSessionStatusSchema = z.enum([
   'connecting',
@@ -437,6 +462,9 @@ export interface ElectronApi {
     currentBranch: string,
     prompt: string,
   ) => Promise<PromoteGitWorktreeBranchResult>;
+  commitWorkingTreeSelection: (
+    input: CommitWorkingTreeSelectionInput,
+  ) => Promise<CommitWorkingTreeSelectionResult>;
   generatePrReview: (repoPath: string, prNumber: number, title: string) => Promise<PrReview>;
   getPrDiffMeta: (repoPath: string, prNumber: number) => Promise<PrDiffMetaResult>;
   syncRepoReviewRefs: (repoPath: string, owner: string, name: string) => Promise<void>;

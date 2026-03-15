@@ -12,6 +12,7 @@ const DIFF_GIT_RE = /^diff --git (?:"(.+)"|(\S+)) (?:"(.+)"|(\S+))$/;
 const HUNK_HEADER_RE = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(?: ?(.*))?$/;
 
 type DiffFileParseState = {
+  diffHeaderLine: string;
   lines: string[];
   oldPath: string | null;
   newPath: string | null;
@@ -69,6 +70,7 @@ const createInitialFileState = (headerLine: string): DiffFileParseState => {
   const { oldPath, newPath } = parseDiffHeaderLine(headerLine);
 
   return {
+    diffHeaderLine: headerLine,
     lines: [headerLine],
     oldPath,
     newPath,
@@ -83,6 +85,7 @@ const createInitialFileState = (headerLine: string): DiffFileParseState => {
 };
 
 const finalizeFile = (state: DiffFileParseState): DiffFile => ({
+  diffHeaderLine: state.diffHeaderLine,
   rawText: state.lines.join('\n'),
   oldPath: state.oldPath,
   newPath: state.newPath,
