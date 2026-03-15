@@ -5,6 +5,8 @@ import { motion, type Variants } from 'motion/react';
 
 import type { PrDiffMetaResult, PrReview } from '@/ipc/contracts';
 import { CodeCloneView } from '@/renderer/components/code-clone-view';
+import { usePrReviewCache } from '@/renderer/hooks/use-pr-review-cache';
+import { usePrReviewGeneration } from '@/renderer/hooks/use-pr-review-generation';
 import { isAbsoluteProjectPath } from '@/renderer/lib/projects';
 import { Button } from '@/shadcn/components/ui/button';
 import {
@@ -15,6 +17,7 @@ import {
   EmptyTitle,
 } from '@/shadcn/components/ui/empty';
 import { Spinner } from '@/shadcn/components/ui/spinner';
+import { RelativeTime } from '@/ui/relative-time';
 
 import {
   Tabs,
@@ -29,7 +32,7 @@ import { PrReviewContent } from './pr-review-overlay';
 type AiReviewState =
   | { status: 'idle' }
   | { status: 'loading' }
-  | { status: 'ready'; review: PrReview }
+  | { status: 'ready'; review: PrReview; generatedAt: string }
   | { status: 'error'; error: string };
 
 type AsyncState<T> =
@@ -101,8 +104,14 @@ export function PrReviewDialog({
   const [prMeta, setPrMeta] = useState<AsyncState<PrDiffMetaResult>>({ status: 'idle' });
   const [isContentMounted, setIsContentMounted] = useState(false);
   const requestIdRef = useRef(0);
+  const reviewRequestIdRef = useRef(0);
   const activeSnapshotKeyRef = useRef('');
   const loadedReviewRefsVersionRef = useRef<number | null>(null);
+  const { cachedReview, setCachedReview } = usePrReviewCache(repoId, pr?.number ?? null);
+  const {
+    isGenerating: isGeneratingReview,
+    setIsGenerating: setIsGeneratingReview,
+  } = usePrReviewGeneration(repoId, pr?.number ?? null);
 
   // Retain last pr so content stays visible during the exit animation
   const retainedPrRef = useRef<PrReviewDialogPr | null>(pr);
@@ -164,11 +173,31 @@ export function PrReviewDialog({
     loadedReviewRefsVersionRef.current = reviewRefsVersion;
 
     const requestId = ++requestIdRef.current;
+    reviewRequestIdRef.current += 1;
     setPrMeta({ status: 'loading' });
-    setAiReview({ status: 'idle' });
+    setAiReview(
+      cachedReview === null
+        ? isGeneratingReview
+          ? { status: 'loading' }
+          : { status: 'idle' }
+        : {
+            status: 'ready',
+            review: cachedReview.review,
+            generatedAt: cachedReview.generatedAt,
+          },
+    );
     setActiveTab('code-changes');
     loadLocalSnapshot(requestId);
-  }, [open, pr, isCloned, repoPath, loadLocalSnapshot]);
+  }, [
+    cachedReview,
+    isGeneratingReview,
+    open,
+    pr,
+    isCloned,
+    repoPath,
+    loadLocalSnapshot,
+    reviewRefsVersion,
+  ]);
 
   useEffect(() => {
     if (!open || !displayPr) {
@@ -201,8 +230,37 @@ export function PrReviewDialog({
     loadLocalSnapshot(requestId);
   }, [open, pr, isCloned, loadLocalSnapshot, reviewRefsVersion]);
 
+  useEffect(() => {
+    if (!open || !pr || !isCloned) {
+      return;
+    }
+
+    if (cachedReview !== null) {
+      setAiReview((current) => (
+        current.status === 'ready' && current.generatedAt === cachedReview.generatedAt
+          ? current
+          : {
+              status: 'ready',
+              review: cachedReview.review,
+              generatedAt: cachedReview.generatedAt,
+            }
+      ));
+      return;
+    }
+
+    if (isGeneratingReview) {
+      setAiReview((current) => (
+        current.status === 'ready' || current.status === 'loading'
+          ? current
+          : { status: 'loading' }
+      ));
+    }
+  }, [cachedReview, isGeneratingReview, open, pr, isCloned]);
+
   const handleGenerateReview = useCallback(async () => {
-    if (!pr) return;
+    if (!pr || isGeneratingReview) return;
+    const reviewRequestId = ++reviewRequestIdRef.current;
+    setIsGeneratingReview(true);
     setAiReview({ status: 'loading' });
     try {
       const review = await window.electronAPI.generatePrReview(
@@ -210,14 +268,24 @@ export function PrReviewDialog({
         pr.number,
         pr.title,
       );
-      setAiReview({ status: 'ready', review });
+      const generatedAt = new Date().toISOString();
+
+      setCachedReview({ review, generatedAt });
+
+      if (reviewRequestIdRef.current === reviewRequestId) {
+        setAiReview({ status: 'ready', review, generatedAt });
+      }
     } catch (error) {
-      setAiReview({
-        status: 'error',
-        error: error instanceof Error ? error.message : 'Failed to generate review',
-      });
+      if (reviewRequestIdRef.current === reviewRequestId) {
+        setAiReview({
+          status: 'error',
+          error: error instanceof Error ? error.message : 'Failed to generate review',
+        });
+      }
+    } finally {
+      setIsGeneratingReview(false);
     }
-  }, [pr, repoPath]);
+  }, [isGeneratingReview, pr, repoPath, setCachedReview, setIsGeneratingReview]);
 
   const handleClose = useCallback(() => {
     onOpenChange(false);
@@ -232,6 +300,7 @@ export function PrReviewDialog({
     activeSnapshotKeyRef.current = '';
     loadedReviewRefsVersionRef.current = null;
     requestIdRef.current += 1;
+    reviewRequestIdRef.current += 1;
   }, [open]);
 
   useEffect(() => {
@@ -323,12 +392,12 @@ export function PrReviewDialog({
                       </TabsTrigger>
                       <TabsTrigger
                         value="ai-review"
-                        disabled={aiReview.status === 'idle' || aiReview.status === 'loading'}
+                        disabled={aiReview.status !== 'ready'}
                       >
                         <SparklesIcon className="size-3.5" />
                         {aiReview.status === 'ready' ? 'AI Review' : 'AI Review'}
                       </TabsTrigger>
-                      {aiReview.status === 'idle' && (
+                      {aiReview.status === 'idle' && !isGeneratingReview && (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -340,10 +409,27 @@ export function PrReviewDialog({
                           {hasReadyLocalSnapshot ? 'Generate AI review' : 'Waiting for local snapshot'}
                         </Button>
                       )}
-                      {aiReview.status === 'loading' && (
+                      {isGeneratingReview && (
                         <div className="ml-2 flex items-center gap-1.5 text-xs text-muted-foreground">
                           <Spinner className="size-3" />
                           Generating AI review...
+                        </div>
+                      )}
+                      {aiReview.status === 'ready' && !isGeneratingReview && (
+                        <div className="ml-2 flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">
+                            Generated <RelativeTime value={aiReview.generatedAt} /> in{' '}
+                            {Math.round(aiReview.review.durationMs / 1000)}s
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={handleGenerateReview}
+                            disabled={!hasReadyLocalSnapshot}
+                          >
+                            Regenerate AI review
+                          </Button>
                         </div>
                       )}
                       {aiReview.status === 'error' && (
