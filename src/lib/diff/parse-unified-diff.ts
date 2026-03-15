@@ -10,6 +10,7 @@ import type {
 
 const DIFF_GIT_RE = /^diff --git (?:"(.+)"|(\S+)) (?:"(.+)"|(\S+))$/;
 const HUNK_HEADER_RE = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(?: ?(.*))?$/;
+const DIFF_PATH_PREFIX_RE = /^(?:a|b|c|i|o|w|1|2)\//;
 
 type DiffFileParseState = {
   diffHeaderLine: string;
@@ -30,7 +31,8 @@ const normalizeDiffPath = (value: string | null): string | null => {
     return null;
   }
 
-  return value.replace(/^(?:a|b|w)\//, '');
+  // Git can emit mnemonic prefixes like c/ and w/ when diff.mnemonicPrefix=true.
+  return value.replace(DIFF_PATH_PREFIX_RE, '');
 };
 
 const parseDiffHeaderLine = (line: string) => {

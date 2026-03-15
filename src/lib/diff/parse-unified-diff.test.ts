@@ -93,6 +93,21 @@ index 1111111..2222222 100644
     assert.equal(file.newPath, 'src/example.ts');
     assert.equal(file.displayPath, 'src/example.ts');
   });
+
+  it('normalizes mnemonic prefixes in diff paths', () => {
+    const document = parseUnifiedDiffDocument(`diff --git c/src/example.ts w/src/example.ts
+index 1111111..2222222 100644
+--- c/src/example.ts
++++ w/src/example.ts
+@@ -1 +1 @@
+-before
++after`);
+
+    const file = document.files[0]!;
+    assert.equal(file.oldPath, 'src/example.ts');
+    assert.equal(file.newPath, 'src/example.ts');
+    assert.equal(file.displayPath, 'src/example.ts');
+  });
 });
 
 describe('projectDiffRows', () => {

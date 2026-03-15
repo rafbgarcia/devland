@@ -105,6 +105,56 @@ describe('commitWorkingTreeSelection', () => {
       rmSync(repoPath, { recursive: true, force: true });
     }
   });
+
+  it('creates a whole-file commit when git uses mnemonic diff prefixes', async () => {
+    const repoPath = mkdtempSync(path.join(tmpdir(), 'devland-git-test-'));
+
+    try {
+      await execGit(repoPath, ['init']);
+      await execGit(repoPath, ['config', 'user.name', 'Devland Test']);
+      await execGit(repoPath, ['config', 'user.email', 'devland@example.com']);
+      await execGit(repoPath, ['config', 'diff.mnemonicPrefix', 'true']);
+
+      const filePath = path.join(repoPath, 'example.ts');
+      writeFileSync(filePath, 'const value = 1;\n', 'utf8');
+
+      await execGit(repoPath, ['add', 'example.ts']);
+      await execGit(repoPath, ['commit', '-m', 'Initial commit']);
+
+      writeFileSync(filePath, 'const value = 2;\n', 'utf8');
+
+      const diff = await getGitWorkingTreeDiff(repoPath);
+      const file = parseUnifiedDiffDocument(diff).files[0]!;
+      const paths = [...new Set([file.oldPath, file.newPath].filter((value): value is string => value !== null))];
+
+      assert.deepEqual(paths, ['example.ts']);
+
+      const result = await commitWorkingTreeSelection({
+        repoPath,
+        summary: 'Commit selected file',
+        description: '',
+        files: [
+          {
+            path: file.displayPath,
+            paths,
+            kind: 'full',
+          },
+        ],
+      });
+
+      assert.match(result.commitSha, /^[0-9a-f]{40}$/);
+      assert.equal(
+        (await execGit(repoPath, ['show', 'HEAD:example.ts'])).stdout,
+        'const value = 2;\n',
+      );
+
+      const status = await getGitStatus(repoPath);
+      assert.equal(status.files.length, 0);
+      assert.equal(status.hasStagedChanges, false);
+    } finally {
+      rmSync(repoPath, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('getGitBranchHistory', () => {
