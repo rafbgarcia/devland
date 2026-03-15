@@ -12,6 +12,9 @@ import {
   CLONE_GITHUB_REPO_CHANNEL,
   CLONE_GITHUB_REPO_PROGRESS_CHANNEL,
   GET_GIT_BRANCHES_CHANNEL,
+  GET_GIT_DEFAULT_BRANCH_CHANNEL,
+  GET_GIT_BRANCH_COMPARE_META_CHANNEL,
+  GET_GIT_BRANCH_COMPARE_DIFF_CHANNEL,
   GET_GIT_STATUS_CHANNEL,
   CHECKOUT_GIT_BRANCH_CHANNEL,
   GET_GIT_FILE_DIFF_CHANNEL,
@@ -42,8 +45,11 @@ import {
   createGitWorktree,
   cloneGithubRepo,
   findLocalGithubRepoPath,
+  getGitBranchCompareDiff,
+  getGitBranchCompareMeta,
   getCommitDiff,
   getGitBranches,
+  getGitDefaultBranch,
   getGitFileDiff,
   getGitStatus,
   getGithubRepoDetails,
@@ -128,6 +134,20 @@ export const registerAppIpcHandlers = (
   ipcMain.handle(
     GET_GIT_BRANCHES_CHANNEL,
     (_event, repoPath: string) => getGitBranches(repoPath),
+  );
+  ipcMain.handle(
+    GET_GIT_DEFAULT_BRANCH_CHANNEL,
+    (_event, repoPath: string) => getGitDefaultBranch(repoPath),
+  );
+  ipcMain.handle(
+    GET_GIT_BRANCH_COMPARE_META_CHANNEL,
+    (_event, repoPath: string, baseBranch: string, headBranch: string) =>
+      getGitBranchCompareMeta(repoPath, baseBranch, headBranch),
+  );
+  ipcMain.handle(
+    GET_GIT_BRANCH_COMPARE_DIFF_CHANNEL,
+    (_event, repoPath: string, baseBranch: string, headBranch: string) =>
+      getGitBranchCompareDiff(repoPath, baseBranch, headBranch),
   );
   ipcMain.handle(
     GET_GIT_STATUS_CHANNEL,

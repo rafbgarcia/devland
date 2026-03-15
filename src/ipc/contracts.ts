@@ -11,6 +11,9 @@ export const APP_SHORTCUT_COMMAND_CHANNEL = 'app:shortcut-command';
 export const CLONE_GITHUB_REPO_CHANNEL = 'app:clone-github-repo';
 export const CLONE_GITHUB_REPO_PROGRESS_CHANNEL = 'app:clone-github-repo-progress';
 export const GET_GIT_BRANCHES_CHANNEL = 'app:get-git-branches';
+export const GET_GIT_DEFAULT_BRANCH_CHANNEL = 'app:get-git-default-branch';
+export const GET_GIT_BRANCH_COMPARE_META_CHANNEL = 'app:get-git-branch-compare-meta';
+export const GET_GIT_BRANCH_COMPARE_DIFF_CHANNEL = 'app:get-git-branch-compare-diff';
 export const GET_GIT_STATUS_CHANNEL = 'app:get-git-status';
 export const CHECKOUT_GIT_BRANCH_CHANNEL = 'app:checkout-git-branch';
 export const GET_GIT_FILE_DIFF_CHANNEL = 'app:get-git-file-diff';
@@ -321,11 +324,15 @@ export const PrCommitSchema = z.object({
 });
 export type PrCommit = z.infer<typeof PrCommitSchema>;
 
-export const PrDiffMetaSchema = z.object({
-  status: z.literal('ready'),
+export const CodeChangesMetaSchema = z.object({
   baseBranch: z.string().min(1),
   headBranch: z.string().min(1),
   commits: z.array(PrCommitSchema),
+});
+export type CodeChangesMeta = z.infer<typeof CodeChangesMetaSchema>;
+
+export const PrDiffMetaSchema = CodeChangesMetaSchema.extend({
+  status: z.literal('ready'),
 });
 export type PrDiffMeta = z.infer<typeof PrDiffMetaSchema>;
 
@@ -382,6 +389,17 @@ export interface ElectronApi {
   cloneGithubRepo: (slug: string) => Promise<string>;
   onCloneProgress: (listener: (line: string) => void) => () => void;
   getGitBranches: (repoPath: string) => Promise<GitBranch[]>;
+  getGitDefaultBranch: (repoPath: string) => Promise<string>;
+  getGitBranchCompareMeta: (
+    repoPath: string,
+    baseBranch: string,
+    headBranch: string,
+  ) => Promise<CodeChangesMeta>;
+  getGitBranchCompareDiff: (
+    repoPath: string,
+    baseBranch: string,
+    headBranch: string,
+  ) => Promise<string>;
   getGitStatus: (repoPath: string) => Promise<GitStatus>;
   checkoutGitBranch: (repoPath: string, branchName: string) => Promise<void>;
   getGitFileDiff: (repoPath: string, filePath: string) => Promise<string>;

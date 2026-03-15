@@ -15,14 +15,13 @@ import {
   XIcon,
 } from 'lucide-react';
 
-import { CodeDiffViewer } from '@/renderer/components/code-diff-viewer';
-import { CodeSidebar } from '@/renderer/components/code-sidebar';
+import { CodeChanges } from '@/renderer/components/code-changes';
 import { useCodeTargets } from '@/renderer/hooks/use-code-targets';
 import {
   useCodexSessionActions,
   useCodexSessionState,
 } from '@/renderer/hooks/use-codex-sessions';
-import { useGitBranches, useGitFileDiff, useGitStatus } from '@/renderer/hooks/use-git';
+import { useGitDefaultBranch, useGitStatus } from '@/renderer/hooks/use-git';
 import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';
 import { Button } from '@/shadcn/components/ui/button';
 import {
@@ -73,7 +72,6 @@ export function CodeWorkspaceView({
   repoId: string;
   repoPath: string;
 }) {
-  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const [prompt, setPrompt] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isCreatingWorktree, setIsCreatingWorktree] = useState(false);
@@ -99,9 +97,8 @@ export function CodeWorkspaceView({
     respondToUserInput,
   } = useCodexSessionActions();
   const rootStatusState = useGitStatus(repoPath);
-  const branchesState = useGitBranches(activeTarget.cwd);
+  const defaultBranchState = useGitDefaultBranch(activeTarget.cwd);
   const statusState = useGitStatus(activeTarget.cwd);
-  const diffState = useGitFileDiff(activeTarget.cwd, selectedFilePath);
 
   const activeBranch = statusState.data?.branch ?? 'HEAD';
   const rootBranch = rootStatusState.data?.branch ?? 'HEAD';
@@ -113,33 +110,19 @@ export function CodeWorkspaceView({
       : (draftAnswers[activePendingUserInput.requestId] ?? {});
 
   useEffect(() => {
-    setSelectedFilePath(null);
-  }, [activeTargetId]);
-
-  useEffect(() => {
-    const availableFiles = new Set((statusState.data?.files ?? []).map((file) => file.path));
-
-    if (selectedFilePath !== null && !availableFiles.has(selectedFilePath)) {
-      setSelectedFilePath(null);
-    }
-  }, [selectedFilePath, statusState.data?.files]);
-
-  useEffect(() => {
     const previousStatus = previousSessionStatusRef.current[activeTarget.id] ?? null;
     previousSessionStatusRef.current[activeTarget.id] = sessionState.status;
 
     if (previousStatus === 'running' && sessionState.status !== 'running') {
       void Promise.all([
         rootStatusState.refetch(),
-        branchesState.refetch(),
         statusState.refetch(),
-        diffState.refetch(),
+        defaultBranchState.refetch(),
       ]);
     }
   }, [
     activeTarget.id,
-    branchesState,
-    diffState,
+    defaultBranchState,
     rootStatusState,
     sessionState.status,
     statusState,
@@ -162,25 +145,6 @@ export function CodeWorkspaceView({
       ),
     [rootBranch, targets],
   );
-
-  const handleBranchChange = async (branchName: string) => {
-    try {
-      await window.electronAPI.checkoutGitBranch(activeTarget.cwd, branchName);
-      setSelectedFilePath(null);
-      if (activeTarget.kind === 'worktree') {
-        updateTarget(activeTarget.id, (target) => ({ ...target, title: branchName }));
-      }
-
-      await Promise.all([
-        rootStatusState.refetch(),
-        branchesState.refetch(),
-        statusState.refetch(),
-        diffState.refetch(),
-      ]);
-    } catch (error) {
-      console.error('Failed to checkout branch:', error);
-    }
-  };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -213,8 +177,8 @@ export function CodeWorkspaceView({
           }));
           await Promise.all([
             rootStatusState.refetch(),
-            branchesState.refetch(),
             statusState.refetch(),
+            defaultBranchState.refetch(),
           ]);
         }
       }
@@ -260,16 +224,6 @@ export function CodeWorkspaceView({
 
   return (
     <div className="flex h-full min-h-0">
-      <CodeSidebar
-        branches={branchesState.data ?? []}
-        isBranchesLoading={branchesState.status === 'loading'}
-        files={statusState.data?.files ?? []}
-        isStatusLoading={statusState.status === 'loading'}
-        selectedFilePath={selectedFilePath}
-        onBranchChange={handleBranchChange}
-        onSelectFile={setSelectedFilePath}
-      />
-
       <div className="flex min-w-0 flex-1 flex-col">
         <Tabs
           className="gap-0"
@@ -334,6 +288,31 @@ export function CodeWorkspaceView({
         </Tabs>
 
         <div className="flex min-h-0 flex-1">
+          <div className="min-w-0 flex-[0.85] border-l border-border">
+            {defaultBranchState.status === 'ready' && statusState.status === 'ready' ? (
+              <CodeChanges
+                repoPath={activeTarget.cwd}
+                baseBranchName={defaultBranchState.data}
+                branchName={statusState.data.branch}
+              />
+            ) : defaultBranchState.status === 'error' ? (
+              <div className="flex h-full items-center justify-center px-6">
+                <p className="text-sm text-muted-foreground">{defaultBranchState.error}</p>
+              </div>
+            ) : statusState.status === 'error' ? (
+              <div className="flex h-full items-center justify-center px-6">
+                <p className="text-sm text-muted-foreground">{statusState.error}</p>
+              </div>
+            ) : (
+              <div className="flex h-full items-center justify-center">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <LoaderCircleIcon className="size-3.5 animate-spin" />
+                  Resolving default branch...
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="flex min-w-0 flex-[1.15] flex-col">
             <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
               <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col gap-4">
@@ -567,14 +546,6 @@ export function CodeWorkspaceView({
                 </form>
               </div>
             </div>
-          </div>
-
-          <div className="min-w-0 flex-[0.85] border-l border-border">
-            <CodeDiffViewer
-              filePath={selectedFilePath}
-              diff={diffState.status === 'ready' ? diffState.data : null}
-              isLoading={diffState.status === 'loading' && selectedFilePath !== null}
-            />
           </div>
         </div>
       </div>

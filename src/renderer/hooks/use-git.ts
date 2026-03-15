@@ -43,6 +43,42 @@ export function useGitBranches(repoPath: string) {
   return { ...state, refetch: fetchBranches };
 }
 
+export function useGitDefaultBranch(repoPath: string) {
+  const [state, setState] = useState<AsyncState<string>>({
+    status: 'loading',
+    data: null,
+    error: null,
+  });
+  const fetchIdRef = useRef(0);
+
+  const fetchDefaultBranch = useCallback(async () => {
+    const fetchId = ++fetchIdRef.current;
+
+    try {
+      const defaultBranch = await window.electronAPI.getGitDefaultBranch(repoPath);
+
+      if (fetchIdRef.current !== fetchId) return;
+
+      setState({ status: 'ready', data: defaultBranch, error: null });
+    } catch (error) {
+      if (fetchIdRef.current !== fetchId) return;
+
+      setState({
+        status: 'error',
+        data: null,
+        error: error instanceof Error ? error.message : 'Failed to load default branch.',
+      });
+    }
+  }, [repoPath]);
+
+  useEffect(() => {
+    setState({ status: 'loading', data: null, error: null });
+    void fetchDefaultBranch();
+  }, [fetchDefaultBranch]);
+
+  return { ...state, refetch: fetchDefaultBranch };
+}
+
 export function useGitStatus(repoPath: string) {
   const [state, setState] = useState<AsyncState<GitStatus>>({
     status: 'loading',

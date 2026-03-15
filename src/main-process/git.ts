@@ -7,10 +7,12 @@ import { promisify } from 'node:util';
 import { z } from 'zod';
 
 import {
+  CodeChangesMetaSchema,
   CreateGitWorktreeResultSchema,
   PrDiffMetaResultSchema,
   PromoteGitWorktreeBranchResultSchema,
   RepoDetailsSchema,
+  type CodeChangesMeta,
   type CreateGitWorktreeResult,
   type GitBranch,
   type GitFileStatus,
@@ -535,6 +537,58 @@ const verifyRevisionExists = async (
   );
 };
 
+const getRemoteBranchRevision = async (
+  repoPath: string,
+  branchName: string,
+): Promise<string> => {
+  const revision = `refs/remotes/origin/${branchName}`;
+
+  await verifyRevisionExists(repoPath, revision);
+  return revision;
+};
+
+const getHeadBranchRevision = async (
+  repoPath: string,
+  branchName: string,
+): Promise<string> => {
+  if (branchName === 'HEAD') {
+    throw new Error('Current checkout is detached. Code view compare requires a branch.');
+  }
+
+  await verifyRevisionExists(repoPath, branchName);
+  return branchName;
+};
+
+export const getGitDefaultBranch = async (repoPath: string): Promise<string> => {
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['-C', repoPath, 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD'],
+      getGitExecOptions(),
+    );
+    const ref = stdout.trim();
+
+    if (ref.startsWith('origin/')) {
+      return ref.slice('origin/'.length);
+    }
+  } catch {
+    // Fall through to common default branch names.
+  }
+
+  for (const candidate of ['main', 'master']) {
+    try {
+      await verifyRevisionExists(repoPath, `refs/remotes/origin/${candidate}`);
+      return candidate;
+    } catch {
+      // Try the next fallback.
+    }
+  }
+
+  throw new Error(
+    'Could not determine the default branch from origin/HEAD. Fetch the repo or set the remote default branch.',
+  );
+};
+
 const getGitCommonDir = async (repoPath: string): Promise<string> => {
   const { stdout } = await execFileAsync(
     'git',
@@ -766,6 +820,51 @@ const parsePrCommitLogOutput = (logOutput: string): PrDiffMeta['commits'] =>
       };
     })
     .filter((commit) => commit.sha.length > 0);
+
+export const getGitBranchCompareMeta = async (
+  repoPath: string,
+  baseBranch: string,
+  headBranch: string,
+): Promise<CodeChangesMeta> => {
+  const baseRevision = await getRemoteBranchRevision(repoPath, baseBranch);
+  const headRevision = await getHeadBranchRevision(repoPath, headBranch);
+  const US = '%x1f';
+  const RS = '%x1e';
+  const format = `${US}%H${US}%h${US}%s${US}%an${US}%aI${US}%b${RS}`;
+
+  const { stdout: logOutput } = await execFileAsync(
+    'git',
+    [
+      '-C', repoPath, 'log',
+      `${baseRevision}..${headRevision}`,
+      `--format=${format}`,
+      '--reverse',
+    ],
+    { timeout: 15000, windowsHide: true },
+  );
+
+  return CodeChangesMetaSchema.parse({
+    baseBranch,
+    headBranch,
+    commits: parsePrCommitLogOutput(logOutput),
+  });
+};
+
+export const getGitBranchCompareDiff = async (
+  repoPath: string,
+  baseBranch: string,
+  headBranch: string,
+): Promise<string> => {
+  const baseRevision = await getRemoteBranchRevision(repoPath, baseBranch);
+  const headRevision = await getHeadBranchRevision(repoPath, headBranch);
+  const { stdout } = await execFileAsync(
+    'git',
+    ['-C', repoPath, 'diff', `${baseRevision}...${headRevision}`],
+    { timeout: 30000, windowsHide: true, maxBuffer: 10 * 1024 * 1024 },
+  );
+
+  return stdout;
+};
 
 export const getPrDiffMeta = async (
   repoPath: string,
