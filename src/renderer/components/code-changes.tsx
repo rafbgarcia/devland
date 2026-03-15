@@ -1,7 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import type { GitStatusFile, PrCommit } from '@/ipc/contracts';
-import { CodeChangesFilesViewport } from '@/renderer/components/code-changes-files-viewport';
+import {
+  CodeChangesFilesViewport,
+  type CodeChangesViewportHandle,
+} from '@/renderer/components/code-changes-files-viewport';
 import { CodeChangesHistoryDrawer } from '@/renderer/components/code-changes-history-drawer';
 import { CodeChangesSidebar } from '@/renderer/components/code-changes-sidebar';
 import {
@@ -14,19 +17,32 @@ type CodeChangesSelection =
   | { type: 'working-tree' }
   | { type: 'commit'; commit: PrCommit };
 
+type CodeChangesRenderProps = {
+  sidebar: ReactNode;
+  viewport: ReactNode;
+  historyDrawer: ReactNode;
+};
+
 export function CodeChanges({
   repoPath,
   baseBranchName,
   branchName,
   workingTreeFiles,
+  children,
+  onFileSelect,
 }: {
   repoPath: string;
   baseBranchName: string;
   branchName: string;
   workingTreeFiles: GitStatusFile[];
+  children: (props: CodeChangesRenderProps) => ReactNode;
+  onFileSelect?: () => void;
 }) {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [selection, setSelection] = useState<CodeChangesSelection>({ type: 'working-tree' });
+  const [visibleFiles, setVisibleFiles] = useState<Set<string>>(new Set());
+  const viewportRef = useRef<CodeChangesViewportHandle>(null);
+
   const { metaState: historyMetaState, refetch: refetchHistoryMeta } = useGitHistoryMeta({
     repoPath,
     baseBranch: baseBranchName,
@@ -74,48 +90,58 @@ export function CodeChanges({
     setIsHistoryOpen(false);
   };
 
+  const handleFileSelect = (path: string) => {
+    viewportRef.current?.scrollToFile(path);
+    onFileSelect?.();
+  };
+
   const drawerCommits = useMemo(() => historyCommits, [historyCommits]);
 
-  return (
-    <div className="relative flex h-full min-h-0">
-      <CodeChangesFilesViewport
-        rawDiff={activeDiffState}
-        diffFiles={activeDiffFiles}
-        emptyMessage={emptyMessage}
-        sidebar={({ diffFiles: sidebarDiffFiles, visibleFiles, onSelectFile }) => (
-          <CodeChangesSidebar
-            diffFiles={sidebarDiffFiles}
-            visibleFiles={visibleFiles}
-            onSelectFile={onSelectFile}
-            selectedCommit={selectedCommit}
-            isDiffLoading={activeDiffState.status === 'loading'}
-            onOpenHistory={() => {
-              void refetchHistoryMeta();
-              setIsHistoryOpen(true);
-            }}
-            onRestoreBranchState={handleRestoreWorkingTree}
-            emptyMessage={emptyMessage}
-          />
-        )}
-      />
-
-      <CodeChangesHistoryDrawer
-        open={isHistoryOpen}
-        commits={drawerCommits}
-        isLoading={historyIsLoading}
-        error={historyError}
-        selectedCommitSha={historySelectedCommitSha}
-        onClose={() => setIsHistoryOpen(false)}
-        onSelectCommit={(index) => {
-          const commit = drawerCommits[index];
-
-          if (!commit) {
-            return;
-          }
-
-          handleSelectHistoryCommit(commit);
-        }}
-      />
-    </div>
+  const sidebar = (
+    <CodeChangesSidebar
+      diffFiles={activeDiffFiles}
+      visibleFiles={visibleFiles}
+      onSelectFile={handleFileSelect}
+      selectedCommit={selectedCommit}
+      isDiffLoading={activeDiffState.status === 'loading'}
+      onOpenHistory={() => {
+        void refetchHistoryMeta();
+        setIsHistoryOpen(true);
+      }}
+      onRestoreBranchState={handleRestoreWorkingTree}
+      emptyMessage={emptyMessage}
+    />
   );
+
+  const viewport = (
+    <CodeChangesFilesViewport
+      ref={viewportRef}
+      rawDiff={activeDiffState}
+      diffFiles={activeDiffFiles}
+      emptyMessage={emptyMessage}
+      onVisibleFilesChange={setVisibleFiles}
+    />
+  );
+
+  const historyDrawer = (
+    <CodeChangesHistoryDrawer
+      open={isHistoryOpen}
+      commits={drawerCommits}
+      isLoading={historyIsLoading}
+      error={historyError}
+      selectedCommitSha={historySelectedCommitSha}
+      onClose={() => setIsHistoryOpen(false)}
+      onSelectCommit={(index) => {
+        const commit = drawerCommits[index];
+
+        if (!commit) {
+          return;
+        }
+
+        handleSelectHistoryCommit(commit);
+      }}
+    />
+  );
+
+  return <>{children({ sidebar, viewport, historyDrawer })}</>;
 }

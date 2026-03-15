@@ -1,7 +1,9 @@
 import {
+  forwardRef,
   memo,
   useCallback,
   useEffect,
+  useImperativeHandle,
   useMemo,
   useRef,
   useState,
@@ -193,19 +195,28 @@ export type CodeChangesSidebarRenderProps = {
   onSelectFile: (path: string) => void;
 };
 
-export function CodeChangesFilesViewport({
-  rawDiff,
-  diffFiles,
-  sidebar,
-  mainTop,
-  emptyMessage,
-}: {
+export type CodeChangesViewportHandle = {
+  scrollToFile: (path: string) => void;
+};
+
+type CodeChangesFilesViewportProps = {
   rawDiff: AsyncState<string>;
   diffFiles: DiffFile[];
   sidebar?: ReactNode | ((props: CodeChangesSidebarRenderProps) => ReactNode);
   mainTop?: ReactNode;
   emptyMessage: string;
-}) {
+  onVisibleFilesChange?: (files: Set<string>) => void;
+};
+
+export const CodeChangesFilesViewport = forwardRef<CodeChangesViewportHandle, CodeChangesFilesViewportProps>(
+  function CodeChangesFilesViewport({
+    rawDiff,
+    diffFiles,
+    sidebar,
+    mainTop,
+    emptyMessage,
+    onVisibleFilesChange,
+  }, ref) {
   const [scrollTop, setScrollTop] = useState(0);
   const [containerHeight, setContainerHeight] = useState(0);
   const [layoutVersion, setLayoutVersion] = useState(0);
@@ -352,6 +363,10 @@ export function CodeChangesFilesViewport({
     [diffFiles, visibleRange.end, visibleRange.start],
   );
 
+  useEffect(() => {
+    onVisibleFilesChange?.(visibleFiles);
+  }, [visibleFiles, onVisibleFilesChange]);
+
   const scrollToFile = useCallback((path: string) => {
     const fileIndex = diffFiles.findIndex((file) => file.path === path);
     if (fileIndex === -1) {
@@ -360,9 +375,12 @@ export function CodeChangesFilesViewport({
 
     scrollContainerRef.current?.scrollTo({
       top: Math.max(0, offsets[fileIndex]!),
-      behavior: 'smooth',
+      behavior: 'instant',
+
     });
   }, [diffFiles, offsets]);
+
+  useImperativeHandle(ref, () => ({ scrollToFile }), [scrollToFile]);
 
   const handleScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
     setScrollTop(event.currentTarget.scrollTop);
@@ -438,4 +456,4 @@ export function CodeChangesFilesViewport({
       </div>
     </div>
   );
-}
+});
