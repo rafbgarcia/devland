@@ -15,6 +15,7 @@ export const GET_GIT_DEFAULT_BRANCH_CHANNEL = 'app:get-git-default-branch';
 export const GET_GIT_BRANCH_COMPARE_META_CHANNEL = 'app:get-git-branch-compare-meta';
 export const GET_GIT_BRANCH_COMPARE_DIFF_CHANNEL = 'app:get-git-branch-compare-diff';
 export const GET_GIT_STATUS_CHANNEL = 'app:get-git-status';
+export const GET_GIT_WORKING_TREE_DIFF_CHANNEL = 'app:get-git-working-tree-diff';
 export const CHECKOUT_GIT_BRANCH_CHANNEL = 'app:checkout-git-branch';
 export const GET_GIT_FILE_DIFF_CHANNEL = 'app:get-git-file-diff';
 export const CREATE_GIT_WORKTREE_CHANNEL = 'app:create-git-worktree';
@@ -401,6 +402,7 @@ export interface ElectronApi {
     headBranch: string,
   ) => Promise<string>;
   getGitStatus: (repoPath: string) => Promise<GitStatus>;
+  getGitWorkingTreeDiff: (repoPath: string) => Promise<string>;
   checkoutGitBranch: (repoPath: string, branchName: string) => Promise<void>;
   getGitFileDiff: (repoPath: string, filePath: string) => Promise<string>;
   createGitWorktree: (repoPath: string, baseBranch: string) => Promise<CreateGitWorktreeResult>;

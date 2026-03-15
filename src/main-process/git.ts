@@ -377,6 +377,29 @@ export const checkoutGitBranch = async (
   );
 };
 
+const getUntrackedFileDiff = async (
+  repoPath: string,
+  filePath: string,
+): Promise<string> => new Promise((resolve) => {
+  execFile(
+    'git',
+    [
+      '-C', repoPath,
+      'diff',
+      '--no-index',
+      '--src-prefix=a/',
+      '--dst-prefix=b/',
+      '--',
+      '/dev/null',
+      filePath,
+    ],
+    getGitExecOptions(),
+    (_error, diffOutput) => {
+      resolve(diffOutput || '');
+    },
+  );
+});
+
 export const getGitFileDiff = async (
   repoPath: string,
   filePath: string,
@@ -427,16 +450,50 @@ export const getGitFileDiff = async (
   }
 
   // For untracked files, use --no-index which exits with code 1 when differences exist.
-  return new Promise((resolve) => {
-    execFile(
+  return getUntrackedFileDiff(repoPath, filePath);
+};
+
+const getGitDiffOutput = async (
+  repoPath: string,
+  args: string[],
+): Promise<string> => {
+  try {
+    const { stdout } = await execFileAsync(
       'git',
-      ['-C', repoPath, 'diff', '--no-index', '--', '/dev/null', filePath],
+      ['-C', repoPath, ...args],
       getGitExecOptions(),
-      (_error, diffOutput) => {
-        resolve(diffOutput || '');
-      },
     );
-  });
+
+    return stdout;
+  } catch {
+    return '';
+  }
+};
+
+export const getGitWorkingTreeDiff = async (repoPath: string): Promise<string> => {
+  const status = await getGitStatus(repoPath);
+
+  if (status.files.length === 0) {
+    return '';
+  }
+
+  const trackedDiff = await getGitDiffOutput(repoPath, ['diff', 'HEAD']);
+  const fallbackTrackedDiff = trackedDiff.trim().length > 0
+    ? trackedDiff
+    : [
+        await getGitDiffOutput(repoPath, ['diff']),
+        await getGitDiffOutput(repoPath, ['diff', '--cached']),
+      ].filter((output) => output.trim().length > 0).join('\n');
+
+  const untrackedDiffs = await Promise.all(
+    status.files
+      .filter((file) => file.status === 'untracked')
+      .map((file) => getUntrackedFileDiff(repoPath, file.path)),
+  );
+
+  return [fallbackTrackedDiff, ...untrackedDiffs]
+    .filter((output) => output.trim().length > 0)
+    .join('\n');
 };
 
 export const createGitWorktree = async (
@@ -498,13 +555,15 @@ export const splitDiffByFile = (rawDiff: string): Record<string, string> => {
       continue;
     }
 
-    const headerMatch = section.match(/^diff --git a\/.+ b\/(.+)$/m);
+    const headerLine = section.split('\n', 1)[0];
+    const headerMatch = headerLine?.match(/^diff --git (?:"(.+)"|(\S+)) (?:"(.+)"|(\S+))$/);
+    const nextPath = headerMatch?.[3] ?? headerMatch?.[4];
 
-    if (!headerMatch) {
+    if (!nextPath) {
       continue;
     }
 
-    fileDiffs[headerMatch[1]!] = section;
+    fileDiffs[nextPath.replace(/^[^/]+\//, '')] = section;
   }
 
   return fileDiffs;
@@ -537,14 +596,31 @@ const verifyRevisionExists = async (
   );
 };
 
-const getRemoteBranchRevision = async (
+const resolveExistingRevision = async (
+  repoPath: string,
+  revisions: string[],
+): Promise<string> => {
+  for (const revision of revisions) {
+    try {
+      await verifyRevisionExists(repoPath, revision);
+      return revision;
+    } catch {
+      // Try the next candidate.
+    }
+  }
+
+  throw new Error(`Could not resolve any of these revisions: ${revisions.join(', ')}`);
+};
+
+const getBaseBranchRevision = async (
   repoPath: string,
   branchName: string,
 ): Promise<string> => {
-  const revision = `refs/remotes/origin/${branchName}`;
-
-  await verifyRevisionExists(repoPath, revision);
-  return revision;
+  return resolveExistingRevision(repoPath, [
+    `refs/remotes/origin/${branchName}`,
+    `refs/heads/${branchName}`,
+    branchName,
+  ]);
 };
 
 const getHeadBranchRevision = async (
@@ -555,8 +631,10 @@ const getHeadBranchRevision = async (
     throw new Error('Current checkout is detached. Code view compare requires a branch.');
   }
 
-  await verifyRevisionExists(repoPath, branchName);
-  return branchName;
+  return resolveExistingRevision(repoPath, [
+    `refs/heads/${branchName}`,
+    branchName,
+  ]);
 };
 
 export const getGitDefaultBranch = async (repoPath: string): Promise<string> => {
@@ -577,7 +655,11 @@ export const getGitDefaultBranch = async (repoPath: string): Promise<string> => 
 
   for (const candidate of ['main', 'master']) {
     try {
-      await verifyRevisionExists(repoPath, `refs/remotes/origin/${candidate}`);
+      await resolveExistingRevision(repoPath, [
+        `refs/remotes/origin/${candidate}`,
+        `refs/heads/${candidate}`,
+        candidate,
+      ]);
       return candidate;
     } catch {
       // Try the next fallback.
@@ -585,7 +667,7 @@ export const getGitDefaultBranch = async (repoPath: string): Promise<string> => 
   }
 
   throw new Error(
-    'Could not determine the default branch from origin/HEAD. Fetch the repo or set the remote default branch.',
+    'Could not determine the default branch from origin/HEAD or local main/master branches.',
   );
 };
 
@@ -826,7 +908,7 @@ export const getGitBranchCompareMeta = async (
   baseBranch: string,
   headBranch: string,
 ): Promise<CodeChangesMeta> => {
-  const baseRevision = await getRemoteBranchRevision(repoPath, baseBranch);
+  const baseRevision = await getBaseBranchRevision(repoPath, baseBranch);
   const headRevision = await getHeadBranchRevision(repoPath, headBranch);
   const US = '%x1f';
   const RS = '%x1e';
@@ -855,7 +937,7 @@ export const getGitBranchCompareDiff = async (
   baseBranch: string,
   headBranch: string,
 ): Promise<string> => {
-  const baseRevision = await getRemoteBranchRevision(repoPath, baseBranch);
+  const baseRevision = await getBaseBranchRevision(repoPath, baseBranch);
   const headRevision = await getHeadBranchRevision(repoPath, headBranch);
   const { stdout } = await execFileAsync(
     'git',

@@ -19,6 +19,7 @@ import {
   GET_GIT_BRANCH_COMPARE_META_CHANNEL,
   GET_GIT_BRANCH_COMPARE_DIFF_CHANNEL,
   GET_GIT_STATUS_CHANNEL,
+  GET_GIT_WORKING_TREE_DIFF_CHANNEL,
   CHECKOUT_GIT_BRANCH_CHANNEL,
   GET_GIT_FILE_DIFF_CHANNEL,
   CREATE_GIT_WORKTREE_CHANNEL,
@@ -90,6 +91,8 @@ export const electronApi: ElectronApi = {
     ),
   getGitStatus: (repoPath) =>
     ipcRenderer.invoke(GET_GIT_STATUS_CHANNEL, repoPath),
+  getGitWorkingTreeDiff: (repoPath) =>
+    ipcRenderer.invoke(GET_GIT_WORKING_TREE_DIFF_CHANNEL, repoPath),
   checkoutGitBranch: (repoPath, branchName) =>
     ipcRenderer.invoke(CHECKOUT_GIT_BRANCH_CHANNEL, repoPath, branchName),
   getGitFileDiff: (repoPath, filePath) =>

@@ -294,6 +294,7 @@ export function CodeWorkspaceView({
                 repoPath={activeTarget.cwd}
                 baseBranchName={defaultBranchState.data}
                 branchName={statusState.data.branch}
+                workingTreeFiles={statusState.data.files}
               />
             ) : defaultBranchState.status === 'error' ? (
               <div className="flex h-full items-center justify-center px-6">

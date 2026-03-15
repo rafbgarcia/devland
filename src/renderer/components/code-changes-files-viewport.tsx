@@ -84,25 +84,43 @@ function getRangeForWindow(
 }
 
 export function FilesChangedList({
+  title = 'Files changed',
   files,
   visibleFiles,
   onSelectFile,
+  actions,
+  topContent,
+  emptyMessage = 'No changed files.',
 }: {
+  title?: string;
   files: DiffFile[];
   visibleFiles: Set<string>;
   onSelectFile: (path: string) => void;
+  actions?: ReactNode;
+  topContent?: ReactNode;
+  emptyMessage?: string;
 }) {
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-foreground">
         <FileCodeIcon className="size-3.5 text-muted-foreground" />
-        Files changed
-        <span className="ml-auto rounded-full bg-muted px-1.5 text-[10px] font-bold leading-4 text-muted-foreground">
+        {title}
+        <span className="rounded-full bg-muted px-1.5 text-[10px] font-bold leading-4 text-muted-foreground">
           {files.length}
         </span>
+        {actions ? (
+          <div className="ml-auto flex items-center gap-1">
+            {actions}
+          </div>
+        ) : null}
       </div>
+      {topContent}
       <div className="flex-1 overflow-y-auto">
-        {files.map((file) => {
+        {files.length === 0 ? (
+          <div className="px-3 py-4 text-xs text-muted-foreground">
+            {emptyMessage}
+          </div>
+        ) : files.map((file) => {
           const config = FILE_STATUS_CONFIG[file.status];
           const isVisible = visibleFiles.has(file.path);
 
@@ -169,16 +187,22 @@ const FileDiffSection = memo(function FileDiffSection({
   );
 });
 
+export type CodeChangesSidebarRenderProps = {
+  diffFiles: DiffFile[];
+  visibleFiles: Set<string>;
+  onSelectFile: (path: string) => void;
+};
+
 export function CodeChangesFilesViewport({
   rawDiff,
   diffFiles,
-  sidebarTop,
+  sidebar,
   mainTop,
   emptyMessage,
 }: {
   rawDiff: AsyncState<string>;
   diffFiles: DiffFile[];
-  sidebarTop?: ReactNode;
+  sidebar?: ReactNode | ((props: CodeChangesSidebarRenderProps) => ReactNode);
   mainTop?: ReactNode;
   emptyMessage: string;
 }) {
@@ -344,16 +368,25 @@ export function CodeChangesFilesViewport({
     setScrollTop(event.currentTarget.scrollTop);
   }, []);
 
+  const sidebarContent = useMemo(() => {
+    if (typeof sidebar === 'function') {
+      return sidebar({
+        diffFiles,
+        visibleFiles,
+        onSelectFile: scrollToFile,
+      });
+    }
+
+    return sidebar ?? null;
+  }, [diffFiles, scrollToFile, sidebar, visibleFiles]);
+
   return (
     <div className="flex min-h-0 flex-1">
-      <div className="flex w-64 shrink-0 flex-col overflow-hidden border-r border-border">
-        {sidebarTop}
-        <FilesChangedList
-          files={diffFiles}
-          visibleFiles={visibleFiles}
-          onSelectFile={scrollToFile}
-        />
-      </div>
+      {sidebarContent ? (
+        <div className="flex w-72 shrink-0 flex-col overflow-hidden border-r border-border">
+          {sidebarContent}
+        </div>
+      ) : null}
 
       <div className="flex flex-1 flex-col overflow-hidden">
         {mainTop}

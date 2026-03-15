@@ -8,6 +8,19 @@ export type ParsedDiffLine = {
 };
 
 const HUNK_HEADER_RE = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
+const DIFF_HEADER_RE = /^diff --git (?:"(.+)"|(\S+)) (?:"(.+)"|(\S+))$/;
+
+function normalizeDiffPath(path: string) {
+  return path.replace(/^[^/]+\//, '');
+}
+
+function getDiffHeaderPath(section: string) {
+  const headerLine = section.split('\n', 1)[0];
+  const match = headerLine?.match(DIFF_HEADER_RE);
+  const nextPath = match?.[3] ?? match?.[4];
+
+  return nextPath ? normalizeDiffPath(nextPath) : null;
+}
 
 function shouldSkipDiffMetadataLine(line: string) {
   return (
@@ -101,10 +114,8 @@ export function parseDiffFiles(rawDiff: string): DiffFile[] {
   for (const section of fileSections) {
     if (!section.startsWith('diff --git ')) continue;
 
-    const headerMatch = section.match(/^diff --git a\/.+ b\/(.+)$/m);
-    if (!headerMatch) continue;
-
-    const filePath = headerMatch[1]!;
+    const filePath = getDiffHeaderPath(section);
+    if (!filePath) continue;
 
     let status: DiffFileStatus = 'modified';
     if (section.includes('\nnew file mode ')) status = 'added';

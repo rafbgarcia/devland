@@ -5,7 +5,10 @@ import {
 
 import type { PrCommit } from '@/ipc/contracts';
 import { CodeChangesCommitsList } from '@/renderer/components/code-changes-commits-list';
-import { CodeChangesFilesViewport } from '@/renderer/components/code-changes-files-viewport';
+import {
+  CodeChangesFilesViewport,
+  FilesChangedList,
+} from '@/renderer/components/code-changes-files-viewport';
 import { type DiffFile } from '@/renderer/lib/code-diff';
 import { type AsyncState, type DiffSelection } from '@/renderer/hooks/use-pr-diff-data';
 import { cn } from '@/shadcn/lib/utils';
@@ -115,12 +118,19 @@ export function PrDiffViewport({
       rawDiff={rawDiff}
       diffFiles={diffFiles}
       emptyMessage="No file changes in this commit."
-      sidebarTop={(
-        <CodeChangesCommitsList
-          commits={commits}
-          selection={selection}
-          onSelectCommit={onSelectCommit}
-          onSelectAll={onSelectAll}
+      sidebar={({ diffFiles: sidebarDiffFiles, visibleFiles, onSelectFile }) => (
+        <FilesChangedList
+          files={sidebarDiffFiles}
+          visibleFiles={visibleFiles}
+          onSelectFile={onSelectFile}
+          topContent={(
+            <CodeChangesCommitsList
+              commits={commits}
+              selection={selection}
+              onSelectCommit={onSelectCommit}
+              onSelectAll={onSelectAll}
+            />
+          )}
         />
       )}
       mainTop={(

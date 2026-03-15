@@ -16,6 +16,7 @@ import {
   GET_GIT_BRANCH_COMPARE_META_CHANNEL,
   GET_GIT_BRANCH_COMPARE_DIFF_CHANNEL,
   GET_GIT_STATUS_CHANNEL,
+  GET_GIT_WORKING_TREE_DIFF_CHANNEL,
   CHECKOUT_GIT_BRANCH_CHANNEL,
   GET_GIT_FILE_DIFF_CHANNEL,
   CREATE_GIT_WORKTREE_CHANNEL,
@@ -51,6 +52,7 @@ import {
   getGitBranches,
   getGitDefaultBranch,
   getGitFileDiff,
+  getGitWorkingTreeDiff,
   getGitStatus,
   getGithubRepoDetails,
   getPrDiff,
@@ -152,6 +154,10 @@ export const registerAppIpcHandlers = (
   ipcMain.handle(
     GET_GIT_STATUS_CHANNEL,
     (_event, repoPath: string) => getGitStatus(repoPath),
+  );
+  ipcMain.handle(
+    GET_GIT_WORKING_TREE_DIFF_CHANNEL,
+    (_event, repoPath: string) => getGitWorkingTreeDiff(repoPath),
   );
   ipcMain.handle(
     CHECKOUT_GIT_BRANCH_CHANNEL,
