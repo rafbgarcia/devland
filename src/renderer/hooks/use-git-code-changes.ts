@@ -4,43 +4,131 @@ import type { GitBranchHistory, GitStatusFile } from '@/ipc/contracts';
 import { parseDiffFiles, type DiffFile } from '@/renderer/lib/code-diff';
 import { type AsyncState } from '@/renderer/hooks/use-pr-diff-data';
 
+type BranchHistoryState =
+  | {
+      status: 'loading';
+      data: GitBranchHistory | null;
+      error: null;
+      isRefreshing: boolean;
+    }
+  | {
+      status: 'ready';
+      data: GitBranchHistory;
+      error: string | null;
+      isRefreshing: boolean;
+    }
+  | {
+      status: 'error';
+      data: null;
+      error: string;
+      isRefreshing: false;
+    };
+
 export function useGitBranchHistory({
   repoPath,
   branchName,
+  headRevision,
 }: {
   repoPath: string;
   branchName: string;
+  headRevision: string | null;
 }) {
-  const [historyState, setHistoryState] = useState<AsyncState<GitBranchHistory>>({ status: 'loading' });
+  const [historyState, setHistoryState] = useState<BranchHistoryState>({
+    status: 'loading',
+    data: null,
+    error: null,
+    isRefreshing: false,
+  });
   const fetchIdRef = useRef(0);
-  const fetchMeta = useCallback(() => {
-      const fetchId = ++fetchIdRef.current;
-      setHistoryState({ status: 'loading' });
-
-      window.electronAPI.getGitBranchHistory(repoPath, branchName)
-        .then((history) => {
-          if (fetchIdRef.current !== fetchId) {
-            return;
-          }
-
-          setHistoryState({ status: 'ready', data: history });
-        })
-        .catch((error) => {
-          if (fetchIdRef.current !== fetchId) {
-            return;
-          }
-
-          setHistoryState({
-            status: 'error',
-            error: error instanceof Error ? error.message : 'Failed to load branch history.',
-          });
-        });
-    },
-    [branchName, repoPath],
+  const historyCacheRef = useRef<Map<string, GitBranchHistory>>(new Map());
+  const historyKey = useMemo(
+    () => `${repoPath}\0${branchName}\0${headRevision ?? ''}`,
+    [branchName, headRevision, repoPath],
   );
 
+  const fetchMeta = useCallback(() => {
+    const fetchId = ++fetchIdRef.current;
+
+    if (headRevision === null) {
+      const emptyHistory: GitBranchHistory = {
+        branch: branchName,
+        commits: [],
+      };
+
+      historyCacheRef.current.set(historyKey, emptyHistory);
+      setHistoryState({
+        status: 'ready',
+        data: emptyHistory,
+        error: null,
+        isRefreshing: false,
+      });
+
+      return Promise.resolve(emptyHistory);
+    }
+
+    const cachedHistory = historyCacheRef.current.get(historyKey) ?? null;
+
+    setHistoryState(
+      cachedHistory === null
+        ? {
+            status: 'loading',
+            data: null,
+            error: null,
+            isRefreshing: false,
+          }
+        : {
+            status: 'ready',
+            data: cachedHistory,
+            error: null,
+            isRefreshing: true,
+          },
+    );
+
+    return window.electronAPI.getGitBranchHistory(repoPath, branchName)
+      .then((history) => {
+        if (fetchIdRef.current !== fetchId) {
+          return history;
+        }
+
+        historyCacheRef.current.set(historyKey, history);
+        setHistoryState({
+          status: 'ready',
+          data: history,
+          error: null,
+          isRefreshing: false,
+        });
+
+        return history;
+      })
+      .catch((error) => {
+        if (fetchIdRef.current !== fetchId) {
+          return cachedHistory;
+        }
+
+        const message = error instanceof Error ? error.message : 'Failed to load branch history.';
+
+        if (cachedHistory !== null) {
+          setHistoryState({
+            status: 'ready',
+            data: cachedHistory,
+            error: message,
+            isRefreshing: false,
+          });
+          return cachedHistory;
+        }
+
+        setHistoryState({
+          status: 'error',
+          data: null,
+          error: message,
+          isRefreshing: false,
+        });
+        return null;
+      });
+  }, [branchName, headRevision, historyKey, repoPath]);
+
   useEffect(() => {
-    fetchMeta();
+    void fetchMeta();
   }, [fetchMeta]);
 
   return { historyState, refetch: fetchMeta };

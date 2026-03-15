@@ -204,6 +204,7 @@ export type GitStatusFile = z.infer<typeof GitStatusFileSchema>;
 
 export const GitStatusSchema = z.object({
   branch: z.string(),
+  headRevision: z.string().min(1).nullable(),
   files: z.array(GitStatusFileSchema),
   hasStagedChanges: z.boolean(),
 });

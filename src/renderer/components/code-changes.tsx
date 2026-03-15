@@ -44,9 +44,9 @@ export function CodeChanges({
   repoPath,
   baseBranchName,
   branchName,
+  headRevision,
   workingTreeFiles,
   workingTreeHasStagedChanges = false,
-  gitStateVersion = 0,
   children,
   onFileSelect,
   onSubmitDiffComment,
@@ -54,9 +54,9 @@ export function CodeChanges({
   repoPath: string;
   baseBranchName: string;
   branchName: string;
+  headRevision: string | null;
   workingTreeFiles: GitStatusFile[];
   workingTreeHasStagedChanges?: boolean;
-  gitStateVersion?: number;
   children: (props: CodeChangesRenderProps) => ReactNode;
   onFileSelect?: () => void;
   onSubmitDiffComment?: ((anchor: DiffCommentAnchor, body: string) => Promise<void>) | undefined;
@@ -66,9 +66,10 @@ export function CodeChanges({
   const [visibleFiles, setVisibleFiles] = useState<Set<string>>(new Set());
   const viewportRef = useRef<CodeChangesViewportHandle>(null);
 
-  const { historyState, refetch: refetchHistory } = useGitBranchHistory({
+  const { historyState } = useGitBranchHistory({
     repoPath,
     branchName,
+    headRevision,
   });
   const workingTreeState = useGitWorkingTreeDiff({
     repoPath,
@@ -84,14 +85,6 @@ export function CodeChanges({
     setSelection({ type: 'working-tree' });
   }, [baseBranchName, branchName, repoPath]);
 
-  useEffect(() => {
-    if (gitStateVersion === 0 || !isHistoryOpen) {
-      return;
-    }
-
-    void refetchHistory();
-  }, [gitStateVersion, isHistoryOpen, refetchHistory]);
-
   const activeDiffState = selection.type === 'working-tree'
     ? workingTreeState.rawDiff
     : commitDiffState.rawDiff;
@@ -103,7 +96,8 @@ export function CodeChanges({
     : [];
   const selectedCommit = selection.type === 'commit' ? selection.commit : null;
   const historySelectedCommitSha = selectedCommit?.sha ?? null;
-  const historyIsLoading = historyState.status === 'loading';
+  const historyIsLoading = historyState.status === 'loading' && historyState.data === null;
+  const historyIsRefreshing = historyState.isRefreshing;
   const historyError = historyState.status === 'error'
     ? historyState.error
     : null;
@@ -206,7 +200,6 @@ export function CodeChanges({
       selectedCommit={selectedCommit}
       isDiffLoading={activeDiffState.status === 'loading'}
       onOpenHistory={() => {
-        void refetchHistory();
         setIsHistoryOpen(true);
       }}
       onRestoreBranchState={handleRestoreWorkingTree}
@@ -290,6 +283,7 @@ export function CodeChanges({
       open={isHistoryOpen}
       commits={drawerCommits}
       isLoading={historyIsLoading}
+      isRefreshing={historyIsRefreshing}
       error={historyError}
       selectedCommitSha={historySelectedCommitSha}
       onClose={() => setIsHistoryOpen(false)}

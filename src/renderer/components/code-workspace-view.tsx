@@ -282,7 +282,6 @@ export function CodeWorkspaceView({
   const [isCreatingWorktree, setIsCreatingWorktree] = useState(false);
   const [draftAnswers, setDraftAnswers] = useState<Record<string, Record<string, string>>>({});
   const [activeLayer, setActiveLayer] = useState<ActiveLayer>('codex');
-  const [gitStateVersion, setGitStateVersion] = useState(0);
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
   const sidebarWidthAtDragStart = useRef(SIDEBAR_DEFAULT_WIDTH);
 
@@ -325,7 +324,6 @@ export function CodeWorkspaceView({
     ]).catch((error) => {
       console.error('Failed to refresh Git state:', error);
     });
-    setGitStateVersion((current) => current + 1);
   });
 
   const targetLabels = useMemo(
@@ -523,9 +521,9 @@ export function CodeWorkspaceView({
             repoPath={activeTarget.cwd}
             baseBranchName={defaultBranchState.data}
             branchName={statusState.data.branch}
+            headRevision={statusState.data.headRevision}
             workingTreeFiles={statusState.data.files}
             workingTreeHasStagedChanges={statusState.data.hasStagedChanges}
-            gitStateVersion={gitStateVersion}
             onFileSelect={() => setActiveLayer('files')}
             onSubmitDiffComment={(anchor, body) => handleSubmitDiffComment(anchor, body)}
           >

@@ -374,8 +374,23 @@ export const getGitBranches = async (repoPath: string): Promise<GitBranch[]> => 
     });
 };
 
+const getHeadRevision = async (repoPath: string): Promise<string | null> => {
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['-C', repoPath, 'rev-parse', 'HEAD'],
+      getGitExecOptions(),
+    );
+    const revision = stdout.trim();
+
+    return revision.length > 0 ? revision : null;
+  } catch {
+    return null;
+  }
+};
+
 export const getGitStatus = async (repoPath: string): Promise<GitStatus> => {
-  const [branchResult, statusResult] = await Promise.all([
+  const [branchResult, statusResult, headRevision] = await Promise.all([
     execFileAsync(
       'git',
       ['-C', repoPath, 'branch', '--show-current'],
@@ -386,6 +401,7 @@ export const getGitStatus = async (repoPath: string): Promise<GitStatus> => {
       ['-C', repoPath, 'status', '--porcelain=v1'],
       getGitExecOptions(),
     ),
+    getHeadRevision(repoPath),
   ]);
 
   const branch = branchResult.stdout.trim() || 'HEAD';
@@ -409,6 +425,7 @@ export const getGitStatus = async (repoPath: string): Promise<GitStatus> => {
 
   return {
     branch,
+    headRevision,
     files,
     hasStagedChanges: files.some((file) => file.hasStagedChanges),
   };
@@ -1196,7 +1213,18 @@ export const getGitBranchHistory = async (
   repoPath: string,
   branchName: string,
 ): Promise<GitBranchHistory> => {
-  const branchRevision = await getHeadBranchRevision(repoPath, branchName);
+  const branchRevision =
+    branchName === 'HEAD'
+      ? await getHeadRevision(repoPath)
+      : await getHeadBranchRevision(repoPath, branchName);
+
+  if (branchRevision === null) {
+    return GitBranchHistorySchema.parse({
+      branch: branchName,
+      commits: [],
+    });
+  }
+
   const US = '%x1f';
   const RS = '%x1e';
   const format = `${US}%H${US}%h${US}%s${US}%an${US}%aI${US}%b${RS}`;

@@ -12,7 +12,12 @@ import {
   getSelectableDiffLineNumbers,
   parseUnifiedDiffDocument,
 } from '@/lib/diff';
-import { commitWorkingTreeSelection, getGitStatus, getGitWorkingTreeDiff } from '@/main-process/git';
+import {
+  commitWorkingTreeSelection,
+  getGitBranchHistory,
+  getGitStatus,
+  getGitWorkingTreeDiff,
+} from '@/main-process/git';
 
 const execFileAsync = promisify(execFile);
 
@@ -75,6 +80,7 @@ describe('commitWorkingTreeSelection', () => {
 
       const status = await getGitStatus(repoPath);
       assert.equal(status.hasStagedChanges, false);
+      assert.match(status.headRevision ?? '', /^[0-9a-f]{40}$/);
       assert.deepEqual(
         status.files.map((fileStatus) => ({
           path: fileStatus.path,
@@ -95,6 +101,31 @@ describe('commitWorkingTreeSelection', () => {
       const remainingDiff = await getGitWorkingTreeDiff(repoPath);
       assert.match(remainingDiff, /const c = 3;/);
       assert.match(remainingDiff, /const c = 30;/);
+    } finally {
+      rmSync(repoPath, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('getGitBranchHistory', () => {
+  it('returns detached HEAD history without failing', async () => {
+    const repoPath = mkdtempSync(path.join(tmpdir(), 'devland-git-test-'));
+
+    try {
+      await execGit(repoPath, ['init']);
+      await execGit(repoPath, ['config', 'user.name', 'Devland Test']);
+      await execGit(repoPath, ['config', 'user.email', 'devland@example.com']);
+
+      writeFileSync(path.join(repoPath, 'example.ts'), 'const a = 1;\n', 'utf8');
+      await execGit(repoPath, ['add', 'example.ts']);
+      await execGit(repoPath, ['commit', '-m', 'Initial commit']);
+      await execGit(repoPath, ['checkout', '--detach', 'HEAD']);
+
+      const history = await getGitBranchHistory(repoPath, 'HEAD');
+
+      assert.equal(history.branch, 'HEAD');
+      assert.equal(history.commits.length, 1);
+      assert.equal(history.commits[0]?.title, 'Initial commit');
     } finally {
       rmSync(repoPath, { recursive: true, force: true });
     }

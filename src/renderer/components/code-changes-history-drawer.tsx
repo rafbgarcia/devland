@@ -23,6 +23,7 @@ export function CodeChangesHistoryDrawer({
   open,
   commits,
   isLoading = false,
+  isRefreshing = false,
   error = null,
   selectedCommitSha,
   onClose,
@@ -31,6 +32,7 @@ export function CodeChangesHistoryDrawer({
   open: boolean;
   commits: PrCommit[];
   isLoading?: boolean;
+  isRefreshing?: boolean;
   error?: string | null;
   selectedCommitSha: string | null;
   onClose: () => void;
@@ -87,8 +89,19 @@ export function CodeChangesHistoryDrawer({
                 >
                   History
                 </div>
-                <div className="text-xs text-muted-foreground">
-                  {commits.length} {commits.length === 1 ? 'commit' : 'commits'}
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span>
+                    {commits.length} {commits.length === 1 ? 'commit' : 'commits'}
+                  </span>
+                  {isRefreshing ? (
+                    <>
+                      <span aria-hidden="true">·</span>
+                      <span className="inline-flex items-center gap-1">
+                        <Spinner className="size-3" />
+                        Updating
+                      </span>
+                    </>
+                  ) : null}
                 </div>
               </div>
               <Button
@@ -111,7 +124,7 @@ export function CodeChangesHistoryDrawer({
                     </EmptyMedia>
                     <EmptyTitle>Loading history</EmptyTitle>
                     <EmptyDescription>
-                      Fetching commits ahead of the base branch.
+                      Fetching recent commits on this branch.
                     </EmptyDescription>
                   </EmptyHeader>
                 </Empty>
@@ -133,7 +146,7 @@ export function CodeChangesHistoryDrawer({
                     </EmptyMedia>
                     <EmptyTitle>No history yet</EmptyTitle>
                     <EmptyDescription>
-                      This branch does not have commits ahead of the base branch.
+                      This branch does not have any commits yet.
                     </EmptyDescription>
                   </EmptyHeader>
                 </Empty>
