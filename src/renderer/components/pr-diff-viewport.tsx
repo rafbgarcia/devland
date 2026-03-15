@@ -18,6 +18,7 @@ import {
 
 import type { PrCommit } from '@/ipc/contracts';
 import { DiffRow } from '@/renderer/components/code-diff-viewer';
+import { TruncatedFilePath } from '@/renderer/components/truncated-file-path';
 import { parseDiff, type DiffFile, type DiffFileStatus } from '@/renderer/lib/code-diff';
 import { type AsyncState, type DiffSelection } from '@/renderer/hooks/use-pr-diff-data';
 import { Spinner } from '@/shadcn/components/ui/spinner';
@@ -87,7 +88,6 @@ function getRangeForWindow(
 
   return { start, end };
 }
-
 function CommitsList({
   commits,
   selection,
@@ -161,10 +161,6 @@ function FilesChangedList({
         {files.map((file) => {
           const config = FILE_STATUS_CONFIG[file.status];
           const isVisible = visibleFiles.has(file.path);
-          const fileName = file.path.split('/').pop() ?? file.path;
-          const directory = file.path.includes('/')
-            ? file.path.slice(0, file.path.lastIndexOf('/') + 1)
-            : '';
 
           return (
             <button
@@ -172,17 +168,12 @@ function FilesChangedList({
               type="button"
               onClick={() => onSelectFile(file.path)}
               className={cn(
-                'flex w-full items-center gap-2 px-3 py-[5px] text-left text-xs transition-colors hover:bg-accent/50',
+                'flex min-w-0 w-full items-center gap-2 px-3 py-[5px] text-left text-xs transition-colors hover:bg-accent/50',
                 isVisible && 'bg-primary/10',
               )}
             >
               <span className={cn('size-1.5 shrink-0 rounded-full', config.dotClassName)} />
-              <span className="min-w-0 flex-1 truncate">
-                {directory ? (
-                  <span className="text-muted-foreground">{directory}</span>
-                ) : null}
-                <span className="font-bold">{fileName}</span>
-              </span>
+              <TruncatedFilePath path={file.path} className="flex-1 text-xs" />
             </button>
           );
         })}

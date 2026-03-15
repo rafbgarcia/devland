@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 
 import type { GitBranch, GitFileStatus, GitStatusFile } from '@/ipc/contracts';
+import { TruncatedFilePath } from '@/renderer/components/truncated-file-path';
 import { Input } from '@/shadcn/components/ui/input';
 import { Spinner } from '@/shadcn/components/ui/spinner';
 import { cn } from '@/shadcn/lib/utils';
@@ -140,28 +141,19 @@ function FileStatusList({
       {filteredFiles.map((file) => {
         const badge = FILE_STATUS_BADGE[file.status];
         const isSelected = file.path === selectedFilePath;
-        const fileName = file.path.split('/').pop() ?? file.path;
-        const directory = file.path.includes('/')
-          ? file.path.slice(0, file.path.lastIndexOf('/') + 1)
-          : '';
 
         return (
           <button
             key={file.path}
             className={cn(
-              'group flex items-center gap-2 px-3 py-[5px] text-left transition-colors hover:bg-accent/50',
+              'group flex min-w-0 items-center gap-2 px-3 py-[5px] text-left transition-colors hover:bg-accent/50',
               isSelected && 'bg-accent',
             )}
             onClick={() => onSelectFile(file.path)}
             type="button"
           >
             <span className={cn('size-1.5 shrink-0 rounded-full', badge.dotClassName)} />
-            <span className="min-w-0 flex-1 truncate text-xs">
-              {directory ? (
-                <span className="text-muted-foreground">{directory}</span>
-              ) : null}
-              <span className="font-bold">{fileName}</span>
-            </span>
+            <TruncatedFilePath path={file.path} className="flex-1 text-xs" />
             <span
               className={cn(
                 'inline-flex size-[18px] shrink-0 items-center justify-center rounded-sm border text-[10px] font-bold leading-none',
