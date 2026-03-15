@@ -1,3 +1,4 @@
+// eslint-disable-next-line import/default
 import HighlighterWorker from '@/renderer/lib/diff/highlighter.worker?worker';
 
 import type {
