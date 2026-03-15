@@ -20,7 +20,8 @@ export type DiffLineFilters = {
 
 export type DiffHighlightToken = {
   length: number;
-  token: string;
+  token?: string;
+  htmlStyle?: Record<string, string>;
 };
 
 export type DiffHighlightLineTokens = Record<number, DiffHighlightToken>;

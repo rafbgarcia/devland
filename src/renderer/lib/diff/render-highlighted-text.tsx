@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 
 import {
   MAX_INTRA_LINE_DIFF_LENGTH,
+  type DiffHighlightToken,
   type DiffHighlightLineTokens,
   type DiffHighlightTokens,
 } from '@/lib/diff';
@@ -74,6 +75,39 @@ function mapKeysEqual(a: Map<string, number>, b: Map<string, number>) {
   return true;
 }
 
+function toCamelCase(value: string) {
+  return value.replace(/-([a-z])/g, (_, character: string) => character.toUpperCase());
+}
+
+function stringifyHighlightToken(token: DiffHighlightToken) {
+  return JSON.stringify({
+    token: token.token ?? null,
+    htmlStyle: token.htmlStyle ?? null,
+  });
+}
+
+function getTokenClassName(token: DiffHighlightToken) {
+  return token.token ? token.token.split(' ').map((name: string) => `cm-${name}`).join(' ') : '';
+}
+
+function getTokenStyle(tokens: ReadonlyArray<DiffHighlightToken>) {
+  const styleEntries: Array<[string, string]> = tokens.flatMap((token) =>
+    Object.entries(token.htmlStyle ?? {}),
+  );
+
+  if (styleEntries.length === 0) {
+    return undefined;
+  }
+
+  const style: Record<string, string> = {};
+
+  for (const [property, value] of styleEntries) {
+    style[property.startsWith('--') ? property : toCamelCase(property)] = value;
+  }
+
+  return style as CSSProperties;
+}
+
 export function getHighlightTokensForLine(
   lineNumber: number | null,
   tokens: DiffHighlightTokens | undefined | null,
@@ -119,19 +153,19 @@ export function renderHighlightedText(
     return '\u00A0';
   }
 
-  const segments: Array<{ content: string; tokens: Map<string, number> }> = [];
+  const segments: Array<{ content: string; tokens: Map<string, { endPosition: number; token: DiffHighlightToken }> }> = [];
   let currentSegment = {
     content: '',
-    tokens: new Map<string, number>(),
+    tokens: new Map<string, { endPosition: number; token: DiffHighlightToken }>(),
   };
 
   for (let index = 0; index < line.length; index += 1) {
     const character = line[index]!;
-    const nextTokens = new Map<string, number>();
+    const nextTokens = new Map<string, { endPosition: number; token: DiffHighlightToken }>();
 
-    for (const [token, endPosition] of currentSegment.tokens) {
-      if (endPosition > index) {
-        nextTokens.set(token, endPosition);
+    for (const [tokenKey, activeToken] of currentSegment.tokens) {
+      if (activeToken.endPosition > index) {
+        nextTokens.set(tokenKey, activeToken);
       }
     }
 
@@ -142,23 +176,30 @@ export function renderHighlightedText(
         continue;
       }
 
-      for (const tokenName of token.token.split(' ')) {
-        const nextEnd = index + token.length;
-        const previousEnd = nextTokens.get(tokenName);
+      const tokenKey = stringifyHighlightToken(token);
+      const nextEnd = index + token.length;
+      const previousEnd = nextTokens.get(tokenKey)?.endPosition;
 
-        if (previousEnd === undefined || nextEnd > previousEnd) {
-          nextTokens.set(tokenName, nextEnd);
-        }
+      if (previousEnd === undefined || nextEnd > previousEnd) {
+        nextTokens.set(tokenKey, {
+          endPosition: nextEnd,
+          token,
+        });
       }
     }
 
-    if (mapKeysEqual(currentSegment.tokens, nextTokens)) {
+    if (mapKeysEqual(
+      new Map([...currentSegment.tokens.keys()].map((key) => [key, 0])),
+      new Map([...nextTokens.keys()].map((key) => [key, 0])),
+    )) {
       currentSegment.content += character;
       currentSegment.tokens = nextTokens;
       continue;
     }
 
-    segments.push(currentSegment);
+    if (currentSegment.content.length > 0) {
+      segments.push(currentSegment);
+    }
     currentSegment = {
       content: character,
       tokens: nextTokens,
@@ -168,14 +209,17 @@ export function renderHighlightedText(
   segments.push(currentSegment);
 
   return segments.map((segment, index) => {
-    if (segment.tokens.size === 0) {
+    const activeTokens = [...segment.tokens.values()].map((entry) => entry.token);
+
+    if (activeTokens.length === 0) {
       return segment.content;
     }
 
     return (
       <span
         key={`${index}:${segment.content}`}
-        className={[...segment.tokens.keys()].map((token) => `cm-${token}`).join(' ')}
+        className={activeTokens.map(getTokenClassName).filter(Boolean).join(' ')}
+        style={getTokenStyle(activeTokens)}
       >
         {segment.content}
       </span>

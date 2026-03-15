@@ -30,7 +30,7 @@ const normalizeDiffPath = (value: string | null): string | null => {
     return null;
   }
 
-  return value.replace(/^[ab]\//, '');
+  return value.replace(/^(?:a|b|w)\//, '');
 };
 
 const parseDiffHeaderLine = (line: string) => {

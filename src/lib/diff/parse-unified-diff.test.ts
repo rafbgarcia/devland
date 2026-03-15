@@ -78,6 +78,21 @@ Binary files /dev/null and b/a.png differ`);
     assert.equal(binary.files[0]?.isBinary, true);
     assert.equal(binary.files[0]?.status, 'added');
   });
+
+  it('normalizes working tree prefixes in diff paths', () => {
+    const document = parseUnifiedDiffDocument(`diff --git w/src/example.ts w/src/example.ts
+index 1111111..2222222 100644
+--- w/src/example.ts
++++ w/src/example.ts
+@@ -1 +1 @@
+-before
++after`);
+
+    const file = document.files[0]!;
+    assert.equal(file.oldPath, 'src/example.ts');
+    assert.equal(file.newPath, 'src/example.ts');
+    assert.equal(file.displayPath, 'src/example.ts');
+  });
 });
 
 describe('projectDiffRows', () => {

@@ -27,6 +27,32 @@ export type DiffFileTokens = {
   newTokens: DiffHighlightTokens;
 };
 
+function buildFallbackContentLines(
+  file: DiffFile,
+  side: 'old' | 'new',
+  requestedLines: ReadonlyArray<number>,
+) {
+  if (requestedLines.length === 0) {
+    return [] as string[];
+  }
+
+  const contentLines = Array.from({ length: Math.max(...requestedLines) + 1 }, () => '');
+
+  for (const hunk of file.hunks) {
+    for (const line of hunk.lines) {
+      const lineNumber = side === 'old' ? line.oldLineNumber : line.newLineNumber;
+
+      if (lineNumber === null) {
+        continue;
+      }
+
+      contentLines[lineNumber - 1] = line.content;
+    }
+  }
+
+  return contentLines;
+}
+
 async function loadContentSource(
   source: DiffContentSource,
   maxBytes = MAX_HIGHLIGHT_CONTENT_BYTES,
@@ -131,23 +157,37 @@ export async function highlightDiffFileContents(
   const basename = preferredPath.split(/[\\/]/).at(-1) ?? preferredPath;
   const extensionMatch = /\.[^.]+$/.exec(preferredPath);
   const extension = extensionMatch?.[0] ?? '';
+  const oldContentLines =
+    resolvedContents.oldContents.length > 0
+      ? resolvedContents.oldContents
+      : buildFallbackContentLines(file, 'old', filters.oldLineFilter);
+  const newContentLines =
+    resolvedContents.newContents.length > 0
+      ? resolvedContents.newContents
+      : buildFallbackContentLines(file, 'new', filters.newLineFilter);
 
   const [oldTokens, newTokens] = await Promise.all([
     requestHighlight({
       basename,
       extension,
-      contentLines: resolvedContents.oldContents,
+      contentLines: oldContentLines,
       tabSize,
       lines: filters.oldLineFilter,
       addModeClass: true,
+    }).catch((error: unknown) => {
+      console.error(`Failed to load old-side syntax tokens for ${preferredPath}:`, error);
+      return {};
     }),
     requestHighlight({
       basename,
       extension,
-      contentLines: resolvedContents.newContents,
+      contentLines: newContentLines,
       tabSize,
       lines: filters.newLineFilter,
       addModeClass: true,
+    }).catch((error: unknown) => {
+      console.error(`Failed to load new-side syntax tokens for ${preferredPath}:`, error);
+      return {};
     }),
   ]);
 

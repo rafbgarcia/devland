@@ -122,30 +122,35 @@ export function useDiffRenderFiles({
           return [file.path, null] as const;
         }
 
-        const cacheKey = getSyntaxCacheKey(file.diff, file.contentPair);
-        const cached = syntaxCacheRef.current.get(cacheKey);
+        try {
+          const cacheKey = getSyntaxCacheKey(file.diff, file.contentPair);
+          const cached = syntaxCacheRef.current.get(cacheKey);
 
-        if (cached instanceof Promise) {
-          return [file.path, await cached] as const;
+          if (cached instanceof Promise) {
+            return [file.path, await cached] as const;
+          }
+
+          if (cached) {
+            return [file.path, cached] as const;
+          }
+
+          const pending = highlightDiffFileContents(file.contentPair, file.diff)
+            .then((tokens: DiffFileTokens) => {
+              syntaxCacheRef.current.set(cacheKey, tokens);
+              return tokens;
+            })
+            .catch((error: unknown) => {
+              syntaxCacheRef.current.delete(cacheKey);
+              throw error;
+            });
+
+          syntaxCacheRef.current.set(cacheKey, pending);
+
+          return [file.path, await pending] as const;
+        } catch (error) {
+          console.error(`Failed to load syntax tokens for ${file.path}:`, error);
+          return [file.path, null] as const;
         }
-
-        if (cached) {
-          return [file.path, cached] as const;
-        }
-
-        const pending = highlightDiffFileContents(file.contentPair, file.diff)
-          .then((tokens: DiffFileTokens) => {
-            syntaxCacheRef.current.set(cacheKey, tokens);
-            return tokens;
-          })
-          .catch((error: unknown) => {
-            syntaxCacheRef.current.delete(cacheKey);
-            throw error;
-          });
-
-        syntaxCacheRef.current.set(cacheKey, pending);
-
-        return [file.path, await pending] as const;
       }),
     )
       .then((entries) => {
@@ -154,14 +159,6 @@ export function useDiffRenderFiles({
         }
 
         setSyntaxTokensByPath(Object.fromEntries(entries));
-      })
-      .catch((error) => {
-        if (cancelled) {
-          return;
-        }
-
-        console.error('Failed to load diff syntax tokens:', error);
-        setSyntaxTokensByPath({});
       });
 
     return () => {
