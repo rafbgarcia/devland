@@ -23,6 +23,7 @@ import {
   GET_GIT_FILE_DIFF_CHANNEL,
   CREATE_GIT_WORKTREE_CHANNEL,
   COMMIT_WORKING_TREE_SELECTION_CHANNEL,
+  CREATE_GITHUB_PR_REVIEW_THREAD_CHANNEL,
   PROMOTE_GIT_WORKTREE_BRANCH_CHANNEL,
   GENERATE_PR_REVIEW_CHANNEL,
   SYNC_REPO_REVIEW_REFS_CHANNEL,
@@ -46,6 +47,7 @@ import { codexAppServerManager } from './codex-app-server';
 import { codexExecutable } from './codex-cli';
 import { generatePrReview } from './codex-use-cases/pr-review';
 import { ghExecutable } from './gh-cli';
+import { createGitHubPrReviewThread } from './gh-review-comments';
 import { getRepositoryIssues } from './gh-queries/issues';
 import { getRepositoryPullRequests } from './gh-queries/pull-requests';
 import { getGhUser } from './gh-queries/user';
@@ -239,6 +241,10 @@ export const registerAppIpcHandlers = (
 
       return syncRepoReviewRefs(repoPath, ghExecutable, owner, name);
     },
+  );
+  ipcMain.handle(
+    CREATE_GITHUB_PR_REVIEW_THREAD_CHANNEL,
+    (_event, input) => createGitHubPrReviewThread(input),
   );
   ipcMain.handle(
     GET_COMMIT_DIFF_CHANNEL,

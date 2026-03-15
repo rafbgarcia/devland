@@ -27,6 +27,7 @@ export const PROMOTE_GIT_WORKTREE_BRANCH_CHANNEL = 'app:promote-git-worktree-bra
 export const COMMIT_WORKING_TREE_SELECTION_CHANNEL = 'app:commit-working-tree-selection';
 export const GENERATE_PR_REVIEW_CHANNEL = 'app:generate-pr-review';
 export const SYNC_REPO_REVIEW_REFS_CHANNEL = 'app:sync-repo-review-refs';
+export const CREATE_GITHUB_PR_REVIEW_THREAD_CHANNEL = 'app:create-github-pr-review-thread';
 export const SEND_CODEX_SESSION_PROMPT_CHANNEL = 'app:send-codex-session-prompt';
 export const INTERRUPT_CODEX_SESSION_CHANNEL = 'app:interrupt-codex-session';
 export const STOP_CODEX_SESSION_CHANNEL = 'app:stop-codex-session';
@@ -259,6 +260,27 @@ export const CommitWorkingTreeSelectionResultSchema = z.object({
 });
 export type CommitWorkingTreeSelectionResult = z.infer<typeof CommitWorkingTreeSelectionResultSchema>;
 
+export const GitHubPullRequestReviewThreadSideSchema = z.enum(['LEFT', 'RIGHT']);
+export type GitHubPullRequestReviewThreadSide = z.infer<typeof GitHubPullRequestReviewThreadSideSchema>;
+
+export const CreateGitHubPrReviewThreadInputSchema = z.object({
+  owner: z.string().min(1),
+  name: z.string().min(1),
+  prNumber: z.number().int().positive(),
+  path: z.string().min(1),
+  body: z.string().min(1),
+  line: z.number().int().positive(),
+  side: GitHubPullRequestReviewThreadSideSchema,
+  startLine: z.number().int().positive().nullable().optional(),
+  startSide: GitHubPullRequestReviewThreadSideSchema.nullable().optional(),
+});
+export type CreateGitHubPrReviewThreadInput = z.infer<typeof CreateGitHubPrReviewThreadInputSchema>;
+
+export const CreateGitHubPrReviewThreadResultSchema = z.object({
+  reviewId: z.string().min(1),
+});
+export type CreateGitHubPrReviewThreadResult = z.infer<typeof CreateGitHubPrReviewThreadResultSchema>;
+
 export const CodexSessionStatusSchema = z.enum([
   'connecting',
   'ready',
@@ -468,6 +490,9 @@ export interface ElectronApi {
   generatePrReview: (repoPath: string, prNumber: number, title: string) => Promise<PrReview>;
   getPrDiffMeta: (repoPath: string, prNumber: number) => Promise<PrDiffMetaResult>;
   syncRepoReviewRefs: (repoPath: string, owner: string, name: string) => Promise<void>;
+  createGitHubPrReviewThread: (
+    input: CreateGitHubPrReviewThreadInput,
+  ) => Promise<CreateGitHubPrReviewThreadResult>;
   getCommitDiff: (repoPath: string, commitSha: string) => Promise<string>;
   getPrDiff: (repoPath: string, prNumber: number) => Promise<string>;
   getGitBlobText: (input: {

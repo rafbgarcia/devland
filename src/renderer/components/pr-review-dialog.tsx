@@ -4,6 +4,7 @@ import { CodeIcon, SparklesIcon, XIcon } from 'lucide-react';
 import { motion, type Variants } from 'motion/react';
 
 import type { PrDiffMetaResult, PrReview } from '@/ipc/contracts';
+import type { DiffCommentAnchor } from '@/lib/diff';
 import { CodeCloneView } from '@/renderer/components/code-clone-view';
 import { usePrReviewCache } from '@/renderer/hooks/use-pr-review-cache';
 import { usePrReviewGeneration } from '@/renderer/hooks/use-pr-review-generation';
@@ -121,6 +122,7 @@ export function PrReviewDialog({
   const isCloned = isAbsoluteProjectPath(repoPath);
   const hasReadyLocalSnapshot =
     prMeta.status === 'ready' && prMeta.data.status === 'ready';
+  const [owner = '', name = ''] = slug.split('/');
 
   const loadLocalSnapshot = useCallback((requestId: number) => {
     if (!pr) {
@@ -286,6 +288,32 @@ export function PrReviewDialog({
       setIsGeneratingReview(false);
     }
   }, [isGeneratingReview, pr, repoPath, setCachedReview, setIsGeneratingReview]);
+
+  const handleSubmitPrReviewComment = useCallback(async (
+    anchor: DiffCommentAnchor,
+    body: string,
+  ) => {
+    if (!pr) {
+      throw new Error('Pull request details are not available.');
+    }
+
+    await window.electronAPI.createGitHubPrReviewThread({
+      owner,
+      name,
+      prNumber: pr.number,
+      path: anchor.path,
+      body,
+      line: anchor.line,
+      side: anchor.side === 'old' ? 'LEFT' : 'RIGHT',
+      startLine: anchor.startLine === anchor.endLine ? null : anchor.startLine,
+      startSide:
+        anchor.startLine === anchor.endLine
+          ? null
+          : anchor.side === 'old'
+          ? 'LEFT'
+          : 'RIGHT',
+    });
+  }, [name, owner, pr]);
 
   const handleClose = useCallback(() => {
     onOpenChange(false);
@@ -464,7 +492,21 @@ export function PrReviewDialog({
 
                   <TabsContent value="ai-review" keepMounted className="flex-1 overflow-y-auto">
                     {aiReview.status === 'ready' && (
-                      <PrReviewContent review={aiReview.review} />
+                      <PrReviewContent
+                        review={aiReview.review}
+                        repoPath={repoPath}
+                        baseRevision={
+                          prMeta.status === 'ready' && prMeta.data.status === 'ready'
+                            ? prMeta.data.baseRevision
+                            : 'HEAD'
+                        }
+                        headRevision={
+                          prMeta.status === 'ready' && prMeta.data.status === 'ready'
+                            ? prMeta.data.headRevision
+                            : 'HEAD'
+                        }
+                        onSubmitComment={handleSubmitPrReviewComment}
+                      />
                     )}
                   </TabsContent>
                 </Tabs>

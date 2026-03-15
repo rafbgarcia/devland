@@ -26,6 +26,7 @@ import {
   GET_GIT_FILE_DIFF_CHANNEL,
   CREATE_GIT_WORKTREE_CHANNEL,
   COMMIT_WORKING_TREE_SELECTION_CHANNEL,
+  CREATE_GITHUB_PR_REVIEW_THREAD_CHANNEL,
   PROMOTE_GIT_WORKTREE_BRANCH_CHANNEL,
   GENERATE_PR_REVIEW_CHANNEL,
   SYNC_REPO_REVIEW_REFS_CHANNEL,
@@ -129,6 +130,8 @@ export const electronApi: ElectronApi = {
     ipcRenderer.invoke(GET_PR_DIFF_META_CHANNEL, repoPath, prNumber),
   syncRepoReviewRefs: (repoPath, owner, name) =>
     ipcRenderer.invoke(SYNC_REPO_REVIEW_REFS_CHANNEL, repoPath, owner, name),
+  createGitHubPrReviewThread: (input) =>
+    ipcRenderer.invoke(CREATE_GITHUB_PR_REVIEW_THREAD_CHANNEL, input),
   getCommitDiff: (repoPath, commitSha) =>
     ipcRenderer.invoke(GET_COMMIT_DIFF_CHANNEL, repoPath, commitSha),
   getPrDiff: (repoPath, prNumber) =>

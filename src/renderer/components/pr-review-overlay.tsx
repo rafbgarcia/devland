@@ -5,10 +5,11 @@ import Markdown from 'react-markdown';
 import { AnimatePresence, motion } from 'motion/react';
 
 import type { PrReview } from '@/ipc/contracts';
-import { parseDiff, type ParsedDiffLine } from '@/renderer/lib/code-diff';
+import type { DiffCommentAnchor } from '@/lib/diff';
+import { DiffFileSection } from '@/renderer/components/diff-renderer';
+import { useDiffRenderFiles, type DiffRenderFile } from '@/renderer/hooks/use-diff-render-files';
 import { Button } from '@/shadcn/components/ui/button';
 import { Spinner } from '@/shadcn/components/ui/spinner';
-import { DiffRow } from './code-diff-viewer';
 
 type LineRange = { start: number; end: number };
 
@@ -36,34 +37,101 @@ function parseRelevantChange(change: string): { filePath: string; lineRange: Lin
   };
 }
 
-function filterLinesByRange(lines: ParsedDiffLine[], range: LineRange): ParsedDiffLine[] {
+function rowIntersectsRange(row: DiffRenderFile['rows'][number], range: LineRange) {
+  if (row.kind === 'hunk') {
+    return false;
+  }
+
   const CONTEXT_PADDING = 2;
   const expandedStart = Math.max(1, range.start - CONTEXT_PADDING);
   const expandedEnd = range.end + CONTEXT_PADDING;
+  const rowLineNumbers =
+    row.kind === 'context'
+      ? [row.beforeLineNumber, row.afterLineNumber]
+      : row.kind === 'modified'
+      ? [row.before.lineNumber, row.after.lineNumber]
+      : [row.data.lineNumber];
 
-  return lines.filter((line) => {
-    const lineNum = line.newLineNumber ?? line.oldLineNumber;
-    if (lineNum === null) return false;
-    return lineNum >= expandedStart && lineNum <= expandedEnd;
-  });
+  return rowLineNumbers.some((lineNumber) =>
+    lineNumber >= expandedStart && lineNumber <= expandedEnd,
+  );
+}
+
+function filterRowsByRange(rows: DiffRenderFile['rows'], range: LineRange) {
+  const filteredRows: DiffRenderFile['rows'] = [];
+  let pendingHunk: Extract<DiffRenderFile['rows'][number], { kind: 'hunk' }> | null = null;
+
+  for (const row of rows) {
+    if (row.kind === 'hunk') {
+      pendingHunk = row;
+      continue;
+    }
+
+    if (!rowIntersectsRange(row, range)) {
+      continue;
+    }
+
+    if (pendingHunk) {
+      filteredRows.push(pendingHunk);
+      pendingHunk = null;
+    }
+
+    filteredRows.push(row);
+  }
+
+  return filteredRows;
 }
 
 function ReviewFileDiff({
+  repoPath,
+  baseRevision,
+  headRevision,
   filePath,
   rawDiff,
   lineRange,
+  onSubmitComment,
 }: {
+  repoPath: string;
+  baseRevision: string;
+  headRevision: string;
   filePath: string;
   rawDiff: string;
   lineRange: LineRange | null;
+  onSubmitComment?: ((anchor: DiffCommentAnchor, body: string) => Promise<void>) | undefined;
 }) {
-  const parsedLines = useMemo(() => {
-    const all = parseDiff(rawDiff);
-    if (!lineRange) return all;
-    return filterLinesByRange(all, lineRange);
-  }, [rawDiff, lineRange]);
+  const renderFiles = useDiffRenderFiles({
+    rawDiff: { status: 'ready', data: rawDiff },
+    context: {
+      kind: 'comparison',
+      repoPath,
+      oldRevision: baseRevision,
+      newRevision: headRevision,
+    },
+  });
+  const renderFile = renderFiles[0] ?? null;
+  const excerptFile = useMemo(() => {
+    if (renderFile === null) {
+      return null;
+    }
 
-  if (parsedLines.length === 0) return null;
+    if (lineRange === null) {
+      return renderFile;
+    }
+
+    const rows = filterRowsByRange(renderFile.rows, lineRange);
+
+    if (rows.length === 0) {
+      return null;
+    }
+
+    return {
+      ...renderFile,
+      rows,
+      renderLineCount: rows.length,
+    };
+  }, [lineRange, renderFile]);
+
+  if (excerptFile === null) return null;
 
   const rangeLabel = lineRange ? `:${lineRange.start}-${lineRange.end}` : '';
 
@@ -79,9 +147,12 @@ function ReviewFileDiff({
         </span>
       </div>
       <div className="overflow-x-auto">
-        {parsedLines.map((line, i) => (
-          <DiffRow key={i} line={line} />
-        ))}
+        <DiffFileSection
+          file={excerptFile}
+          sectionRef={() => {}}
+          onSubmitComment={onSubmitComment}
+          hideHeader
+        />
       </div>
     </div>
   );
@@ -90,9 +161,17 @@ function ReviewFileDiff({
 function ReviewStep({
   step,
   fileDiffs,
+  repoPath,
+  baseRevision,
+  headRevision,
+  onSubmitComment,
 }: {
   step: PrReview['steps'][number];
   fileDiffs: Record<string, string>;
+  repoPath: string;
+  baseRevision: string;
+  headRevision: string;
+  onSubmitComment?: ((anchor: DiffCommentAnchor, body: string) => Promise<void>) | undefined;
 }) {
   const changes = useMemo(() => {
     return step.relevantChanges
@@ -124,9 +203,13 @@ function ReviewStep({
         {changes.map((change) => (
           <ReviewFileDiff
             key={change.key}
+            repoPath={repoPath}
+            baseRevision={baseRevision}
+            headRevision={headRevision}
             filePath={change.filePath}
             rawDiff={change.rawDiff}
             lineRange={change.lineRange}
+            onSubmitComment={onSubmitComment}
           />
         ))}
       </div>
@@ -134,7 +217,19 @@ function ReviewStep({
   );
 }
 
-export function PrReviewContent({ review }: { review: PrReview }) {
+export function PrReviewContent({
+  review,
+  repoPath,
+  baseRevision,
+  headRevision,
+  onSubmitComment,
+}: {
+  review: PrReview;
+  repoPath: string;
+  baseRevision: string;
+  headRevision: string;
+  onSubmitComment?: ((anchor: DiffCommentAnchor, body: string) => Promise<void>) | undefined;
+}) {
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-6 py-8">
       {review.steps.map((step) => (
@@ -142,6 +237,10 @@ export function PrReviewContent({ review }: { review: PrReview }) {
           key={step.order}
           step={step}
           fileDiffs={review.fileDiffs}
+          repoPath={repoPath}
+          baseRevision={baseRevision}
+          headRevision={headRevision}
+          onSubmitComment={onSubmitComment}
         />
       ))}
     </div>
@@ -165,9 +264,17 @@ export type PrReviewOverlayState =
 export function PrReviewOverlay({
   state,
   onClose,
+  repoPath,
+  baseRevision,
+  headRevision,
+  onSubmitComment,
 }: {
   state: PrReviewOverlayState;
   onClose: () => void;
+  repoPath: string;
+  baseRevision: string;
+  headRevision: string;
+  onSubmitComment?: ((anchor: DiffCommentAnchor, body: string) => Promise<void>) | undefined;
 }) {
   const isOpen = state.status !== 'idle';
 
@@ -245,7 +352,13 @@ export function PrReviewOverlay({
             )}
 
             {state.status === 'ready' && (
-              <PrReviewContent review={state.review} />
+              <PrReviewContent
+                review={state.review}
+                repoPath={repoPath}
+                baseRevision={baseRevision}
+                headRevision={headRevision}
+                onSubmitComment={onSubmitComment}
+              />
             )}
           </div>
         </motion.div>

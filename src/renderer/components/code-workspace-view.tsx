@@ -424,6 +424,32 @@ export function CodeWorkspaceView({
     );
   }, []);
 
+  const handleSubmitDiffComment = useCallback(async (
+    anchor: {
+      path: string;
+      side: 'old' | 'new';
+      startLine: number;
+      endLine: number;
+      excerpt: string[];
+    },
+    body: string,
+  ) => {
+    const rangeLabel = anchor.startLine === anchor.endLine
+      ? `${anchor.startLine}`
+      : `${anchor.startLine}-${anchor.endLine}`;
+    const sideLabel = anchor.side === 'old' ? 'before' : 'after';
+    const excerpt = anchor.excerpt.length > 0
+      ? `\nRelevant lines:\n\`\`\`\n${anchor.excerpt.join('\n')}\n\`\`\``
+      : '';
+
+    await sendPrompt(
+      activeTarget.id,
+      activeTarget.cwd,
+      `Follow up on this diff comment for ${anchor.path}:${rangeLabel} (${sideLabel} side):\n\n${body}${excerpt}`,
+    );
+    setActiveLayer('codex');
+  }, [activeTarget.cwd, activeTarget.id, sendPrompt]);
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* Tabs header */}
@@ -496,6 +522,7 @@ export function CodeWorkspaceView({
             workingTreeHasStagedChanges={statusState.data.hasStagedChanges}
             gitStateVersion={gitStateVersion}
             onFileSelect={() => setActiveLayer('files')}
+            onSubmitDiffComment={(anchor, body) => handleSubmitDiffComment(anchor, body)}
           >
             {({ sidebar, viewport, historyDrawer }) => (
               <>

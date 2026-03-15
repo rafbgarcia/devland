@@ -1,14 +1,23 @@
-import type { ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { CheckIcon, FileCodeIcon, MinusIcon } from 'lucide-react';
+import { CheckIcon, FileCodeIcon, MinusIcon, PlusIcon } from 'lucide-react';
 
-import type { DiffSelectionType } from '@/lib/diff';
+import {
+  buildDiffCommentAnchor,
+  getCommentableLineNumber,
+  type DiffCommentAnchor,
+  type DiffCommentSide,
+  type DiffSelectionType,
+} from '@/lib/diff';
 import type { DiffRenderFile } from '@/renderer/hooks/use-diff-render-files';
 import {
   getHighlightTokensForLine,
   getIntraLineDiffTokens,
   renderHighlightedText,
 } from '@/renderer/lib/diff/render-highlighted-text';
+import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';
+import { Button } from '@/shadcn/components/ui/button';
+import { Textarea } from '@/shadcn/components/ui/textarea';
 import { cn } from '@/shadcn/lib/utils';
 
 const ROW_BASE_CLASS = 'font-mono text-[13px] leading-[22px]';
@@ -17,6 +26,16 @@ const GUTTER_CLASS =
 const MARKER_CLASS = 'w-5 shrink-0 select-none text-center text-[12px]';
 const SELECTION_GUTTER_CLASS =
   'flex w-10 shrink-0 items-stretch justify-center border-r border-border/50 bg-muted/30';
+
+type DiffCommentDraft = {
+  side: DiffCommentSide;
+  startRowIndex: number;
+  endRowIndex: number;
+  isSelecting: boolean;
+  body: string;
+  error: string | null;
+  isSubmitting: boolean;
+};
 
 const FILE_STATUS_CONFIG: Record<
   DiffRenderFile['status'],
@@ -60,22 +79,114 @@ function DiffColumn({
   marker,
   content,
   className,
+  commentButton,
+  commentHighlighted = false,
+  onCommentLaneEnter,
 }: {
   oldLineNumber: number | null;
   newLineNumber: number | null;
   marker: string;
   content: ReactNode;
   className?: string;
+  commentButton?: ReactNode;
+  commentHighlighted?: boolean;
+  onCommentLaneEnter?: (() => void) | undefined;
 }) {
   return (
-    <div className={cn('min-w-0 border-r border-border/50 last:border-r-0', className)}>
+    <div
+      className={cn(
+        'group/column min-w-0 border-r border-border/50 last:border-r-0',
+        commentHighlighted && 'bg-amber-500/10 ring-1 ring-inset ring-amber-500/30',
+        className,
+      )}
+      onMouseEnter={onCommentLaneEnter}
+    >
       <div className={cn('flex min-w-0', ROW_BASE_CLASS)}>
         <span className={GUTTER_CLASS}>{oldLineNumber ?? ''}</span>
-        <span className={GUTTER_CLASS}>{newLineNumber ?? ''}</span>
+        <span className="relative w-[52px] shrink-0 select-none border-r border-border/40 px-2 text-right text-[12px] text-muted-foreground/75">
+          {newLineNumber ?? ''}
+          {commentButton}
+        </span>
         <span className={MARKER_CLASS}>{marker}</span>
         <span className="diff-syntax min-w-0 flex-1 overflow-hidden whitespace-pre px-2">
           {content}
         </span>
+      </div>
+    </div>
+  );
+}
+
+function CommentButton({
+  active,
+  onMouseDown,
+  onMouseEnter,
+}: {
+  active: boolean;
+  onMouseDown: () => void;
+  onMouseEnter: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onMouseDown={(event) => {
+        event.preventDefault();
+        onMouseDown();
+      }}
+      onMouseEnter={onMouseEnter}
+      className={cn(
+        'absolute left-1 top-1/2 flex size-6 -translate-y-1/2 items-center justify-center rounded-md border border-primary/30 bg-background text-primary opacity-0 shadow-sm transition-opacity group-hover/column:opacity-100',
+        active && 'opacity-100',
+      )}
+      aria-label="Add diff comment"
+    >
+      <PlusIcon className="size-3.5" />
+    </button>
+  );
+}
+
+function InlineCommentComposer({
+  onCancel,
+  onSubmit,
+  body,
+  error,
+  isSubmitting,
+  onBodyChange,
+}: {
+  onCancel: () => void;
+  onSubmit: () => void;
+  body: string;
+  error: string | null;
+  isSubmitting: boolean;
+  onBodyChange: (body: string) => void;
+}) {
+  return (
+    <div className="border-t border-border/50 bg-amber-500/5 p-3">
+      {error ? (
+        <Alert className="mb-3">
+          <AlertTitle>Comment failed</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      <div className="flex flex-col gap-2">
+        <Textarea
+          value={body}
+          onChange={(event) => onBodyChange(event.target.value)}
+          placeholder="Leave a comment"
+          rows={4}
+          disabled={isSubmitting}
+        />
+        <div className="flex items-center justify-end gap-2">
+          <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            onClick={onSubmit}
+            disabled={isSubmitting || body.trim().length === 0}
+          >
+            {isSubmitting ? 'Sending…' : 'Add comment'}
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -148,10 +259,22 @@ function ContextRow({
   file,
   row,
   selectionType,
+  beforeCommentButton,
+  afterCommentButton,
+  beforeCommentHighlighted = false,
+  afterCommentHighlighted = false,
+  onBeforeCommentLaneEnter,
+  onAfterCommentLaneEnter,
 }: {
   file: DiffRenderFile;
   row: Extract<DiffRenderFile['rows'][number], { kind: 'context' }>;
   selectionType?: DiffSelectionType | undefined;
+  beforeCommentButton?: ReactNode;
+  afterCommentButton?: ReactNode;
+  beforeCommentHighlighted?: boolean;
+  afterCommentHighlighted?: boolean;
+  onBeforeCommentLaneEnter?: (() => void) | undefined;
+  onAfterCommentLaneEnter?: (() => void) | undefined;
 }) {
   const oldTokens = getHighlightTokensForLine(row.beforeLineNumber, file.syntaxTokens?.oldTokens);
   const newTokens = getHighlightTokensForLine(row.afterLineNumber, file.syntaxTokens?.newTokens);
@@ -166,12 +289,18 @@ function ContextRow({
           newLineNumber={row.afterLineNumber}
           marker=""
           content={renderHighlightedText(row.content, [fallbackTokens])}
+          commentButton={beforeCommentButton}
+          commentHighlighted={beforeCommentHighlighted}
+          onCommentLaneEnter={onBeforeCommentLaneEnter}
         />
         <DiffColumn
           oldLineNumber={row.beforeLineNumber}
           newLineNumber={row.afterLineNumber}
           marker=""
           content={renderHighlightedText(row.content, [newTokens ?? oldTokens])}
+          commentButton={afterCommentButton}
+          commentHighlighted={afterCommentHighlighted}
+          onCommentLaneEnter={onAfterCommentLaneEnter}
         />
       </div>
     </div>
@@ -183,11 +312,17 @@ function DeletedRow({
   row,
   selectionType,
   onToggleSelection,
+  beforeCommentButton,
+  beforeCommentHighlighted = false,
+  onBeforeCommentLaneEnter,
 }: {
   file: DiffRenderFile;
   row: Extract<DiffRenderFile['rows'][number], { kind: 'deleted' }>;
   selectionType?: DiffSelectionType | undefined;
   onToggleSelection?: (() => void) | undefined;
+  beforeCommentButton?: ReactNode;
+  beforeCommentHighlighted?: boolean;
+  onBeforeCommentLaneEnter?: (() => void) | undefined;
 }) {
   const syntaxTokens = getHighlightTokensForLine(row.data.lineNumber, file.syntaxTokens?.oldTokens);
 
@@ -205,6 +340,9 @@ function DeletedRow({
           marker="-"
           className="bg-rose-500/12"
           content={renderHighlightedText(row.data.content, [syntaxTokens])}
+          commentButton={beforeCommentButton}
+          commentHighlighted={beforeCommentHighlighted}
+          onCommentLaneEnter={onBeforeCommentLaneEnter}
         />
         <DiffColumn
           oldLineNumber={null}
@@ -223,11 +361,17 @@ function AddedRow({
   row,
   selectionType,
   onToggleSelection,
+  afterCommentButton,
+  afterCommentHighlighted = false,
+  onAfterCommentLaneEnter,
 }: {
   file: DiffRenderFile;
   row: Extract<DiffRenderFile['rows'][number], { kind: 'added' }>;
   selectionType?: DiffSelectionType | undefined;
   onToggleSelection?: (() => void) | undefined;
+  afterCommentButton?: ReactNode;
+  afterCommentHighlighted?: boolean;
+  onAfterCommentLaneEnter?: (() => void) | undefined;
 }) {
   const syntaxTokens = getHighlightTokensForLine(row.data.lineNumber, file.syntaxTokens?.newTokens);
 
@@ -252,6 +396,9 @@ function AddedRow({
           marker="+"
           className="bg-emerald-500/12"
           content={renderHighlightedText(row.data.content, [syntaxTokens])}
+          commentButton={afterCommentButton}
+          commentHighlighted={afterCommentHighlighted}
+          onCommentLaneEnter={onAfterCommentLaneEnter}
         />
       </div>
     </div>
@@ -263,11 +410,23 @@ function ModifiedRow({
   row,
   selectionType,
   onToggleSelection,
+  beforeCommentButton,
+  afterCommentButton,
+  beforeCommentHighlighted = false,
+  afterCommentHighlighted = false,
+  onBeforeCommentLaneEnter,
+  onAfterCommentLaneEnter,
 }: {
   file: DiffRenderFile;
   row: Extract<DiffRenderFile['rows'][number], { kind: 'modified' }>;
   selectionType?: DiffSelectionType | undefined;
   onToggleSelection?: (() => void) | undefined;
+  beforeCommentButton?: ReactNode;
+  afterCommentButton?: ReactNode;
+  beforeCommentHighlighted?: boolean;
+  afterCommentHighlighted?: boolean;
+  onBeforeCommentLaneEnter?: (() => void) | undefined;
+  onAfterCommentLaneEnter?: (() => void) | undefined;
 }) {
   const beforeSyntaxTokens = getHighlightTokensForLine(row.before.lineNumber, file.syntaxTokens?.oldTokens);
   const afterSyntaxTokens = getHighlightTokensForLine(row.after.lineNumber, file.syntaxTokens?.newTokens);
@@ -292,6 +451,9 @@ function ModifiedRow({
             beforeSyntaxTokens,
             intraLineTokens?.before,
           ])}
+          commentButton={beforeCommentButton}
+          commentHighlighted={beforeCommentHighlighted}
+          onCommentLaneEnter={onBeforeCommentLaneEnter}
         />
         <DiffColumn
           oldLineNumber={null}
@@ -302,6 +464,9 @@ function ModifiedRow({
             afterSyntaxTokens,
             intraLineTokens?.after,
           ])}
+          commentButton={afterCommentButton}
+          commentHighlighted={afterCommentHighlighted}
+          onCommentLaneEnter={onAfterCommentLaneEnter}
         />
       </div>
     </div>
@@ -314,12 +479,24 @@ function DiffBodyRow({
   selectionType,
   onToggleSelection,
   onToggleHunkSelection,
+  beforeCommentButton,
+  afterCommentButton,
+  beforeCommentHighlighted = false,
+  afterCommentHighlighted = false,
+  onBeforeCommentLaneEnter,
+  onAfterCommentLaneEnter,
 }: {
   file: DiffRenderFile;
   row: DiffRenderFile['rows'][number];
   selectionType?: DiffSelectionType | undefined;
   onToggleSelection?: (() => void) | undefined;
   onToggleHunkSelection?: ((hunkStartLineNumber: number) => void) | undefined;
+  beforeCommentButton?: ReactNode;
+  afterCommentButton?: ReactNode;
+  beforeCommentHighlighted?: boolean;
+  afterCommentHighlighted?: boolean;
+  onBeforeCommentLaneEnter?: (() => void) | undefined;
+  onAfterCommentLaneEnter?: (() => void) | undefined;
 }) {
   switch (row.kind) {
     case 'hunk':
@@ -335,13 +512,58 @@ function DiffBodyRow({
         />
       );
     case 'context':
-      return <ContextRow file={file} row={row} selectionType={selectionType} />;
+      return (
+        <ContextRow
+          file={file}
+          row={row}
+          selectionType={selectionType}
+          beforeCommentButton={beforeCommentButton}
+          afterCommentButton={afterCommentButton}
+          beforeCommentHighlighted={beforeCommentHighlighted}
+          afterCommentHighlighted={afterCommentHighlighted}
+          onBeforeCommentLaneEnter={onBeforeCommentLaneEnter}
+          onAfterCommentLaneEnter={onAfterCommentLaneEnter}
+        />
+      );
     case 'deleted':
-      return <DeletedRow file={file} row={row} selectionType={selectionType} onToggleSelection={onToggleSelection} />;
+      return (
+        <DeletedRow
+          file={file}
+          row={row}
+          selectionType={selectionType}
+          onToggleSelection={onToggleSelection}
+          beforeCommentButton={beforeCommentButton}
+          beforeCommentHighlighted={beforeCommentHighlighted}
+          onBeforeCommentLaneEnter={onBeforeCommentLaneEnter}
+        />
+      );
     case 'added':
-      return <AddedRow file={file} row={row} selectionType={selectionType} onToggleSelection={onToggleSelection} />;
+      return (
+        <AddedRow
+          file={file}
+          row={row}
+          selectionType={selectionType}
+          onToggleSelection={onToggleSelection}
+          afterCommentButton={afterCommentButton}
+          afterCommentHighlighted={afterCommentHighlighted}
+          onAfterCommentLaneEnter={onAfterCommentLaneEnter}
+        />
+      );
     case 'modified':
-      return <ModifiedRow file={file} row={row} selectionType={selectionType} onToggleSelection={onToggleSelection} />;
+      return (
+        <ModifiedRow
+          file={file}
+          row={row}
+          selectionType={selectionType}
+          onToggleSelection={onToggleSelection}
+          beforeCommentButton={beforeCommentButton}
+          afterCommentButton={afterCommentButton}
+          beforeCommentHighlighted={beforeCommentHighlighted}
+          afterCommentHighlighted={afterCommentHighlighted}
+          onBeforeCommentLaneEnter={onBeforeCommentLaneEnter}
+          onAfterCommentLaneEnter={onAfterCommentLaneEnter}
+        />
+      );
   }
 }
 
@@ -354,6 +576,8 @@ export function DiffFileSection({
   onToggleFileSelection,
   onToggleRowSelection,
   onToggleHunkSelection,
+  onSubmitComment,
+  hideHeader = false,
 }: {
   file: DiffRenderFile;
   sectionRef: (el: HTMLDivElement | null) => void;
@@ -363,8 +587,133 @@ export function DiffFileSection({
   onToggleFileSelection?: (() => void) | undefined;
   onToggleRowSelection?: ((row: DiffRenderFile['rows'][number]) => void) | undefined;
   onToggleHunkSelection?: ((hunkStartLineNumber: number) => void) | undefined;
+  onSubmitComment?: ((anchor: DiffCommentAnchor, body: string) => Promise<void>) | undefined;
+  hideHeader?: boolean | undefined;
 }) {
   const config = FILE_STATUS_CONFIG[file.status];
+  const [commentDraft, setCommentDraft] = useState<DiffCommentDraft | null>(null);
+
+  useEffect(() => {
+    if (commentDraft?.isSelecting !== true) {
+      return;
+    }
+
+    const handleMouseUp = () => {
+      setCommentDraft((current) =>
+        current === null
+          ? null
+          : {
+              ...current,
+              isSelecting: false,
+            },
+      );
+    };
+
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => window.removeEventListener('mouseup', handleMouseUp);
+  }, [commentDraft?.isSelecting]);
+
+  const commentRange = useMemo(() => {
+    if (commentDraft === null) {
+      return null;
+    }
+
+    const from = Math.min(commentDraft.startRowIndex, commentDraft.endRowIndex);
+    const to = Math.max(commentDraft.startRowIndex, commentDraft.endRowIndex);
+
+    return { from, to };
+  }, [commentDraft]);
+
+  const commentRows = useMemo(
+    () =>
+      commentRange === null
+        ? []
+        : file.rows
+            .slice(commentRange.from, commentRange.to + 1)
+            .filter((row) =>
+              commentDraft === null
+                ? false
+                : getCommentableLineNumber(row, commentDraft.side) !== null,
+            ),
+    [commentDraft, commentRange, file.rows],
+  );
+
+  const handleStartCommentSelection = (side: DiffCommentSide, rowIndex: number) => {
+    setCommentDraft({
+      side,
+      startRowIndex: rowIndex,
+      endRowIndex: rowIndex,
+      isSelecting: true,
+      body: '',
+      error: null,
+      isSubmitting: false,
+    });
+  };
+
+  const handleExtendCommentSelection = (side: DiffCommentSide, rowIndex: number) => {
+    setCommentDraft((current) => {
+      if (
+        current === null ||
+        current.isSelecting !== true ||
+        current.side !== side
+      ) {
+        return current;
+      }
+
+      return {
+        ...current,
+        endRowIndex: rowIndex,
+      };
+    });
+  };
+
+  const handleSubmitComment = async () => {
+    if (commentDraft === null || onSubmitComment === undefined) {
+      return;
+    }
+
+    const anchor = buildDiffCommentAnchor(file.diff, commentRows, commentDraft.side);
+
+    if (anchor === null) {
+      setCommentDraft(null);
+      return;
+    }
+
+    setCommentDraft((current) => current === null ? null : { ...current, isSubmitting: true, error: null });
+
+    try {
+      await onSubmitComment(anchor, commentDraft.body.trim());
+      setCommentDraft(null);
+    } catch (error) {
+      setCommentDraft((current) => current === null ? null : {
+        ...current,
+        isSubmitting: false,
+        error: error instanceof Error ? error.message : 'Failed to create comment.',
+      });
+    }
+  };
+
+  const getCommentButton = (side: DiffCommentSide, row: DiffRenderFile['rows'][number], rowIndex: number) => {
+    if (onSubmitComment === undefined || getCommentableLineNumber(row, side) === null) {
+      return undefined;
+    }
+
+    const isActive =
+      commentDraft !== null &&
+      commentDraft.side === side &&
+      commentRange !== null &&
+      rowIndex >= commentRange.from &&
+      rowIndex <= commentRange.to;
+
+    return (
+      <CommentButton
+        active={isActive}
+        onMouseDown={() => handleStartCommentSelection(side, rowIndex)}
+        onMouseEnter={() => handleExtendCommentSelection(side, rowIndex)}
+      />
+    );
+  };
 
   return (
     <div
@@ -372,53 +721,98 @@ export function DiffFileSection({
       data-file-path={file.path}
       className="overflow-hidden rounded-lg border border-border bg-background shadow-[0_1px_0_color-mix(in_oklab,var(--border),transparent_35%)]"
     >
-      <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-border bg-muted/85 px-3 py-1.5 backdrop-blur-sm">
-        {selectionType ? (
-          <SelectionToggle
-            selectionType={selectionType}
-            onClick={onToggleFileSelection}
-          />
-        ) : null}
-        <FileCodeIcon className="size-3.5 text-muted-foreground" />
-        <span className="min-w-0 truncate text-xs font-medium">{file.path}</span>
-        <span
-          className={cn(
-            'inline-flex size-4 shrink-0 items-center justify-center rounded-sm border border-current/20 text-[9px] font-bold',
-            config.className,
-          )}
-        >
-          {config.letter}
-        </span>
-        <span className="ml-auto font-mono text-[10px] text-muted-foreground">
-          {file.additions > 0 ? <span className="text-emerald-700">+{file.additions}</span> : null}
-          {file.additions > 0 && file.deletions > 0 ? '  ' : null}
-          {file.deletions > 0 ? <span className="text-rose-700">-{file.deletions}</span> : null}
-        </span>
-      </div>
+      {!hideHeader ? (
+        <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-border bg-muted/85 px-3 py-1.5 backdrop-blur-sm">
+          {selectionType ? (
+            <SelectionToggle
+              selectionType={selectionType}
+              onClick={onToggleFileSelection}
+            />
+          ) : null}
+          <FileCodeIcon className="size-3.5 text-muted-foreground" />
+          <span className="min-w-0 truncate text-xs font-medium">{file.path}</span>
+          <span
+            className={cn(
+              'inline-flex size-4 shrink-0 items-center justify-center rounded-sm border border-current/20 text-[9px] font-bold',
+              config.className,
+            )}
+          >
+            {config.letter}
+          </span>
+          <span className="ml-auto font-mono text-[10px] text-muted-foreground">
+            {file.additions > 0 ? <span className="text-emerald-700">+{file.additions}</span> : null}
+            {file.additions > 0 && file.deletions > 0 ? '  ' : null}
+            {file.deletions > 0 ? <span className="text-rose-700">-{file.deletions}</span> : null}
+          </span>
+        </div>
+      ) : null}
       <div className="overflow-x-auto">
         <div className="min-w-[960px]">
-          {file.rows.map((row) => (
-            <DiffBodyRow
-              key={
-                row.kind === 'hunk'
-                  ? `hunk:${row.originalStartLineNumber}`
-                  : row.kind === 'context'
-                  ? `context:${row.originalDiffLineNumber}`
-                  : row.kind === 'modified'
-                  ? `modified:${row.before.originalDiffLineNumber}:${row.after.originalDiffLineNumber}`
-                  : `${row.kind}:${row.data.originalDiffLineNumber}`
-              }
-              file={file}
-              row={row}
-              selectionType={
-                row.kind === 'hunk'
-                  ? getHunkSelectionType?.(row.originalStartLineNumber)
-                  : getRowSelectionType?.(row)
-              }
-              onToggleSelection={onToggleRowSelection ? () => onToggleRowSelection(row) : undefined}
-              onToggleHunkSelection={onToggleHunkSelection}
-            />
-          ))}
+          {file.rows.map((row, rowIndex) => {
+            const key =
+              row.kind === 'hunk'
+                ? `hunk:${row.originalStartLineNumber}`
+                : row.kind === 'context'
+                ? `context:${row.originalDiffLineNumber}`
+                : row.kind === 'modified'
+                ? `modified:${row.before.originalDiffLineNumber}:${row.after.originalDiffLineNumber}`
+                : `${row.kind}:${row.data.originalDiffLineNumber}`;
+            const showComposer =
+              commentDraft !== null &&
+              commentDraft.isSelecting === false &&
+              commentRange !== null &&
+              rowIndex === commentRange.to;
+
+            return (
+              <div key={key}>
+                <DiffBodyRow
+                  file={file}
+                  row={row}
+                  selectionType={
+                    row.kind === 'hunk'
+                      ? getHunkSelectionType?.(row.originalStartLineNumber)
+                      : getRowSelectionType?.(row)
+                  }
+                  onToggleSelection={onToggleRowSelection ? () => onToggleRowSelection(row) : undefined}
+                  onToggleHunkSelection={onToggleHunkSelection}
+                  beforeCommentButton={getCommentButton('old', row, rowIndex)}
+                  afterCommentButton={getCommentButton('new', row, rowIndex)}
+                  onBeforeCommentLaneEnter={() => handleExtendCommentSelection('old', rowIndex)}
+                  onAfterCommentLaneEnter={() => handleExtendCommentSelection('new', rowIndex)}
+                  beforeCommentHighlighted={
+                    commentDraft !== null &&
+                    commentDraft.side === 'old' &&
+                    commentRange !== null &&
+                    rowIndex >= commentRange.from &&
+                    rowIndex <= commentRange.to &&
+                    getCommentableLineNumber(row, 'old') !== null
+                  }
+                  afterCommentHighlighted={
+                    commentDraft !== null &&
+                    commentDraft.side === 'new' &&
+                    commentRange !== null &&
+                    rowIndex >= commentRange.from &&
+                    rowIndex <= commentRange.to &&
+                    getCommentableLineNumber(row, 'new') !== null
+                  }
+                />
+                {showComposer && commentDraft ? (
+                  <InlineCommentComposer
+                    body={commentDraft.body}
+                    error={commentDraft.error}
+                    isSubmitting={commentDraft.isSubmitting}
+                    onBodyChange={(body) =>
+                      setCommentDraft((current) => current === null ? null : { ...current, body })
+                    }
+                    onCancel={() => setCommentDraft(null)}
+                    onSubmit={() => {
+                      void handleSubmitComment();
+                    }}
+                  />
+                ) : null}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

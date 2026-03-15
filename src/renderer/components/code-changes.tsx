@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import type { GitStatusFile, PrCommit } from '@/ipc/contracts';
+import type { DiffCommentAnchor } from '@/lib/diff';
 import {
   CodeChangesFilesViewport,
   type CodeChangesViewportHandle,
@@ -34,6 +35,7 @@ export function CodeChanges({
   gitStateVersion = 0,
   children,
   onFileSelect,
+  onSubmitDiffComment,
 }: {
   repoPath: string;
   baseBranchName: string;
@@ -43,6 +45,7 @@ export function CodeChanges({
   gitStateVersion?: number;
   children: (props: CodeChangesRenderProps) => ReactNode;
   onFileSelect?: () => void;
+  onSubmitDiffComment?: ((anchor: DiffCommentAnchor, body: string) => Promise<void>) | undefined;
 }) {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [selection, setSelection] = useState<CodeChangesSelection>({ type: 'working-tree' });
@@ -251,6 +254,7 @@ export function CodeChanges({
               )
           : undefined
       }
+      onSubmitComment={onSubmitDiffComment}
     />
   );
 

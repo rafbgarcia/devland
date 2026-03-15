@@ -12,7 +12,7 @@ import {
 
 import { CheckIcon, FileCodeIcon, MinusIcon } from 'lucide-react';
 
-import type { DiffSelectionType } from '@/lib/diff';
+import type { DiffCommentAnchor, DiffSelectionType } from '@/lib/diff';
 import { DiffFileSection } from '@/renderer/components/diff-renderer';
 import { TruncatedFilePath } from '@/renderer/components/truncated-file-path';
 import { type DiffRenderFile } from '@/renderer/hooks/use-diff-render-files';
@@ -223,6 +223,7 @@ type CodeChangesFilesViewportProps = {
   onToggleFileSelection?: ((path: string) => void) | undefined;
   onToggleRowSelection?: ((path: string, row: DiffRenderFile['rows'][number]) => void) | undefined;
   onToggleHunkSelection?: ((path: string, hunkStartLineNumber: number) => void) | undefined;
+  onSubmitComment?: ((anchor: DiffCommentAnchor, body: string) => Promise<void>) | undefined;
 };
 
 export const CodeChangesFilesViewport = forwardRef<CodeChangesViewportHandle, CodeChangesFilesViewportProps>(
@@ -239,6 +240,7 @@ export const CodeChangesFilesViewport = forwardRef<CodeChangesViewportHandle, Co
     onToggleFileSelection,
     onToggleRowSelection,
     onToggleHunkSelection,
+    onSubmitComment,
   }, ref) {
   const [scrollTop, setScrollTop] = useState(0);
   const [containerHeight, setContainerHeight] = useState(0);
@@ -478,6 +480,7 @@ export const CodeChangesFilesViewport = forwardRef<CodeChangesViewportHandle, Co
                       onToggleFileSelection={onToggleFileSelection ? () => onToggleFileSelection(file.path) : undefined}
                       onToggleRowSelection={onToggleRowSelection ? (row) => onToggleRowSelection(file.path, row) : undefined}
                       onToggleHunkSelection={onToggleHunkSelection ? (hunkStartLineNumber) => onToggleHunkSelection(file.path, hunkStartLineNumber) : undefined}
+                      onSubmitComment={onSubmitComment}
                     />
                   </div>
                 );
