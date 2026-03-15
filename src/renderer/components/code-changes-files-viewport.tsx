@@ -1,6 +1,5 @@
 import {
   forwardRef,
-  memo,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -13,36 +12,46 @@ import {
 
 import { FileCodeIcon } from 'lucide-react';
 
-import { DiffRow } from '@/renderer/components/code-diff-viewer';
+import { DiffFileSection } from '@/renderer/components/diff-renderer';
 import { TruncatedFilePath } from '@/renderer/components/truncated-file-path';
-import { parseDiff, type DiffFile, type DiffFileStatus } from '@/renderer/lib/code-diff';
+import { type DiffRenderFile } from '@/renderer/hooks/use-diff-render-files';
 import { type AsyncState } from '@/renderer/hooks/use-pr-diff-data';
 import { Spinner } from '@/shadcn/components/ui/spinner';
 import { cn } from '@/shadcn/lib/utils';
 
 const FILE_STATUS_CONFIG: Record<
-  DiffFileStatus,
+  DiffRenderFile['status'],
   { letter: string; className: string; dotClassName: string }
 > = {
   modified: {
     letter: 'M',
-    className: 'text-yellow-600 dark:text-yellow-400',
-    dotClassName: 'bg-yellow-500',
+    className: 'text-amber-700',
+    dotClassName: 'bg-amber-500',
   },
   added: {
     letter: 'A',
-    className: 'text-green-600 dark:text-green-400',
-    dotClassName: 'bg-green-500',
+    className: 'text-emerald-700',
+    dotClassName: 'bg-emerald-500',
   },
   deleted: {
     letter: 'D',
-    className: 'text-red-600 dark:text-red-400',
-    dotClassName: 'bg-red-500',
+    className: 'text-rose-700',
+    dotClassName: 'bg-rose-500',
   },
   renamed: {
     letter: 'R',
-    className: 'text-blue-600 dark:text-blue-400',
-    dotClassName: 'bg-blue-500',
+    className: 'text-sky-700',
+    dotClassName: 'bg-sky-500',
+  },
+  copied: {
+    letter: 'C',
+    className: 'text-sky-700',
+    dotClassName: 'bg-sky-500',
+  },
+  untracked: {
+    letter: 'U',
+    className: 'text-emerald-700',
+    dotClassName: 'bg-emerald-500',
   },
 };
 
@@ -53,7 +62,7 @@ const FILE_GAP_PX = 16;
 const VIEWPORT_OVERSCAN_PX = 480;
 const VIEWPORT_INSET_PX = 16;
 
-function estimateFileHeight(file: DiffFile) {
+function estimateFileHeight(file: DiffRenderFile) {
   return (
     FILE_HEADER_HEIGHT_PX +
     FILE_SECTION_FRAME_PX +
@@ -95,7 +104,7 @@ export function FilesChangedList({
   emptyMessage = 'No changed files.',
 }: {
   title?: string;
-  files: DiffFile[];
+  files: DiffRenderFile[];
   visibleFiles: Set<string>;
   onSelectFile: (path: string) => void;
   actions?: ReactNode;
@@ -146,51 +155,8 @@ export function FilesChangedList({
   );
 }
 
-const FileDiffSection = memo(function FileDiffSection({
-  file,
-  sectionRef,
-}: {
-  file: DiffFile;
-  sectionRef: (el: HTMLDivElement | null) => void;
-}) {
-  const parsedLines = useMemo(() => parseDiff(file.rawDiff), [file.rawDiff]);
-  const config = FILE_STATUS_CONFIG[file.status];
-
-  return (
-    <div
-      ref={sectionRef}
-      data-file-path={file.path}
-      className="overflow-hidden rounded-lg border border-border bg-background"
-    >
-      <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-border bg-muted/80 px-3 py-1.5 backdrop-blur-sm">
-        <FileCodeIcon className="size-3.5 text-muted-foreground" />
-        <span className="text-xs font-medium">{file.path}</span>
-        <span
-          className={cn(
-            'ml-1 inline-flex size-[16px] items-center justify-center rounded-sm border text-[9px] font-bold leading-none',
-            config.className,
-            'border-current/20',
-          )}
-        >
-          {config.letter}
-        </span>
-        <span className="ml-auto font-mono text-[10px] text-muted-foreground">
-          {file.additions > 0 && <span className="text-green-600">+{file.additions}</span>}
-          {file.additions > 0 && file.deletions > 0 && '  '}
-          {file.deletions > 0 && <span className="text-red-500">-{file.deletions}</span>}
-        </span>
-      </div>
-      <div className="overflow-x-auto">
-        {parsedLines.map((line, index) => (
-          <DiffRow key={index} line={line} />
-        ))}
-      </div>
-    </div>
-  );
-});
-
 export type CodeChangesSidebarRenderProps = {
-  diffFiles: DiffFile[];
+  diffFiles: DiffRenderFile[];
   visibleFiles: Set<string>;
   onSelectFile: (path: string) => void;
 };
@@ -201,7 +167,7 @@ export type CodeChangesViewportHandle = {
 
 type CodeChangesFilesViewportProps = {
   rawDiff: AsyncState<string>;
-  diffFiles: DiffFile[];
+  diffFiles: DiffRenderFile[];
   sidebar?: ReactNode | ((props: CodeChangesSidebarRenderProps) => ReactNode);
   mainTop?: ReactNode;
   emptyMessage: string;
@@ -446,7 +412,7 @@ export const CodeChangesFilesViewport = forwardRef<CodeChangesViewportHandle, Co
                       right: VIEWPORT_INSET_PX,
                     }}
                   >
-                    <FileDiffSection file={file} sectionRef={getSectionRef(file.path)} />
+                    <DiffFileSection file={file} sectionRef={getSectionRef(file.path)} />
                   </div>
                 );
               })}

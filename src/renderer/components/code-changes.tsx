@@ -12,6 +12,7 @@ import {
   useGitCommitDiff,
   useGitWorkingTreeDiff,
 } from '@/renderer/hooks/use-git-code-changes';
+import { useDiffRenderFiles } from '@/renderer/hooks/use-diff-render-files';
 
 type CodeChangesSelection =
   | { type: 'working-tree' }
@@ -74,9 +75,6 @@ export function CodeChanges({
   const activeDiffState = selection.type === 'working-tree'
     ? workingTreeState.rawDiff
     : commitDiffState.rawDiff;
-  const activeDiffFiles = selection.type === 'working-tree'
-    ? workingTreeState.diffFiles
-    : commitDiffState.diffFiles;
   const emptyMessage = selection.type === 'working-tree'
     ? 'Working tree is clean.'
     : 'No file changes in this commit.';
@@ -89,6 +87,20 @@ export function CodeChanges({
   const historyError = historyState.status === 'error'
     ? historyState.error
     : null;
+  const activeRenderFiles = useDiffRenderFiles({
+    rawDiff: activeDiffState,
+    context:
+      selection.type === 'working-tree'
+        ? { kind: 'working-tree', repoPath }
+        : selectedCommit === null
+        ? null
+        : {
+            kind: 'commit',
+            repoPath,
+            commitRevision: selectedCommit.sha,
+            parentRevision: commitDiffState.parentRevision,
+          },
+  });
 
   const handleRestoreWorkingTree = () => {
     setSelection({ type: 'working-tree' });
@@ -108,7 +120,7 @@ export function CodeChanges({
 
   const sidebar = (
     <CodeChangesSidebar
-      diffFiles={activeDiffFiles}
+      diffFiles={activeRenderFiles}
       visibleFiles={visibleFiles}
       onSelectFile={handleFileSelect}
       selectedCommit={selectedCommit}
@@ -126,7 +138,7 @@ export function CodeChanges({
     <CodeChangesFilesViewport
       ref={viewportRef}
       rawDiff={activeDiffState}
-      diffFiles={activeDiffFiles}
+      diffFiles={activeRenderFiles}
       emptyMessage={emptyMessage}
       onVisibleFilesChange={setVisibleFiles}
     />

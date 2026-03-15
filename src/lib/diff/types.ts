@@ -93,6 +93,7 @@ export type DiffRow =
   | {
       kind: 'modified';
       changeGroupStartLineNumber: number;
+      canIntraLineDiff: boolean;
       before: DiffChangedLine;
       after: DiffChangedLine;
     };

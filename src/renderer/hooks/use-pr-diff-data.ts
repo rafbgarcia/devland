@@ -7,6 +7,10 @@ export type DiffSelection =
   | { type: 'commit'; index: number }
   | { type: 'all' };
 
+export type PrDiffContext =
+  | { kind: 'commit'; commitRevision: string; parentRevision: string | null }
+  | { kind: 'comparison'; oldRevision: string; newRevision: string };
+
 export type AsyncState<T> =
   | { status: 'idle' }
   | { status: 'loading' }
@@ -24,6 +28,7 @@ export function usePrDiffData({
 }) {
   const [selection, setSelection] = useState<DiffSelection>({ type: 'commit', index: 0 });
   const [rawDiff, setRawDiff] = useState<AsyncState<string>>({ status: 'idle' });
+  const [commitParentRevision, setCommitParentRevision] = useState<string | null>(null);
 
   const diffCacheRef = useRef<Map<string, string>>(new Map());
 
@@ -47,6 +52,7 @@ export function usePrDiffData({
     diffCacheRef.current.clear();
     setSelection({ type: 'commit', index: 0 });
     setRawDiff({ status: 'idle' });
+    setCommitParentRevision(null);
   }, [snapshotKey]);
 
   const cacheKey = useMemo(() => {
@@ -100,6 +106,43 @@ export function usePrDiffData({
     };
   }, [cacheKey, metaState, prNumber, repoPath, selection.type]);
 
+  useEffect(() => {
+    if (
+      selection.type !== 'commit' ||
+      metaState.status !== 'ready' ||
+      metaState.data.status !== 'ready'
+    ) {
+      setCommitParentRevision(null);
+      return;
+    }
+
+    const commit = metaState.data.commits[selection.index];
+
+    if (!commit) {
+      setCommitParentRevision(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    window.electronAPI.getCommitParent(repoPath, commit.sha)
+      .then((revision) => {
+        if (!cancelled) {
+          setCommitParentRevision(revision);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.error('Failed to load PR commit parent revision:', error);
+          setCommitParentRevision(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [metaState, repoPath, selection]);
+
   const diffFiles = useMemo<DiffFile[]>(
     () => (rawDiff.status === 'ready' ? parseDiffFiles(rawDiff.data) : []),
     [rawDiff],
@@ -113,10 +156,37 @@ export function usePrDiffData({
     setSelection({ type: 'all' });
   }, []);
 
+  const diffContext = useMemo<PrDiffContext | null>(() => {
+    if (metaState.status !== 'ready' || metaState.data.status !== 'ready') {
+      return null;
+    }
+
+    if (selection.type === 'all') {
+      return {
+        kind: 'comparison',
+        oldRevision: metaState.data.baseRevision,
+        newRevision: metaState.data.headRevision,
+      };
+    }
+
+    const commit = metaState.data.commits[selection.index];
+
+    if (!commit) {
+      return null;
+    }
+
+    return {
+      kind: 'commit',
+      commitRevision: commit.sha,
+      parentRevision: commitParentRevision,
+    };
+  }, [commitParentRevision, metaState, selection]);
+
   return {
     selection,
     rawDiff,
     diffFiles,
+    diffContext,
     handleSelectCommit,
     handleSelectAll,
   };

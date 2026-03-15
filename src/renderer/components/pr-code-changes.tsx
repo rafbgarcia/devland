@@ -2,6 +2,7 @@ import { LayersIcon } from 'lucide-react';
 
 import type { PrDiffMetaResult } from '@/ipc/contracts';
 import { PrDiffViewport } from '@/renderer/components/pr-diff-viewport';
+import { useDiffRenderFiles } from '@/renderer/hooks/use-diff-render-files';
 import { usePrDiffData, type AsyncState } from '@/renderer/hooks/use-pr-diff-data';
 import {
   Alert,
@@ -42,13 +43,32 @@ export function PrCodeChanges({
   const {
     selection,
     rawDiff,
-    diffFiles,
+    diffContext,
     handleSelectCommit,
     handleSelectAll,
   } = usePrDiffData({
     repoPath,
     prNumber,
     metaState,
+  });
+  const renderFiles = useDiffRenderFiles({
+    rawDiff,
+    context:
+      diffContext === null
+        ? null
+        : diffContext.kind === 'comparison'
+        ? {
+            kind: 'comparison',
+            repoPath,
+            oldRevision: diffContext.oldRevision,
+            newRevision: diffContext.newRevision,
+          }
+        : {
+            kind: 'commit',
+            repoPath,
+            commitRevision: diffContext.commitRevision,
+            parentRevision: diffContext.parentRevision,
+          },
   });
 
   if (metaState.status === 'idle' || metaState.status === 'loading') {
@@ -156,7 +176,7 @@ export function PrCodeChanges({
         baseBranch={baseBranch}
         headBranch={headBranch}
         rawDiff={rawDiff}
-        diffFiles={diffFiles}
+        diffFiles={renderFiles}
       />
     </div>
   );

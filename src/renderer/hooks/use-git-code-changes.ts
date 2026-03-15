@@ -110,41 +110,69 @@ export function useGitCommitDiff({
   commitSha: string | null;
 }) {
   const [rawDiff, setRawDiff] = useState<AsyncState<string>>({ status: 'idle' });
+  const [parentRevision, setParentRevision] = useState<string | null>(null);
   const diffCacheRef = useRef<Map<string, string>>(new Map());
 
   useEffect(() => {
     if (commitSha === null) {
       setRawDiff({ status: 'idle' });
-      return;
+      setParentRevision(null);
+      return undefined;
     }
 
     const cached = diffCacheRef.current.get(commitSha);
     if (cached !== undefined) {
       setRawDiff({ status: 'ready', data: cached });
+    } else {
+      let cancelled = false;
+      setRawDiff({ status: 'loading' });
+
+      window.electronAPI.getCommitDiff(repoPath, commitSha)
+        .then((diff) => {
+          if (cancelled) {
+            return;
+          }
+
+          diffCacheRef.current.set(commitSha, diff);
+          setRawDiff({ status: 'ready', data: diff });
+        })
+        .catch((error) => {
+          if (cancelled) {
+            return;
+          }
+
+          setRawDiff({
+            status: 'error',
+            error: error instanceof Error ? error.message : 'Failed to load commit diff.',
+          });
+        });
+
+      return () => {
+        cancelled = true;
+      };
+    }
+
+  }, [commitSha, repoPath]);
+
+  useEffect(() => {
+    if (commitSha === null) {
+      setParentRevision(null);
       return;
     }
 
     let cancelled = false;
-    setRawDiff({ status: 'loading' });
 
-    window.electronAPI.getCommitDiff(repoPath, commitSha)
-      .then((diff) => {
-        if (cancelled) {
-          return;
+    window.electronAPI.getCommitParent(repoPath, commitSha)
+      .then((revision) => {
+        if (!cancelled) {
+          setParentRevision(revision);
         }
-
-        diffCacheRef.current.set(commitSha, diff);
-        setRawDiff({ status: 'ready', data: diff });
       })
       .catch((error) => {
-        if (cancelled) {
-          return;
+        if (!cancelled) {
+          console.error('Failed to load commit parent revision:', error);
+          setParentRevision(null);
         }
-
-        setRawDiff({
-          status: 'error',
-          error: error instanceof Error ? error.message : 'Failed to load commit diff.',
-        });
       });
 
     return () => {
@@ -160,5 +188,6 @@ export function useGitCommitDiff({
   return {
     rawDiff,
     diffFiles,
+    parentRevision,
   };
 }

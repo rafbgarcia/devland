@@ -156,3 +156,90 @@
   font-family: var(--font-display);
   letter-spacing: -0.045em;
 }
+
+.diff-syntax .cm-comment {
+  color: oklch(0.56 0.03 210);
+  font-style: italic;
+}
+
+.diff-syntax .cm-keyword,
+.diff-syntax .cm-operator,
+.diff-syntax .cm-qualifier {
+  color: oklch(0.58 0.18 22);
+}
+
+.diff-syntax .cm-atom,
+.diff-syntax .cm-number,
+.diff-syntax .cm-builtin {
+  color: oklch(0.58 0.15 278);
+}
+
+.diff-syntax .cm-def,
+.diff-syntax .cm-variable-2,
+.diff-syntax .cm-variable-3,
+.diff-syntax .cm-type {
+  color: oklch(0.46 0.12 236);
+}
+
+.diff-syntax .cm-property,
+.diff-syntax .cm-tag,
+.diff-syntax .cm-attribute {
+  color: oklch(0.53 0.11 191);
+}
+
+.diff-syntax .cm-string,
+.diff-syntax .cm-string-2,
+.diff-syntax .cm-link {
+  color: oklch(0.54 0.11 146);
+}
+
+.diff-syntax .cm-meta {
+  color: oklch(0.47 0.08 166);
+}
+
+.diff-syntax .cm-diff-add-inner {
+  background: color-mix(in oklab, oklch(0.7 0.13 148) 36%, transparent);
+}
+
+.diff-syntax .cm-diff-delete-inner {
+  background: color-mix(in oklab, oklch(0.63 0.2 25) 34%, transparent);
+}
+
+.dark .diff-syntax .cm-comment {
+  color: oklch(0.72 0.025 225);
+}
+
+.dark .diff-syntax .cm-keyword,
+.dark .diff-syntax .cm-operator,
+.dark .diff-syntax .cm-qualifier {
+  color: oklch(0.72 0.14 16);
+}
+
+.dark .diff-syntax .cm-atom,
+.dark .diff-syntax .cm-number,
+.dark .diff-syntax .cm-builtin {
+  color: oklch(0.76 0.12 287);
+}
+
+.dark .diff-syntax .cm-def,
+.dark .diff-syntax .cm-variable-2,
+.dark .diff-syntax .cm-variable-3,
+.dark .diff-syntax .cm-type {
+  color: oklch(0.78 0.08 231);
+}
+
+.dark .diff-syntax .cm-property,
+.dark .diff-syntax .cm-tag,
+.dark .diff-syntax .cm-attribute {
+  color: oklch(0.78 0.08 198);
+}
+
+.dark .diff-syntax .cm-string,
+.dark .diff-syntax .cm-string-2,
+.dark .diff-syntax .cm-link {
+  color: oklch(0.8 0.1 145);
+}
+
+.dark .diff-syntax .cm-meta {
+  color: oklch(0.75 0.08 166);
+}

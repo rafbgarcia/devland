@@ -9,7 +9,7 @@ import {
   CodeChangesFilesViewport,
   FilesChangedList,
 } from '@/renderer/components/code-changes-files-viewport';
-import { type DiffFile } from '@/renderer/lib/code-diff';
+import { type DiffRenderFile } from '@/renderer/hooks/use-diff-render-files';
 import { type AsyncState, type DiffSelection } from '@/renderer/hooks/use-pr-diff-data';
 import { cn } from '@/shadcn/lib/utils';
 
@@ -111,7 +111,7 @@ export function PrDiffViewport({
   baseBranch: string;
   headBranch: string;
   rawDiff: AsyncState<string>;
-  diffFiles: DiffFile[];
+  diffFiles: DiffRenderFile[];
 }) {
   return (
     <CodeChangesFilesViewport

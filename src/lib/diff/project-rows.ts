@@ -41,11 +41,13 @@ function flushModifiedCandidates(
     .filter((candidate) => candidate.line.kind === 'delete')
     .map((candidate) => candidate.line);
   const pairedLineCount = Math.min(addedLines.length, deletedLines.length);
+  const canIntraLineDiff = addedLines.length === deletedLines.length;
 
   for (let index = 0; index < pairedLineCount; index += 1) {
     rows.push({
       kind: 'modified',
       changeGroupStartLineNumber,
+      canIntraLineDiff,
       before: toChangedLine(deletedLines[index]!, 'oldLineNumber'),
       after: toChangedLine(addedLines[index]!, 'newLineNumber'),
     });
