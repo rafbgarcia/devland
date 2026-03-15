@@ -14,6 +14,7 @@ import {
   GET_GIT_BRANCHES_CHANNEL,
   GET_GIT_DEFAULT_BRANCH_CHANNEL,
   GET_GIT_BRANCH_HISTORY_CHANNEL,
+  GIT_STATE_CHANGED_CHANNEL,
   GET_GIT_BRANCH_COMPARE_META_CHANNEL,
   GET_GIT_BRANCH_COMPARE_DIFF_CHANNEL,
   GET_GIT_STATUS_CHANNEL,
@@ -27,6 +28,8 @@ import {
   GET_PR_DIFF_META_CHANNEL,
   GET_COMMIT_DIFF_CHANNEL,
   GET_PR_DIFF_CHANNEL,
+  START_GIT_STATE_WATCH_CHANNEL,
+  STOP_GIT_STATE_WATCH_CHANNEL,
   INTERRUPT_CODEX_SESSION_CHANNEL,
   RESPOND_TO_CODEX_APPROVAL_CHANNEL,
   RESPOND_TO_CODEX_USER_INPUT_CHANNEL,
@@ -63,6 +66,7 @@ import {
   syncRepoReviewRefs,
   validateLocalGitRepository,
 } from './git';
+import { gitStateWatcher } from './git-state-watcher';
 
 const getAppBootstrap = async (): Promise<AppBootstrap> => {
   const ghUser = await getGhUser();
@@ -94,6 +98,9 @@ export const registerAppIpcHandlers = (
 ): void => {
   codexAppServerManager.on('event', (event) => {
     getMainWindow()?.webContents.send(CODEX_SESSION_EVENT_CHANNEL, event);
+  });
+  gitStateWatcher.on('changed', (event) => {
+    getMainWindow()?.webContents.send(GIT_STATE_CHANGED_CHANNEL, event);
   });
 
   ipcMain.handle(GET_APP_BOOTSTRAP_CHANNEL, () => getAppBootstrap());
@@ -147,6 +154,16 @@ export const registerAppIpcHandlers = (
     GET_GIT_BRANCH_HISTORY_CHANNEL,
     (_event, repoPath: string, branchName: string) =>
       getGitBranchHistory(repoPath, branchName),
+  );
+  ipcMain.handle(
+    START_GIT_STATE_WATCH_CHANNEL,
+    (_event, repoPath: string) => gitStateWatcher.subscribe(repoPath),
+  );
+  ipcMain.handle(
+    STOP_GIT_STATE_WATCH_CHANNEL,
+    (_event, subscriptionId: string) => {
+      gitStateWatcher.unsubscribe(subscriptionId);
+    },
   );
   ipcMain.handle(
     GET_GIT_BRANCH_COMPARE_META_CHANNEL,

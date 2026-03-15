@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
 
 import type { GitBranch, GitStatus } from '@/ipc/contracts';
 
@@ -113,6 +113,66 @@ export function useGitStatus(repoPath: string) {
   }, [fetchStatus]);
 
   return { ...state, refetch: fetchStatus };
+}
+
+export function useGitStateWatch(
+  repoPaths: readonly string[],
+  onGitStateChange: (repoPath: string) => void,
+) {
+  const handleGitStateChange = useEffectEvent(onGitStateChange);
+  const repoPathsKey = [...new Set(repoPaths.filter((repoPath) => repoPath.trim().length > 0))]
+    .sort()
+    .join('\0');
+
+  useEffect(() => {
+    const uniqueRepoPaths = repoPathsKey.length === 0
+      ? []
+      : repoPathsKey.split('\0');
+
+    if (uniqueRepoPaths.length === 0) {
+      return;
+    }
+
+    let cancelled = false;
+    const subscriptionIds: string[] = [];
+    const unsubscribeFromEvents = window.electronAPI.onGitStateChanged((event) => {
+      if (!uniqueRepoPaths.includes(event.repoPath)) {
+        return;
+      }
+
+      handleGitStateChange(event.repoPath);
+    });
+
+    const startWatching = async () => {
+      for (const repoPath of uniqueRepoPaths) {
+        try {
+          const subscriptionId = await window.electronAPI.startGitStateWatch(repoPath);
+
+          if (cancelled) {
+            await window.electronAPI.stopGitStateWatch(subscriptionId);
+            continue;
+          }
+
+          subscriptionIds.push(subscriptionId);
+        } catch (error) {
+          console.error('Failed to start Git state watch:', error);
+        }
+      }
+    };
+
+    void startWatching();
+
+    return () => {
+      cancelled = true;
+      unsubscribeFromEvents();
+
+      for (const subscriptionId of subscriptionIds) {
+        void window.electronAPI.stopGitStateWatch(subscriptionId).catch((error) => {
+          console.error('Failed to stop Git state watch:', error);
+        });
+      }
+    };
+  }, [repoPathsKey]);
 }
 
 export function useGitFileDiff(repoPath: string, filePath: string | null) {

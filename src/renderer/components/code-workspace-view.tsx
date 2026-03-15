@@ -1,6 +1,5 @@
 import {
   useCallback,
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -27,7 +26,11 @@ import {
   useCodexSessionState,
   type CodexSessionState,
 } from '@/renderer/hooks/use-codex-sessions';
-import { useGitDefaultBranch, useGitStatus } from '@/renderer/hooks/use-git';
+import {
+  useGitDefaultBranch,
+  useGitStateWatch,
+  useGitStatus,
+} from '@/renderer/hooks/use-git';
 import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';
 import { Button } from '@/shadcn/components/ui/button';
 import {
@@ -279,9 +282,9 @@ export function CodeWorkspaceView({
   const [isCreatingWorktree, setIsCreatingWorktree] = useState(false);
   const [draftAnswers, setDraftAnswers] = useState<Record<string, Record<string, string>>>({});
   const [activeLayer, setActiveLayer] = useState<ActiveLayer>('codex');
+  const [gitStateVersion, setGitStateVersion] = useState(0);
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
   const sidebarWidthAtDragStart = useRef(SIDEBAR_DEFAULT_WIDTH);
-  const previousSessionStatusRef = useRef<Record<string, string | null>>({});
 
   const {
     targets,
@@ -314,24 +317,16 @@ export function CodeWorkspaceView({
       ? {}
       : (draftAnswers[activePendingUserInput.requestId] ?? {});
 
-  useEffect(() => {
-    const previousStatus = previousSessionStatusRef.current[activeTarget.id] ?? null;
-    previousSessionStatusRef.current[activeTarget.id] = sessionState.status;
-
-    if (previousStatus === 'running' && sessionState.status !== 'running') {
-      void Promise.all([
-        rootStatusState.refetch(),
-        statusState.refetch(),
-        defaultBranchState.refetch(),
-      ]);
-    }
-  }, [
-    activeTarget.id,
-    defaultBranchState,
-    rootStatusState,
-    sessionState.status,
-    statusState,
-  ]);
+  useGitStateWatch([repoPath, activeTarget.cwd], () => {
+    void Promise.all([
+      rootStatusState.refetch(),
+      statusState.refetch(),
+      defaultBranchState.refetch(),
+    ]).catch((error) => {
+      console.error('Failed to refresh Git state:', error);
+    });
+    setGitStateVersion((current) => current + 1);
+  });
 
   const targetLabels = useMemo(
     () =>
@@ -498,6 +493,7 @@ export function CodeWorkspaceView({
             baseBranchName={defaultBranchState.data}
             branchName={statusState.data.branch}
             workingTreeFiles={statusState.data.files}
+            gitStateVersion={gitStateVersion}
             onFileSelect={() => setActiveLayer('files')}
           >
             {({ sidebar, viewport, historyDrawer }) => (

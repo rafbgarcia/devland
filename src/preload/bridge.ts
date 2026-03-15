@@ -17,6 +17,7 @@ import {
   GET_GIT_BRANCHES_CHANNEL,
   GET_GIT_DEFAULT_BRANCH_CHANNEL,
   GET_GIT_BRANCH_HISTORY_CHANNEL,
+  GIT_STATE_CHANGED_CHANNEL,
   GET_GIT_BRANCH_COMPARE_META_CHANNEL,
   GET_GIT_BRANCH_COMPARE_DIFF_CHANNEL,
   GET_GIT_STATUS_CHANNEL,
@@ -30,6 +31,9 @@ import {
   GET_PR_DIFF_META_CHANNEL,
   GET_COMMIT_DIFF_CHANNEL,
   GET_PR_DIFF_CHANNEL,
+  GitStateChangedEventSchema,
+  START_GIT_STATE_WATCH_CHANNEL,
+  STOP_GIT_STATE_WATCH_CHANNEL,
   INTERRUPT_CODEX_SESSION_CHANNEL,
   RESPOND_TO_CODEX_APPROVAL_CHANNEL,
   RESPOND_TO_CODEX_USER_INPUT_CHANNEL,
@@ -78,6 +82,10 @@ export const electronApi: ElectronApi = {
     ipcRenderer.invoke(GET_GIT_DEFAULT_BRANCH_CHANNEL, repoPath),
   getGitBranchHistory: (repoPath, branchName) =>
     ipcRenderer.invoke(GET_GIT_BRANCH_HISTORY_CHANNEL, repoPath, branchName),
+  startGitStateWatch: (repoPath) =>
+    ipcRenderer.invoke(START_GIT_STATE_WATCH_CHANNEL, repoPath),
+  stopGitStateWatch: (subscriptionId) =>
+    ipcRenderer.invoke(STOP_GIT_STATE_WATCH_CHANNEL, subscriptionId),
   getGitBranchCompareMeta: (repoPath, baseBranch, headBranch) =>
     ipcRenderer.invoke(
       GET_GIT_BRANCH_COMPARE_META_CHANNEL,
@@ -129,6 +137,23 @@ export const electronApi: ElectronApi = {
     ipcRenderer.invoke(RESPOND_TO_CODEX_APPROVAL_CHANNEL, input),
   respondToCodexUserInput: (input) =>
     ipcRenderer.invoke(RESPOND_TO_CODEX_USER_INPUT_CHANNEL, input),
+  onGitStateChanged: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, event: unknown) => {
+      const parsedEvent = GitStateChangedEventSchema.safeParse(event);
+
+      if (!parsedEvent.success) {
+        return;
+      }
+
+      listener(parsedEvent.data);
+    };
+
+    ipcRenderer.on(GIT_STATE_CHANGED_CHANNEL, handler);
+
+    return () => {
+      ipcRenderer.removeListener(GIT_STATE_CHANGED_CHANNEL, handler);
+    };
+  },
   onCodexSessionEvent: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, event: unknown) => {
       const parsedEvent = CodexSessionEventSchema.safeParse(event);

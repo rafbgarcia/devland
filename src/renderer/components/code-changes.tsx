@@ -28,6 +28,7 @@ export function CodeChanges({
   baseBranchName,
   branchName,
   workingTreeFiles,
+  gitStateVersion = 0,
   children,
   onFileSelect,
 }: {
@@ -35,6 +36,7 @@ export function CodeChanges({
   baseBranchName: string;
   branchName: string;
   workingTreeFiles: GitStatusFile[];
+  gitStateVersion?: number;
   children: (props: CodeChangesRenderProps) => ReactNode;
   onFileSelect?: () => void;
 }) {
@@ -60,6 +62,14 @@ export function CodeChanges({
     setIsHistoryOpen(false);
     setSelection({ type: 'working-tree' });
   }, [baseBranchName, branchName, repoPath]);
+
+  useEffect(() => {
+    if (gitStateVersion === 0 || !isHistoryOpen) {
+      return;
+    }
+
+    void refetchHistory();
+  }, [gitStateVersion, isHistoryOpen, refetchHistory]);
 
   const activeDiffState = selection.type === 'working-tree'
     ? workingTreeState.rawDiff

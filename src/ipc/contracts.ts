@@ -13,6 +13,9 @@ export const CLONE_GITHUB_REPO_PROGRESS_CHANNEL = 'app:clone-github-repo-progres
 export const GET_GIT_BRANCHES_CHANNEL = 'app:get-git-branches';
 export const GET_GIT_DEFAULT_BRANCH_CHANNEL = 'app:get-git-default-branch';
 export const GET_GIT_BRANCH_HISTORY_CHANNEL = 'app:get-git-branch-history';
+export const START_GIT_STATE_WATCH_CHANNEL = 'app:start-git-state-watch';
+export const STOP_GIT_STATE_WATCH_CHANNEL = 'app:stop-git-state-watch';
+export const GIT_STATE_CHANGED_CHANNEL = 'app:git-state-changed';
 export const GET_GIT_BRANCH_COMPARE_META_CHANNEL = 'app:get-git-branch-compare-meta';
 export const GET_GIT_BRANCH_COMPARE_DIFF_CHANNEL = 'app:get-git-branch-compare-diff';
 export const GET_GIT_STATUS_CHANNEL = 'app:get-git-status';
@@ -197,6 +200,11 @@ export const GitStatusSchema = z.object({
   files: z.array(GitStatusFileSchema),
 });
 export type GitStatus = z.infer<typeof GitStatusSchema>;
+
+export const GitStateChangedEventSchema = z.object({
+  repoPath: z.string().min(1),
+});
+export type GitStateChangedEvent = z.infer<typeof GitStateChangedEventSchema>;
 
 export const CODE_TARGET_KINDS = ['root', 'session', 'worktree'] as const;
 export const CodeTargetKindSchema = z.enum(CODE_TARGET_KINDS);
@@ -402,6 +410,8 @@ export interface ElectronApi {
     repoPath: string,
     branchName: string,
   ) => Promise<GitBranchHistory>;
+  startGitStateWatch: (repoPath: string) => Promise<string>;
+  stopGitStateWatch: (subscriptionId: string) => Promise<void>;
   getGitBranchCompareMeta: (
     repoPath: string,
     baseBranch: string,
@@ -444,5 +454,6 @@ export interface ElectronApi {
     requestId: string;
     answers: Record<string, string>;
   }) => Promise<void>;
+  onGitStateChanged: (listener: (event: GitStateChangedEvent) => void) => () => void;
   onCodexSessionEvent: (listener: (event: CodexSessionEvent) => void) => () => void;
 }
