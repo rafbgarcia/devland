@@ -434,18 +434,23 @@ export function CodeWorkspaceView({
     },
     body: string,
   ) => {
-    const rangeLabel = anchor.startLine === anchor.endLine
-      ? `${anchor.startLine}`
-      : `${anchor.startLine}-${anchor.endLine}`;
-    const sideLabel = anchor.side === 'old' ? 'before' : 'after';
-    const excerpt = anchor.excerpt.length > 0
-      ? `\nRelevant lines:\n\`\`\`\n${anchor.excerpt.join('\n')}\n\`\`\``
-      : '';
+    const payload = JSON.stringify(
+      {
+        kind: 'diff-comment',
+        path: anchor.path,
+        side: anchor.side,
+        startLine: anchor.startLine,
+        endLine: anchor.endLine,
+        excerpt: anchor.excerpt,
+      },
+      null,
+      2,
+    );
 
     await sendPrompt(
       activeTarget.id,
       activeTarget.cwd,
-      `Follow up on this diff comment for ${anchor.path}:${rangeLabel} (${sideLabel} side):\n\n${body}${excerpt}`,
+      `Process this anchored diff comment.\n\nContext:\n\`\`\`json\n${payload}\n\`\`\`\n\nUser comment:\n${body}`,
     );
     setActiveLayer('codex');
   }, [activeTarget.cwd, activeTarget.id, sendPrompt]);

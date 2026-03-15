@@ -42,7 +42,7 @@ Current Devland surfaces to replace or refactor:
 
 ## Phase 1: Build a real diff domain model
 
-- [ ] Replace the current string-to-flat-row parser with a structured diff model.
+- [x] Replace the current string-to-flat-row parser with a structured diff model.
 
 High-level intent:
 
@@ -72,7 +72,7 @@ Acceptance criteria:
 
 ## Phase 2: Add diff row projection for rendering
 
-- [ ] Introduce a shared row projection layer that turns structured hunks into renderable rows.
+- [x] Introduce a shared row projection layer that turns structured hunks into renderable rows.
 
 High-level intent:
 
@@ -109,7 +109,7 @@ Acceptance criteria:
 
 ## Phase 3: Implement GitHub Desktop-parity syntax highlighting
 
-- [ ] Build the syntax-highlighting pipeline from actual before/after file contents.
+- [x] Build the syntax-highlighting pipeline from actual before/after file contents.
 
 High-level intent:
 
@@ -143,7 +143,7 @@ Acceptance criteria:
 
 ## Phase 4: Add intra-line diff highlighting
 
-- [ ] Implement precise changed-substring highlighting inside modified rows.
+- [x] Implement precise changed-substring highlighting inside modified rows.
 
 High-level intent:
 
@@ -170,7 +170,7 @@ Acceptance criteria:
 
 ## Phase 5: Refactor the shared diff viewport around the new engine
 
-- [ ] Rebuild the shared diff viewport to consume the new diff engine rather than raw strings.
+- [x] Rebuild the shared diff viewport to consume the new diff engine rather than raw strings.
 
 High-level intent:
 
@@ -198,7 +198,7 @@ Acceptance criteria:
 
 ## Phase 6: Implement line selection for partial commits in Code view
 
-- [ ] Add GitHub Desktop-style line inclusion state and partial patch generation for Code view.
+- [x] Add GitHub Desktop-style line inclusion state and partial patch generation for Code view.
 
 High-level intent:
 
@@ -228,7 +228,7 @@ Acceptance criteria:
 
 ## Phase 7: Add normalized comment anchors
 
-- [ ] Define one shared comment-anchor model for diff lines and ranges.
+- [x] Define one shared comment-anchor model for diff lines and ranges.
 
 High-level intent:
 
@@ -259,7 +259,7 @@ Acceptance criteria:
 
 ## Phase 8: Implement Code view comments routed to the active Codex session
 
-- [ ] Add Code view inline comments that always go to the current active `CodeTarget` Codex app-server session.
+- [x] Add Code view inline comments that always go to the current active `CodeTarget` Codex app-server session.
 
 High-level intent:
 
@@ -319,9 +319,15 @@ Acceptance criteria:
 - Draft comments remain in review state until explicit submission.
 - The implementation uses `gh api graphql`, not browser automation or PR-level comment commands.
 
+Current status:
+
+- Draft thread creation is implemented from the AI review diff excerpts via `gh api graphql`.
+- Explicit pending-review submission UX is still outstanding.
+- Main PR diff view comments can be added later on top of the same shared comment-anchor model.
+
 ## Phase 10: Rebuild AI review excerpts on top of the shared diff engine
 
-- [ ] Replace the ad hoc AI review diff excerpts with shared diff-engine excerpts.
+- [x] Replace the ad hoc AI review diff excerpts with shared diff-engine excerpts.
 
 High-level intent:
 
