@@ -13,6 +13,7 @@ import {
   useGitWorkingTreeDiff,
 } from '@/renderer/hooks/use-git-code-changes';
 import { useDiffRenderFiles } from '@/renderer/hooks/use-diff-render-files';
+import { useWorkingTreeCommitSelection } from '@/renderer/hooks/use-working-tree-commit-selection';
 
 type CodeChangesSelection =
   | { type: 'working-tree' }
@@ -29,6 +30,7 @@ export function CodeChanges({
   baseBranchName,
   branchName,
   workingTreeFiles,
+  workingTreeHasStagedChanges = false,
   gitStateVersion = 0,
   children,
   onFileSelect,
@@ -37,6 +39,7 @@ export function CodeChanges({
   baseBranchName: string;
   branchName: string;
   workingTreeFiles: GitStatusFile[];
+  workingTreeHasStagedChanges?: boolean;
   gitStateVersion?: number;
   children: (props: CodeChangesRenderProps) => ReactNode;
   onFileSelect?: () => void;
@@ -101,6 +104,53 @@ export function CodeChanges({
             parentRevision: commitDiffState.parentRevision,
           },
   });
+  const workingTreeCommitSelection = useWorkingTreeCommitSelection({
+    repoPath,
+    diffFiles: selection.type === 'working-tree' ? activeRenderFiles : [],
+    enabled: selection.type === 'working-tree',
+  });
+  const isWorkingTreeSelection = selection.type === 'working-tree';
+
+  const getWorkingTreeHunkSelectionType = (path: string, hunkStartLineNumber: number) => {
+    const file = activeRenderFiles.find((candidate) => candidate.path === path);
+
+    if (!file) {
+      return 'none' as const;
+    }
+
+    const hunk = file.diff.hunks.find(
+      (candidate) => candidate.originalStartLineNumber === hunkStartLineNumber,
+    );
+    const hunkSelection = workingTreeCommitSelection.selectionByPath[path];
+
+    if (!hunk || !hunkSelection || hunkSelection.kind !== 'lines') {
+      return workingTreeCommitSelection.getFileSelectionType(path);
+    }
+
+    const selectableLines = hunk.lines
+      .filter((line) => line.isSelectable)
+      .map((line) => line.originalDiffLineNumber);
+    const selectedCount = selectableLines.filter((lineNumber) =>
+      hunkSelection.selection.isSelected(lineNumber),
+    ).length;
+
+    if (selectedCount === 0) {
+      return 'none' as const;
+    }
+
+    if (selectedCount === selectableLines.length) {
+      return 'all' as const;
+    }
+
+    return 'partial' as const;
+  };
+
+  const toggleWorkingTreeFileSelection = (path: string) => {
+    workingTreeCommitSelection.toggleFileSelection(
+      path,
+      workingTreeCommitSelection.getFileSelectionType(path) === 'none',
+    );
+  };
 
   const handleRestoreWorkingTree = () => {
     setSelection({ type: 'working-tree' });
@@ -131,6 +181,26 @@ export function CodeChanges({
       }}
       onRestoreBranchState={handleRestoreWorkingTree}
       emptyMessage={emptyMessage}
+      workingTreeCommitState={
+        isWorkingTreeSelection
+          ? {
+              selectedFileCount: workingTreeCommitSelection.selectedFileCount,
+              totalFileCount: activeRenderFiles.length,
+              summary: workingTreeCommitSelection.draft.summary,
+              description: workingTreeCommitSelection.draft.description,
+              isSubmitting: workingTreeCommitSelection.isSubmitting,
+              error: workingTreeCommitSelection.error,
+              hasStagedChanges: workingTreeHasStagedChanges,
+              getFileSelectionType: workingTreeCommitSelection.getFileSelectionType,
+              onToggleFileSelection: toggleWorkingTreeFileSelection,
+              onSummaryChange: workingTreeCommitSelection.setDraftSummary,
+              onDescriptionChange: workingTreeCommitSelection.setDraftDescription,
+              onCommit: () => {
+                void workingTreeCommitSelection.commitSelection();
+              },
+            }
+          : undefined
+      }
     />
   );
 
@@ -141,6 +211,46 @@ export function CodeChanges({
       diffFiles={activeRenderFiles}
       emptyMessage={emptyMessage}
       onVisibleFilesChange={setVisibleFiles}
+      getFileSelectionType={
+        isWorkingTreeSelection
+          ? workingTreeCommitSelection.getFileSelectionType
+          : undefined
+      }
+      getRowSelectionType={
+        isWorkingTreeSelection
+          ? workingTreeCommitSelection.getRowSelectionType
+          : undefined
+      }
+      getHunkSelectionType={
+        isWorkingTreeSelection
+          ? getWorkingTreeHunkSelectionType
+          : undefined
+      }
+      onToggleFileSelection={
+        isWorkingTreeSelection
+          ? toggleWorkingTreeFileSelection
+          : undefined
+      }
+      onToggleRowSelection={
+        isWorkingTreeSelection
+          ? (path, row) =>
+              workingTreeCommitSelection.toggleRowSelection(
+                path,
+                row,
+                workingTreeCommitSelection.getRowSelectionType(path, row) === 'none',
+              )
+          : undefined
+      }
+      onToggleHunkSelection={
+        isWorkingTreeSelection
+          ? (path, hunkStartLineNumber) =>
+              workingTreeCommitSelection.toggleHunkSelection(
+                path,
+                hunkStartLineNumber,
+                getWorkingTreeHunkSelectionType(path, hunkStartLineNumber) === 'none',
+              )
+          : undefined
+      }
     />
   );
 

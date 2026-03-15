@@ -10,8 +10,9 @@ import {
   type UIEvent,
 } from 'react';
 
-import { FileCodeIcon } from 'lucide-react';
+import { CheckIcon, FileCodeIcon, MinusIcon } from 'lucide-react';
 
+import type { DiffSelectionType } from '@/lib/diff';
 import { DiffFileSection } from '@/renderer/components/diff-renderer';
 import { TruncatedFilePath } from '@/renderer/components/truncated-file-path';
 import { type DiffRenderFile } from '@/renderer/hooks/use-diff-render-files';
@@ -71,6 +72,37 @@ function estimateFileHeight(file: DiffRenderFile) {
   );
 }
 
+function FileSelectionToggle({
+  selectionType,
+  onClick,
+}: {
+  selectionType: DiffSelectionType;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick();
+      }}
+      className={cn(
+        'flex size-5 shrink-0 items-center justify-center rounded-sm border text-muted-foreground transition-colors',
+        selectionType === 'all' && 'border-primary bg-primary text-primary-foreground',
+        selectionType === 'partial' && 'border-primary/70 bg-primary/15 text-primary',
+        selectionType === 'none' && 'border-border/70 bg-background hover:border-primary/40 hover:text-foreground',
+      )}
+      aria-pressed={selectionType !== 'none'}
+    >
+      {selectionType === 'all' ? (
+        <CheckIcon className="size-3" />
+      ) : selectionType === 'partial' ? (
+        <MinusIcon className="size-3" />
+      ) : null}
+    </button>
+  );
+}
+
 function getRangeForWindow(
   itemHeights: number[],
   offsets: number[],
@@ -101,7 +133,10 @@ export function FilesChangedList({
   onSelectFile,
   actions,
   topContent,
+  bottomContent,
   emptyMessage = 'No changed files.',
+  getFileSelectionType,
+  onToggleFileSelection,
 }: {
   title?: string;
   files: DiffRenderFile[];
@@ -109,7 +144,10 @@ export function FilesChangedList({
   onSelectFile: (path: string) => void;
   actions?: ReactNode;
   topContent?: ReactNode;
+  bottomContent?: ReactNode;
   emptyMessage?: string;
+  getFileSelectionType?: ((path: string) => DiffSelectionType) | undefined;
+  onToggleFileSelection?: ((path: string) => void) | undefined;
 }) {
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -145,12 +183,19 @@ export function FilesChangedList({
                 isVisible && 'bg-primary/10',
               )}
             >
+              {getFileSelectionType && onToggleFileSelection ? (
+                <FileSelectionToggle
+                  selectionType={getFileSelectionType(file.path)}
+                  onClick={() => onToggleFileSelection(file.path)}
+                />
+              ) : null}
               <span className={cn('size-1.5 shrink-0 rounded-full', config.dotClassName)} />
               <TruncatedFilePath path={file.path} className="flex-1 text-xs" />
             </button>
           );
         })}
       </div>
+      {bottomContent}
     </div>
   );
 }
@@ -171,7 +216,13 @@ type CodeChangesFilesViewportProps = {
   sidebar?: ReactNode | ((props: CodeChangesSidebarRenderProps) => ReactNode);
   mainTop?: ReactNode;
   emptyMessage: string;
-  onVisibleFilesChange?: (files: Set<string>) => void;
+  onVisibleFilesChange?: ((files: Set<string>) => void) | undefined;
+  getFileSelectionType?: ((path: string) => DiffSelectionType) | undefined;
+  getRowSelectionType?: ((path: string, row: DiffRenderFile['rows'][number]) => DiffSelectionType) | undefined;
+  getHunkSelectionType?: ((path: string, hunkStartLineNumber: number) => DiffSelectionType) | undefined;
+  onToggleFileSelection?: ((path: string) => void) | undefined;
+  onToggleRowSelection?: ((path: string, row: DiffRenderFile['rows'][number]) => void) | undefined;
+  onToggleHunkSelection?: ((path: string, hunkStartLineNumber: number) => void) | undefined;
 };
 
 export const CodeChangesFilesViewport = forwardRef<CodeChangesViewportHandle, CodeChangesFilesViewportProps>(
@@ -182,6 +233,12 @@ export const CodeChangesFilesViewport = forwardRef<CodeChangesViewportHandle, Co
     mainTop,
     emptyMessage,
     onVisibleFilesChange,
+    getFileSelectionType,
+    getRowSelectionType,
+    getHunkSelectionType,
+    onToggleFileSelection,
+    onToggleRowSelection,
+    onToggleHunkSelection,
   }, ref) {
   const [scrollTop, setScrollTop] = useState(0);
   const [containerHeight, setContainerHeight] = useState(0);
@@ -412,7 +469,16 @@ export const CodeChangesFilesViewport = forwardRef<CodeChangesViewportHandle, Co
                       right: VIEWPORT_INSET_PX,
                     }}
                   >
-                    <DiffFileSection file={file} sectionRef={getSectionRef(file.path)} />
+                    <DiffFileSection
+                      file={file}
+                      sectionRef={getSectionRef(file.path)}
+                      selectionType={getFileSelectionType?.(file.path)}
+                      getRowSelectionType={getRowSelectionType ? (row) => getRowSelectionType(file.path, row) : undefined}
+                      getHunkSelectionType={getHunkSelectionType ? (hunkStartLineNumber) => getHunkSelectionType(file.path, hunkStartLineNumber) : undefined}
+                      onToggleFileSelection={onToggleFileSelection ? () => onToggleFileSelection(file.path) : undefined}
+                      onToggleRowSelection={onToggleRowSelection ? (row) => onToggleRowSelection(file.path, row) : undefined}
+                      onToggleHunkSelection={onToggleHunkSelection ? (hunkStartLineNumber) => onToggleHunkSelection(file.path, hunkStartLineNumber) : undefined}
+                    />
                   </div>
                 );
               })}

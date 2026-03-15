@@ -93,6 +93,22 @@ export class DiffSelection {
       : DiffSelection.none(this.selectableLines);
   }
 
+  public withSelectableLines(selectableLines: ReadonlySet<number>) {
+    const nextSelectableLines = new Set(selectableLines);
+    const nextDivergingLines =
+      this.divergingLines === null
+        ? null
+        : new Set(
+            [...this.divergingLines].filter((lineNumber) => nextSelectableLines.has(lineNumber)),
+          );
+
+    return new DiffSelection(
+      this.defaultSelectionType,
+      nextDivergingLines,
+      nextSelectableLines,
+    );
+  }
+
   public getSelectedLineNumbers() {
     return [...this.selectableLines].filter((lineNumber) => this.isSelected(lineNumber));
   }
@@ -111,4 +127,3 @@ export function getSelectableDiffLineNumbers(file: DiffFile) {
 
   return lineNumbers;
 }
-

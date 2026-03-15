@@ -493,6 +493,7 @@ export function CodeWorkspaceView({
             baseBranchName={defaultBranchState.data}
             branchName={statusState.data.branch}
             workingTreeFiles={statusState.data.files}
+            workingTreeHasStagedChanges={statusState.data.hasStagedChanges}
             gitStateVersion={gitStateVersion}
             onFileSelect={() => setActiveLayer('files')}
           >
