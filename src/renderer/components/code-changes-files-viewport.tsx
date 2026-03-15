@@ -188,12 +188,10 @@ export function FilesChangedList({
           const isVisible = visibleFiles.has(file.path);
 
           return (
-            <button
+            <div
               key={file.path}
-              type="button"
-              onClick={() => onSelectFile(file.path)}
               className={cn(
-                'flex min-w-0 w-full items-center gap-2 px-3 py-[5px] text-left text-xs transition-colors hover:bg-accent/50',
+                'flex min-w-0 w-full items-center gap-2 px-3 py-[5px] text-xs transition-colors hover:bg-accent/50',
                 isVisible && 'bg-primary/10',
               )}
             >
@@ -203,9 +201,15 @@ export function FilesChangedList({
                   onClick={() => onToggleFileSelection(file.path)}
                 />
               ) : null}
-              <span className={cn('size-1.5 shrink-0 rounded-full', config.dotClassName)} />
-              <TruncatedFilePath path={file.path} className="flex-1 text-xs" />
-            </button>
+              <button
+                type="button"
+                onClick={() => onSelectFile(file.path)}
+                className="flex min-w-0 flex-1 items-center gap-2 text-left"
+              >
+                <span className={cn('size-1.5 shrink-0 rounded-full', config.dotClassName)} />
+                <TruncatedFilePath path={file.path} className="flex-1 text-xs" />
+              </button>
+            </div>
           );
         })}
       </div>

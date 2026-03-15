@@ -331,7 +331,7 @@ export function CodeWorkspaceView({
       Object.fromEntries(
         targets.map((target) => {
           if (target.kind === 'root') {
-            return [target.id, `Current branch · ${rootBranch}`];
+            return [target.id, rootBranch];
           }
 
           if (target.kind === 'session') {
