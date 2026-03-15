@@ -14,7 +14,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 
 import { PluginBase } from '@electron-forge/plugin-base';
-import type { ResolvedForgeConfig, StartOptions, StartResult } from '@electron-forge/shared-types';
+import type { ResolvedForgeConfig, StartResult } from '@electron-forge/shared-types';
 
 type DevAppLauncherPluginConfig = {
   displayName: string;
@@ -174,7 +174,7 @@ export class DevAppLauncherPlugin extends PluginBase<DevAppLauncherPluginConfig>
     super.init(dir, config);
   }
 
-  override async startLogic(_startOpts: StartOptions): Promise<StartResult> {
+  override async startLogic(): Promise<StartResult> {
     return resolveDevElectronExecutable(this.projectDir, this.config) ?? false;
   }
 }

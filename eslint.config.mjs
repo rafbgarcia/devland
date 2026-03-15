@@ -16,6 +16,7 @@ export default [
       'dist/**',
       '.vite/**',
       'node_modules/**',
+      'convex/_generated/**',
       'eslint.config.mjs',
       'src/routeTree.gen.ts',
     ],

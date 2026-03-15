@@ -6,7 +6,6 @@ import {
   type Repo,
   type WorkspaceSession,
 } from '@/ipc/contracts';
-import { dayjs } from '@/lib/dayjs';
 
 export type ProjectTabRouteTo =
   | '/projects/$repoId/code'

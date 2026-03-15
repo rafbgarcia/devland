@@ -5,7 +5,6 @@ import {
   CodeIcon,
   FolderOpenIcon,
   GitPullRequestArrowIcon,
-  GithubIcon,
   HashIcon,
   MessageSquareDotIcon,
   PlusIcon,
