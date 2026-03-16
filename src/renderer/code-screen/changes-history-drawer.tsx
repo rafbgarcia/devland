@@ -8,7 +8,7 @@ import { AnimatePresence, motion } from 'motion/react';
 
 import type { PrCommit } from '@/ipc/contracts';
 import { Spinner } from '@/shadcn/components/ui/spinner';
-import { RelativeTime } from '@/ui/relative-time';
+import { RelativeTime } from '@/renderer/shared/ui/relative-time';
 import { Button } from '@/shadcn/components/ui/button';
 import {
   Empty,

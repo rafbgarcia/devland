@@ -10,16 +10,17 @@ import {
   type DiffCommentSide,
   type DiffSelectionType,
 } from '@/lib/diff';
-import type { DiffRenderFile } from '@/renderer/hooks/use-diff-render-files';
 import {
   getHighlightTokensForLine,
   getIntraLineDiffTokens,
   renderHighlightedText,
-} from '@/renderer/lib/diff/render-highlighted-text';
+} from '@/renderer/shared/ui/diff/render-highlighted-text';
 import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';
 import { Button } from '@/shadcn/components/ui/button';
 import { Textarea } from '@/shadcn/components/ui/textarea';
 import { cn } from '@/shadcn/lib/utils';
+
+import type { DiffRenderFile } from './use-diff-render-files';
 
 const ROW_BASE_CLASS = 'font-mono text-[13px] leading-[22px]';
 const GUTTER_CLASS =

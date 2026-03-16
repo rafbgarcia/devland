@@ -18,7 +18,7 @@ import {
   type CodexChatMessage,
   type CodexSessionActivity,
   type CodexSessionState,
-} from '@/renderer/hooks/use-codex-sessions';
+} from '@/renderer/code-screen/use-codex-sessions';
 import { Button } from '@/shadcn/components/ui/button';
 import {
   Empty,

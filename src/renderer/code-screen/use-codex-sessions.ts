@@ -7,7 +7,7 @@ import type {
   CodexSessionStatus,
   CodexUserInputQuestion,
 } from '@/ipc/contracts';
-import { appJotaiStore } from '@/renderer/lib/jotai-store';
+import { appJotaiStore } from '@/renderer/shared/lib/jotai-store';
 
 export type CodexChatMessage = {
   id: string;

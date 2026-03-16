@@ -1,5 +1,5 @@
 import type { DiffDisplayMode } from '@/lib/diff';
-import { useUserPreferences } from '@/renderer/hooks/use-user-preferences';
+import { useUserPreferences } from '@/renderer/shared/hooks/use-user-preferences';
 import { ToggleGroup, ToggleGroupItem } from '@/shadcn/components/ui/toggle-group';
 import { cn } from '@/shadcn/lib/utils';
 

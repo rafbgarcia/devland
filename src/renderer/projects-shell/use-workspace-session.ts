@@ -7,7 +7,7 @@ import type { ProjectViewTab, WorkspaceSession } from '@/ipc/contracts';
 import {
   DEFAULT_WORKSPACE_SESSION,
   sanitizeWorkspaceSession,
-} from '@/renderer/lib/projects';
+} from '@/renderer/shared/lib/projects';
 
 const STORAGE_KEY = 'devland:workspace-session';
 

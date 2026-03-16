@@ -18,12 +18,12 @@ import { useCodeTargets } from '@/renderer/code-screen/use-code-targets';
 import {
   useCodexSessionActions,
   useCodexSessionState,
-} from '@/renderer/hooks/use-codex-sessions';
+} from '@/renderer/code-screen/use-codex-sessions';
 import {
   useGitDefaultBranch,
   useGitStateWatch,
   useGitStatus,
-} from '@/renderer/hooks/use-git';
+} from '@/renderer/code-screen/use-git';
 import { Button } from '@/shadcn/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/shadcn/components/ui/tabs';
 import { cn } from '@/shadcn/lib/utils';

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { ProjectFeed } from '@/ipc/contracts';
-import { useProjectRepoDetailsState } from '@/renderer/hooks/use-project-repo';
+import { useProjectRepoDetailsState } from '@/renderer/projects-shell/use-project-repo';
 
 import type { ProjectFeedStatus } from './project-feed';
 

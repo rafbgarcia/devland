@@ -1,7 +1,7 @@
 import { Navigate, createFileRoute } from '@tanstack/react-router';
 
-import { useWorkspaceSession } from '@/renderer/hooks/use-workspace-session';
-import { getProjectTabRouteTo } from '@/renderer/lib/projects';
+import { useWorkspaceSession } from '@/renderer/projects-shell/use-workspace-session';
+import { getProjectTabRouteTo } from '@/renderer/shared/lib/projects';
 
 export const Route = createFileRoute('/projects/$repoId/')({
   component: ProjectIndexRoute,

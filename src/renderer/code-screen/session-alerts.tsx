@@ -1,6 +1,6 @@
 import { memo, useMemo, useState } from 'react';
 
-import type { PendingApproval, PendingUserInput } from '@/renderer/hooks/use-codex-sessions';
+import type { PendingApproval, PendingUserInput } from '@/renderer/code-screen/use-codex-sessions';
 import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';
 import { Button } from '@/shadcn/components/ui/button';
 

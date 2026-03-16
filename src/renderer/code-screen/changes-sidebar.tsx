@@ -10,10 +10,10 @@ import type { PrCommit } from '@/ipc/contracts';
 import type { DiffSelectionType } from '@/lib/diff';
 import {
   FilesChangedList,
-} from '@/renderer/components/code-changes-files-viewport';
+} from '@/renderer/shared/ui/diff/code-changes-files-viewport';
 import { CommitComposer } from '@/renderer/code-screen/commit-composer';
-import type { DiffRenderFile } from '@/renderer/hooks/use-diff-render-files';
-import { RelativeTime } from '@/ui/relative-time';
+import type { DiffRenderFile } from '@/renderer/shared/ui/diff/use-diff-render-files';
+import { RelativeTime } from '@/renderer/shared/ui/relative-time';
 import {
   Alert,
   AlertAction,

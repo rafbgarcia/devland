@@ -12,11 +12,12 @@ import {
   type DiffFile,
   type DiffRow,
 } from '@/lib/diff';
-import { type AsyncState } from '@/renderer/hooks/use-pr-diff-data';
 import {
   highlightDiffFileContents,
   type DiffFileTokens,
-} from '@/renderer/lib/diff/highlighter';
+} from '@/renderer/shared/ui/diff/highlighter';
+
+import type { AsyncState } from './diff-types';
 
 const SYNTAX_CACHE_LIMIT = 40;
 const PARSED_DIFF_CACHE_LIMIT = 12;

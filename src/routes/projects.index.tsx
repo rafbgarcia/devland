@@ -2,13 +2,13 @@ import { useState } from 'react';
 import { Navigate, createFileRoute } from '@tanstack/react-router';
 import { GithubIcon, PlusIcon } from 'lucide-react';
 
-import { AddProjectDialog } from '@/renderer/components/project-workspace';
-import { useRepoActions, useRepos } from '@/renderer/hooks/use-repos';
-import { useWorkspaceSession } from '@/renderer/hooks/use-workspace-session';
+import { AddProjectDialog } from '@/renderer/projects-shell/project-workspace';
+import { useRepoActions, useRepos } from '@/renderer/projects-shell/use-repos';
+import { useWorkspaceSession } from '@/renderer/projects-shell/use-workspace-session';
 import {
   getProjectTabRouteTo,
   resolvePreferredRepoId,
-} from '@/renderer/lib/projects';
+} from '@/renderer/shared/lib/projects';
 import { Button } from '@/shadcn/components/ui/button';
 import {
   Empty,

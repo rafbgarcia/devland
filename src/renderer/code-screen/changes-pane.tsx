@@ -11,8 +11,8 @@ import {
   useGitWorkingTreeDiff,
 } from '@/renderer/code-screen/use-git-code-changes';
 import { useWorkingTreeCommitSelection } from '@/renderer/code-screen/use-working-tree-commit-selection';
-import { useDiffRenderFiles } from '@/renderer/hooks/use-diff-render-files';
-import { useUserPreferences } from '@/renderer/hooks/use-user-preferences';
+import { useDiffRenderFiles } from '@/renderer/shared/ui/diff/use-diff-render-files';
+import { useUserPreferences } from '@/renderer/shared/hooks/use-user-preferences';
 
 type CodeChangesSelection =
   | { type: 'working-tree' }

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { DownloadIcon, FolderGit2Icon } from 'lucide-react';
 
-import { useRepoActions } from '@/renderer/hooks/use-repos';
+import { useRepoActions } from './use-repos';
 import { Button } from '@/shadcn/components/ui/button';
 import {
   Empty,

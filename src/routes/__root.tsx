@@ -1,6 +1,6 @@
 import { Outlet, createRootRoute } from '@tanstack/react-router';
 
-import { OnboardingPrerequisitesPage } from '@/renderer/components/onboarding-prerequisites-page';
+import { OnboardingPrerequisitesPage } from '@/renderer/onboarding-screen/onboarding-prerequisites-page';
 
 export const Route = createRootRoute({
   loader: () => window.electronAPI.getAppBootstrap(),

@@ -9,7 +9,7 @@ import {
   isAbsoluteProjectPath,
   isGitHubProjectReference,
   normalizeProjectInput,
-} from '@/renderer/lib/projects';
+} from '@/renderer/shared/lib/projects';
 
 const STORAGE_KEY = 'devland:repos';
 

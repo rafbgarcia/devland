@@ -8,7 +8,7 @@ import {
   type DiffRow,
 } from '@/lib/diff';
 import type { DiffFile } from '@/lib/diff/types';
-import type { DiffRenderFile } from '@/renderer/hooks/use-diff-render-files';
+import type { DiffRenderFile } from '@/renderer/shared/ui/diff/use-diff-render-files';
 
 type WholeFileSelection = {
   kind: 'whole-file';

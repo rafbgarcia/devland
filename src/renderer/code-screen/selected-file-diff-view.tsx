@@ -1,10 +1,10 @@
 import { memo, useCallback } from 'react';
 
 import type { DiffCommentAnchor, DiffDisplayMode, DiffSelectionType } from '@/lib/diff';
-import { DiffDisplayModeToolbar } from '@/renderer/components/diff-display-mode-toolbar';
-import { DiffFileSection } from '@/renderer/components/diff-renderer';
-import type { DiffRenderFile } from '@/renderer/hooks/use-diff-render-files';
-import type { AsyncState } from '@/renderer/hooks/use-pr-diff-data';
+import { DiffDisplayModeToolbar } from '@/renderer/shared/ui/diff/diff-display-mode-toolbar';
+import { DiffFileSection } from '@/renderer/shared/ui/diff/diff-renderer';
+import type { AsyncState } from '@/renderer/shared/ui/diff/diff-types';
+import type { DiffRenderFile } from '@/renderer/shared/ui/diff/use-diff-render-files';
 import { Spinner } from '@/shadcn/components/ui/spinner';
 
 export const SelectedFileDiffView = memo(function SelectedFileDiffView({

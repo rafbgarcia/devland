@@ -19,9 +19,9 @@ import {
   getProjectTabRouteTo,
   isProjectViewTab,
   type ProjectTabRouteTo,
-} from '@/renderer/lib/projects';
-import { useRepoActions, useRepos } from '@/renderer/hooks/use-repos';
-import { useWorkspaceSession } from '@/renderer/hooks/use-workspace-session';
+} from '@/renderer/shared/lib/projects';
+import { useRepoActions, useRepos } from './use-repos';
+import { useWorkspaceSession } from './use-workspace-session';
 import { Button } from '@/shadcn/components/ui/button';
 import {
   Dialog,

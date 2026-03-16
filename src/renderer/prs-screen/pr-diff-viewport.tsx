@@ -7,13 +7,13 @@ import {
 
 import type { PrCommit } from '@/ipc/contracts';
 import type { DiffDisplayMode } from '@/lib/diff';
-import { CodeChangesCommitsList } from '@/renderer/components/code-changes-commits-list';
+import { CodeChangesCommitsList } from '@/renderer/shared/ui/diff/code-changes-commits-list';
 import {
   CodeChangesFilesViewport,
   FilesChangedList,
-} from '@/renderer/components/code-changes-files-viewport';
-import { type DiffRenderFile } from '@/renderer/hooks/use-diff-render-files';
-import { type AsyncState, type DiffSelection } from '@/renderer/hooks/use-pr-diff-data';
+} from '@/renderer/shared/ui/diff/code-changes-files-viewport';
+import type { AsyncState, DiffSelection } from '@/renderer/shared/ui/diff/diff-types';
+import { type DiffRenderFile } from '@/renderer/shared/ui/diff/use-diff-render-files';
 import { cn } from '@/shadcn/lib/utils';
 
 function CommitCarousel({

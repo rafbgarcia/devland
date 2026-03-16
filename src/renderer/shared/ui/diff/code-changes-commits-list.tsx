@@ -1,8 +1,9 @@
 import { GitCommitHorizontalIcon, LayersIcon } from 'lucide-react';
 
 import type { PrCommit } from '@/ipc/contracts';
-import { type DiffSelection } from '@/renderer/hooks/use-pr-diff-data';
 import { cn } from '@/shadcn/lib/utils';
+
+import type { DiffSelection } from './diff-types';
 
 export function CodeChangesCommitsList({
   commits,

@@ -6,9 +6,9 @@ import { AnimatePresence, motion } from 'motion/react';
 
 import type { PrReview } from '@/ipc/contracts';
 import { getDiffRowsRenderLineCount, type DiffCommentAnchor } from '@/lib/diff';
-import { DiffFileSection } from '@/renderer/components/diff-renderer';
-import { useDiffRenderFiles, type DiffRenderFile } from '@/renderer/hooks/use-diff-render-files';
-import { useUserPreferences } from '@/renderer/hooks/use-user-preferences';
+import { useUserPreferences } from '@/renderer/shared/hooks/use-user-preferences';
+import { DiffFileSection } from '@/renderer/shared/ui/diff/diff-renderer';
+import { useDiffRenderFiles, type DiffRenderFile } from '@/renderer/shared/ui/diff/use-diff-render-files';
 import { Button } from '@/shadcn/components/ui/button';
 import { Spinner } from '@/shadcn/components/ui/spinner';
 

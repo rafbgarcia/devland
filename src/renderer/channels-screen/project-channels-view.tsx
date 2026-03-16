@@ -7,7 +7,7 @@ import { api } from '../../../convex/_generated/api';
 import type { Doc, Id } from '../../../convex/_generated/dataModel';
 import { dayjs } from '@/lib/dayjs';
 import { Route as RootRoute } from '@/routes/__root';
-import { useProjectRepoDetailsState } from '@/renderer/hooks/use-project-repo';
+import { useProjectRepoDetailsState } from '@/renderer/projects-shell/use-project-repo';
 import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';
 import { Avatar, AvatarFallback } from '@/shadcn/components/ui/avatar';
 import { Badge } from '@/shadcn/components/ui/badge';

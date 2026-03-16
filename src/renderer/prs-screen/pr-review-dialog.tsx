@@ -5,10 +5,10 @@ import { motion, type Variants } from 'motion/react';
 
 import type { PrDiffMetaResult, PrReview } from '@/ipc/contracts';
 import type { DiffCommentAnchor } from '@/lib/diff';
-import { CodeCloneView } from '@/renderer/components/code-clone-view';
-import { usePrReviewCache } from '@/renderer/hooks/use-pr-review-cache';
-import { usePrReviewGeneration } from '@/renderer/hooks/use-pr-review-generation';
-import { isAbsoluteProjectPath } from '@/renderer/lib/projects';
+import { CodeCloneView } from '@/renderer/projects-shell/code-clone-view';
+import { usePrReviewCache } from '@/renderer/prs-screen/use-pr-review-cache';
+import { usePrReviewGeneration } from '@/renderer/prs-screen/use-pr-review-generation';
+import { isAbsoluteProjectPath } from '@/renderer/shared/lib/projects';
 import { Button } from '@/shadcn/components/ui/button';
 import {
   Empty,
@@ -18,7 +18,7 @@ import {
   EmptyTitle,
 } from '@/shadcn/components/ui/empty';
 import { Spinner } from '@/shadcn/components/ui/spinner';
-import { RelativeTime } from '@/ui/relative-time';
+import { RelativeTime } from '@/renderer/shared/ui/relative-time';
 
 import {
   Tabs,

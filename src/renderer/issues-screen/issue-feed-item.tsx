@@ -1,5 +1,5 @@
 import type { ProjectIssueFeedItem } from '@/ipc/contracts';
-import { ProjectFeedItemFrame } from '@/renderer/shared/project-feed/project-feed';
+import { ProjectFeedItemFrame } from '@/renderer/shared/ui/project-feed/project-feed';
 import { cn } from '@/shadcn/lib/utils';
 
 export function IssueFeedItem({

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { GitBranchHistory, GitStatusFile } from '@/ipc/contracts';
-import { parseDiffFiles, type DiffFile } from '@/renderer/lib/code-diff';
-import { type AsyncState } from '@/renderer/hooks/use-pr-diff-data';
+import { parseDiffFiles, type DiffFile } from '@/renderer/shared/ui/diff/code-diff';
+import type { AsyncState } from '@/renderer/shared/ui/diff/diff-types';
 
 type BranchHistoryState =
   | {

@@ -7,8 +7,8 @@ import type { ProjectPullRequestFeed } from '@/ipc/contracts';
 import {
   ProjectFeedScaffold,
   type ProjectFeedDefinition,
-} from '@/renderer/shared/project-feed/project-feed';
-import { useProjectRepoDetailsState } from '@/renderer/hooks/use-project-repo';
+} from '@/renderer/shared/ui/project-feed/project-feed';
+import { useProjectRepoDetailsState } from '@/renderer/projects-shell/use-project-repo';
 
 import { PullRequestFeedItem } from './pull-request-feed-item';
 import { reviewPrAtom } from './pr-review-button';

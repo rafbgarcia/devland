@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 
 import { renderToStaticMarkup } from 'react-dom/server';
 
-import { renderHighlightedText } from '@/renderer/lib/diff/render-highlighted-text';
+import { renderHighlightedText } from '@/renderer/shared/ui/diff/render-highlighted-text';
 
 describe('renderHighlightedText', () => {
   it('merges syntax token styles with diff overlay classes', () => {

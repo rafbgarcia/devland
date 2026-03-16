@@ -5,8 +5,8 @@ import { atom, useSetAtom } from 'jotai';
 import { CodeIcon } from 'lucide-react';
 
 import type { ProjectPullRequestFeedItem } from '@/ipc/contracts';
-import { usePrReviewGeneration } from '@/renderer/hooks/use-pr-review-generation';
-import { useProjectRepoDetailsState } from '@/renderer/hooks/use-project-repo';
+import { usePrReviewGeneration } from '@/renderer/prs-screen/use-pr-review-generation';
+import { useProjectRepoDetailsState } from '@/renderer/projects-shell/use-project-repo';
 import { Button, buttonVariants } from '@/shadcn/components/ui/button';
 import { Spinner } from '@/shadcn/components/ui/spinner';
 import { cn } from '@/shadcn/lib/utils';

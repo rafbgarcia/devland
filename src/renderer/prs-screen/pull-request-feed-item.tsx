@@ -6,7 +6,7 @@ import {
 import type { ProjectPullRequestFeedItem } from '@/ipc/contracts';
 import {
   ProjectFeedItemFrame,
-} from '@/renderer/shared/project-feed/project-feed';
+} from '@/renderer/shared/ui/project-feed/project-feed';
 import { cn } from '@/shadcn/lib/utils';
 
 import { PrReviewButton } from './pr-review-button';

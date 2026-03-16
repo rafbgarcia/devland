@@ -1,5 +1,5 @@
 // eslint-disable-next-line import/default
-import HighlighterWorker from '@/renderer/lib/diff/highlighter.worker?worker';
+import HighlighterWorker from '@/renderer/shared/ui/diff/highlighter.worker?worker';
 
 import type {
   DiffContentPair,

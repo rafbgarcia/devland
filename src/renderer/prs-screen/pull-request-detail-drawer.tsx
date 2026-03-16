@@ -5,11 +5,11 @@ import {
 } from 'lucide-react';
 
 import type { ProjectPullRequestFeedItem } from '@/ipc/contracts';
-import { getAuthorLogin } from '@/renderer/lib/github-view';
+import { getAuthorLogin } from '@/renderer/shared/lib/github-view';
 import { SlidingDetailDrawer } from '@/renderer/shared/ui/sliding-detail-drawer';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shadcn/components/ui/avatar';
 import { Badge } from '@/shadcn/components/ui/badge';
-import { RelativeTime } from '@/ui/relative-time';
+import { RelativeTime } from '@/renderer/shared/ui/relative-time';
 
 import { PrReviewButton } from './pr-review-button';
 import { PullRequestDiffStats } from './pull-request-diff-stats';

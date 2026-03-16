@@ -6,7 +6,7 @@ import {
   parseDiff,
   type DiffLineType,
   type ParsedDiffLine,
-} from '@/renderer/lib/code-diff';
+} from '@/renderer/shared/ui/diff/code-diff';
 import { Spinner } from '@/shadcn/components/ui/spinner';
 import { cn } from '@/shadcn/lib/utils';
 

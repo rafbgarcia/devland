@@ -1,21 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { PrDiffMetaResult } from '@/ipc/contracts';
-import { parseDiffFiles, type DiffFile } from '@/renderer/lib/code-diff';
-
-export type DiffSelection =
-  | { type: 'commit'; index: number }
-  | { type: 'all' };
+import { parseDiffFiles, type DiffFile } from '@/renderer/shared/ui/diff/code-diff';
+import type { AsyncState, DiffSelection } from '@/renderer/shared/ui/diff/diff-types';
 
 export type PrDiffContext =
   | { kind: 'commit'; commitRevision: string; parentRevision: string | null }
   | { kind: 'comparison'; oldRevision: string; newRevision: string };
-
-export type AsyncState<T> =
-  | { status: 'idle' }
-  | { status: 'loading' }
-  | { status: 'ready'; data: T }
-  | { status: 'error'; error: string };
 
 export function usePrDiffData({
   repoPath,

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { GithubIcon, MessageSquareIcon, RefreshCwIcon } from 'lucide-react';
 
 import type { GitHubUserWithAvatar, ProjectFeed, ProjectFeedItemBase } from '@/ipc/contracts';
-import { getAuthorLogin, getUniqueCommentAuthors } from '@/renderer/lib/github-view';
+import { getAuthorLogin, getUniqueCommentAuthors } from '@/renderer/shared/lib/github-view';
 import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';
 import {
   Avatar,
@@ -28,7 +28,7 @@ import {
   TooltipTrigger,
 } from '@/shadcn/components/ui/tooltip';
 import { cn } from '@/shadcn/lib/utils';
-import { RelativeTime } from '@/ui/relative-time';
+import { RelativeTime } from '@/renderer/shared/ui/relative-time';
 
 const VISIBLE_AUTHORS_LIMIT = 3;
 

@@ -6,7 +6,7 @@ import type { ProjectIssueFeed } from '@/ipc/contracts';
 import {
   ProjectFeedScaffold,
   type ProjectFeedDefinition,
-} from '@/renderer/shared/project-feed/project-feed';
+} from '@/renderer/shared/ui/project-feed/project-feed';
 
 import { IssueFeedItem } from './issue-feed-item';
 import { IssueDetailDrawer } from './issue-detail-drawer';

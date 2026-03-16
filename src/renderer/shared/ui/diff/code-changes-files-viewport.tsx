@@ -18,12 +18,13 @@ import {
   type DiffDisplayMode,
   type DiffSelectionType,
 } from '@/lib/diff';
-import { DiffFileSection } from '@/renderer/components/diff-renderer';
-import { TruncatedFilePath } from '@/renderer/components/truncated-file-path';
-import { type DiffRenderFile } from '@/renderer/hooks/use-diff-render-files';
-import { type AsyncState } from '@/renderer/hooks/use-pr-diff-data';
 import { Spinner } from '@/shadcn/components/ui/spinner';
 import { cn } from '@/shadcn/lib/utils';
+
+import { DiffFileSection } from './diff-renderer';
+import type { AsyncState } from './diff-types';
+import { TruncatedFilePath } from './truncated-file-path';
+import { type DiffRenderFile } from './use-diff-render-files';
 
 const FILE_STATUS_CONFIG: Record<
   DiffRenderFile['status'],
