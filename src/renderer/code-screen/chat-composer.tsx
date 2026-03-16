@@ -156,7 +156,7 @@ export const ChatComposer = memo(function ChatComposer({
         </div>
 
         <textarea
-          className="min-h-[2rem] flex-1 resize-none overflow-y-auto border-0 bg-transparent px-1 py-1 text-sm leading-normal text-foreground outline-none placeholder:text-muted-foreground/60"
+          className="field-sizing-content min-h-[2rem] flex-1 resize-none overflow-y-auto border-0 bg-transparent px-1 py-1 text-sm leading-normal text-foreground outline-none placeholder:text-muted-foreground/60"
           placeholder={`Message Codex about ${targetLabel}`}
           value={prompt}
           onChange={(event) => setPrompt(event.target.value)}
