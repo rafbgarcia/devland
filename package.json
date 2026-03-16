@@ -11,6 +11,9 @@
     "package": "electron-forge package",
     "make": "electron-forge make",
     "publish": "electron-forge publish",
+    "test": "bun test src",
+    "test:unit": "bun test src",
+    "test:perf": "playwright test --config=playwright.perf.config.ts",
     "lint": "eslint --ext .ts,.tsx .",
     "typecheck": "tsc --noEmit",
     "check": "npm run lint && npm run typecheck"
@@ -30,6 +33,7 @@
     "@electron-forge/plugin-fuses": "7.11.1",
     "@electron-forge/plugin-vite": "7.11.1",
     "@electron/fuses": "2.1.0",
+    "@playwright/test": "^1.58.2",
     "@tailwindcss/typography": "0.5.19",
     "@tailwindcss/vite": "4.2.1",
     "@tanstack/router-plugin": "1.166.9",

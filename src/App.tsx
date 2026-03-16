@@ -1,7 +1,11 @@
 import './styles/global.css';
 
 import { ConvexProvider } from 'convex/react';
-import { createRouter, RouterProvider } from '@tanstack/react-router';
+import {
+  createHashHistory,
+  createRouter,
+  RouterProvider,
+} from '@tanstack/react-router';
 import { Provider as JotaiProvider } from 'jotai';
 
 import { appJotaiStore } from '@/renderer/shared/lib/jotai-store';
@@ -13,6 +17,11 @@ import { routeTree } from './routeTree.gen';
 const router = createRouter({
   routeTree,
   defaultPreload: 'intent',
+  ...(
+    typeof window !== 'undefined' && window.location.protocol === 'file:'
+      ? { history: createHashHistory() }
+      : {}
+  ),
 });
 
 declare module '@tanstack/react-router' {

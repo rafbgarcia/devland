@@ -25,8 +25,10 @@
   },
   "include": [
     "src",
+    "tests",
     "forge.config.ts",
     "forge.env.d.ts",
+    "playwright.perf.config.ts",
     "vite.main.config.ts",
     "vite.preload.config.ts",
     "vite.renderer.config.ts"

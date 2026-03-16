@@ -79,6 +79,14 @@ import {
 import { gitStateWatcher } from './git-state-watcher';
 
 const getAppBootstrap = async (): Promise<AppBootstrap> => {
+  if (process.env.DEVLAND_TEST_MODE === '1') {
+    return {
+      ghUser: {
+        login: process.env.DEVLAND_TEST_GH_LOGIN?.trim() || 'devland-test',
+      },
+    };
+  }
+
   const ghUser = await getGhUser();
 
   return { ghUser };

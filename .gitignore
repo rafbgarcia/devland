@@ -87,6 +87,8 @@ typings/
 
 # Vite
 .vite/
+playwright-report/
+test-results/
 
 # Electron-Forge
 out/

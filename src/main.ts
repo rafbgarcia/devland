@@ -42,8 +42,13 @@ const developmentContentSecurityPolicy = [
 
 let mainWindow: BrowserWindow | null = null;
 const appIconPath = path.join(app.getAppPath(), 'assets', 'icons', 'devland.png');
+const testUserDataDir = process.env.DEVLAND_TEST_USER_DATA_DIR?.trim();
 
 app.setName(APP_DISPLAY_NAME);
+
+if (testUserDataDir) {
+  app.setPath('userData', testUserDataDir);
+}
 
 const isAppUrl = (targetUrl: string): boolean => {
   if (targetUrl.startsWith('file://')) {

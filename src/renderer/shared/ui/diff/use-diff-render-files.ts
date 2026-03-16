@@ -16,6 +16,7 @@ import {
   highlightDiffFileContents,
   type DiffFileTokens,
 } from '@/renderer/shared/ui/diff/highlighter';
+import { incrementDevPerformanceCounter } from '@/renderer/shared/lib/dev-performance';
 import { getFromLruCache, setLruCacheValue } from '@/renderer/shared/lib/lru';
 
 import type { AsyncState } from './diff-types';
@@ -167,6 +168,8 @@ export function useDiffRenderFiles({
       return [] as DiffRenderFile[];
     }
 
+    incrementDevPerformanceCounter('diffRenderBuilds');
+
     let parsedDiff = rawDiffCacheKey === null
       ? undefined
       : getFromLruCache(parsedDiffCacheRef.current, rawDiffCacheKey);
@@ -210,6 +213,8 @@ export function useDiffRenderFiles({
       );
       return;
     }
+
+    incrementDevPerformanceCounter('diffSyntaxEffectRuns');
 
     let cancelled = false;
 

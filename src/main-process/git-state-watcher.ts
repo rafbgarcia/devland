@@ -56,7 +56,7 @@ const getGitExecOptions = () => ({
   env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' },
 });
 
-const shouldHandleWatchEvent = (
+export const shouldHandleGitStateWatchEvent = (
   kind: WatchEntry['kind'],
   filename: string | Buffer | null,
 ): boolean => {
@@ -224,7 +224,7 @@ class GitStateWatcher extends EventEmitter<{
             return;
           }
 
-          if (!shouldHandleWatchEvent(kind, filename)) {
+          if (!shouldHandleGitStateWatchEvent(kind, filename)) {
             return;
           }
 

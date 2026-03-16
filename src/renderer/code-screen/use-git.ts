@@ -1,187 +1,115 @@
-import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 
 import type { GitBranch, GitStatus } from '@/ipc/contracts';
+import { createCoalescedTaskRunner } from '@/renderer/shared/lib/coalesced-request';
+import { incrementDevPerformanceCounter } from '@/renderer/shared/lib/dev-performance';
 
 type AsyncState<T> =
   | { status: 'loading'; data: null; error: null }
   | { status: 'ready'; data: T; error: null }
   | { status: 'error'; data: null; error: string };
 
-export function useGitBranches(repoPath: string) {
-  const [state, setState] = useState<AsyncState<GitBranch[]>>({
+type GitAsyncMetricKey =
+  | 'gitBranchesFetch'
+  | 'gitDefaultBranchFetch'
+  | 'gitStatusFetch';
+
+function useCoalescedGitAsyncState<T>({
+  repoPath,
+  load,
+  errorMessage,
+  metricsKey,
+}: {
+  repoPath: string;
+  load: (repoPath: string) => Promise<T>;
+  errorMessage: string;
+  metricsKey: GitAsyncMetricKey;
+}) {
+  const [state, setState] = useState<AsyncState<T>>({
     status: 'loading',
     data: null,
     error: null,
   });
   const fetchIdRef = useRef(0);
-  const inFlightRef = useRef<Promise<void> | null>(null);
-  const hasQueuedFetchRef = useRef(false);
+  const runner = useMemo(() => createCoalescedTaskRunner(), [repoPath]);
 
-  const fetchBranches = useCallback(async () => {
-    if (inFlightRef.current) {
-      hasQueuedFetchRef.current = true;
-      return inFlightRef.current;
-    }
+  const fetchValue = useCallback(async () => {
+    return runner.run(async () => {
+      const fetchId = ++fetchIdRef.current;
+      incrementDevPerformanceCounter(`${metricsKey}Started`);
 
-    const runFetch = async () => {
-      do {
-        hasQueuedFetchRef.current = false;
-        const fetchId = ++fetchIdRef.current;
+      try {
+        const value = await load(repoPath);
 
-        try {
-          const branches = await window.electronAPI.getGitBranches(repoPath);
-
-          if (fetchIdRef.current !== fetchId) {
-            continue;
-          }
-
-          setState({ status: 'ready', data: branches, error: null });
-        } catch (error) {
-          if (fetchIdRef.current !== fetchId) {
-            continue;
-          }
-
-          setState({
-            status: 'error',
-            data: null,
-            error: error instanceof Error ? error.message : 'Failed to load branches.',
-          });
+        if (fetchIdRef.current !== fetchId) {
+          return;
         }
-      } while (hasQueuedFetchRef.current);
-    };
 
-    const promise = runFetch().finally(() => {
-      inFlightRef.current = null;
+        setState({ status: 'ready', data: value, error: null });
+      } catch (error) {
+        if (fetchIdRef.current !== fetchId) {
+          return;
+        }
+
+        setState({
+          status: 'error',
+          data: null,
+          error: error instanceof Error ? error.message : errorMessage,
+        });
+      } finally {
+        incrementDevPerformanceCounter(`${metricsKey}Completed`);
+      }
     });
-    inFlightRef.current = promise;
-
-    return promise;
-  }, [repoPath]);
+  }, [errorMessage, load, metricsKey, repoPath, runner]);
 
   useEffect(() => {
     setState({ status: 'loading', data: null, error: null });
-    void fetchBranches();
-  }, [fetchBranches]);
+    void fetchValue();
+  }, [fetchValue]);
 
-  return { ...state, refetch: fetchBranches };
+  return { ...state, refetch: fetchValue };
+}
+
+export function useGitBranches(repoPath: string) {
+  const loadBranches = useCallback(
+    (currentRepoPath: string) => window.electronAPI.getGitBranches(currentRepoPath),
+    [],
+  );
+
+  return useCoalescedGitAsyncState<GitBranch[]>({
+    repoPath,
+    load: loadBranches,
+    errorMessage: 'Failed to load branches.',
+    metricsKey: 'gitBranchesFetch',
+  });
 }
 
 export function useGitDefaultBranch(repoPath: string) {
-  const [state, setState] = useState<AsyncState<string>>({
-    status: 'loading',
-    data: null,
-    error: null,
+  const loadDefaultBranch = useCallback(
+    (currentRepoPath: string) => window.electronAPI.getGitDefaultBranch(currentRepoPath),
+    [],
+  );
+
+  return useCoalescedGitAsyncState<string>({
+    repoPath,
+    load: loadDefaultBranch,
+    errorMessage: 'Failed to load default branch.',
+    metricsKey: 'gitDefaultBranchFetch',
   });
-  const fetchIdRef = useRef(0);
-  const inFlightRef = useRef<Promise<void> | null>(null);
-  const hasQueuedFetchRef = useRef(false);
-
-  const fetchDefaultBranch = useCallback(async () => {
-    if (inFlightRef.current) {
-      hasQueuedFetchRef.current = true;
-      return inFlightRef.current;
-    }
-
-    const runFetch = async () => {
-      do {
-        hasQueuedFetchRef.current = false;
-        const fetchId = ++fetchIdRef.current;
-
-        try {
-          const defaultBranch = await window.electronAPI.getGitDefaultBranch(repoPath);
-
-          if (fetchIdRef.current !== fetchId) {
-            continue;
-          }
-
-          setState({ status: 'ready', data: defaultBranch, error: null });
-        } catch (error) {
-          if (fetchIdRef.current !== fetchId) {
-            continue;
-          }
-
-          setState({
-            status: 'error',
-            data: null,
-            error: error instanceof Error ? error.message : 'Failed to load default branch.',
-          });
-        }
-      } while (hasQueuedFetchRef.current);
-    };
-
-    const promise = runFetch().finally(() => {
-      inFlightRef.current = null;
-    });
-    inFlightRef.current = promise;
-
-    return promise;
-  }, [repoPath]);
-
-  useEffect(() => {
-    setState({ status: 'loading', data: null, error: null });
-    void fetchDefaultBranch();
-  }, [fetchDefaultBranch]);
-
-  return { ...state, refetch: fetchDefaultBranch };
 }
 
 export function useGitStatus(repoPath: string) {
-  const [state, setState] = useState<AsyncState<GitStatus>>({
-    status: 'loading',
-    data: null,
-    error: null,
+  const loadStatus = useCallback(
+    (currentRepoPath: string) => window.electronAPI.getGitStatus(currentRepoPath),
+    [],
+  );
+
+  return useCoalescedGitAsyncState<GitStatus>({
+    repoPath,
+    load: loadStatus,
+    errorMessage: 'Failed to load status.',
+    metricsKey: 'gitStatusFetch',
   });
-  const fetchIdRef = useRef(0);
-  const inFlightRef = useRef<Promise<void> | null>(null);
-  const hasQueuedFetchRef = useRef(false);
-
-  const fetchStatus = useCallback(async () => {
-    if (inFlightRef.current) {
-      hasQueuedFetchRef.current = true;
-      return inFlightRef.current;
-    }
-
-    const runFetch = async () => {
-      do {
-        hasQueuedFetchRef.current = false;
-        const fetchId = ++fetchIdRef.current;
-
-        try {
-          const gitStatus = await window.electronAPI.getGitStatus(repoPath);
-
-          if (fetchIdRef.current !== fetchId) {
-            continue;
-          }
-
-          setState({ status: 'ready', data: gitStatus, error: null });
-        } catch (error) {
-          if (fetchIdRef.current !== fetchId) {
-            continue;
-          }
-
-          setState({
-            status: 'error',
-            data: null,
-            error: error instanceof Error ? error.message : 'Failed to load status.',
-          });
-        }
-      } while (hasQueuedFetchRef.current);
-    };
-
-    const promise = runFetch().finally(() => {
-      inFlightRef.current = null;
-    });
-    inFlightRef.current = promise;
-
-    return promise;
-  }, [repoPath]);
-
-  useEffect(() => {
-    setState({ status: 'loading', data: null, error: null });
-    void fetchStatus();
-  }, [fetchStatus]);
-
-  return { ...state, refetch: fetchStatus };
 }
 
 export function useGitStateWatch(
@@ -209,6 +137,7 @@ export function useGitStateWatch(
         return;
       }
 
+      incrementDevPerformanceCounter('gitWatchEventsReceived');
       handleGitStateChange(event.repoPath);
     });
 
