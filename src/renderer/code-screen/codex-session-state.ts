@@ -6,6 +6,9 @@ import type {
 } from '@/ipc/contracts';
 import { isToolLifecycleItemType } from '@/lib/codex-session-items';
 
+const MAX_PERSISTED_SESSION_MESSAGES = 60;
+const MAX_PERSISTED_DIFF_PATCH_CHARS = 24_000;
+
 export type CodexChatMessage = {
   id: string;
   role: 'user' | 'assistant';
@@ -212,9 +215,25 @@ export function toCodexSessionSnapshot(state: CodexSessionState): CodexSessionSn
     return null;
   }
 
+  const messages = state.messages
+    .slice(-MAX_PERSISTED_SESSION_MESSAGES)
+    .map((message) => ({
+      ...message,
+      diff:
+        message.diff === null
+          ? null
+          : {
+              ...message.diff,
+              patch:
+                message.diff.patch.length <= MAX_PERSISTED_DIFF_PATCH_CHARS
+                  ? message.diff.patch
+                  : `${message.diff.patch.slice(0, MAX_PERSISTED_DIFF_PATCH_CHARS)}\n\n[diff truncated in persisted session history]`,
+            },
+    }));
+
   return {
     threadId: state.threadId,
-    messages: state.messages,
+    messages,
     updatedAt: new Date().toISOString(),
   };
 }

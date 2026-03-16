@@ -14,25 +14,48 @@ export function useGitBranches(repoPath: string) {
     error: null,
   });
   const fetchIdRef = useRef(0);
+  const inFlightRef = useRef<Promise<void> | null>(null);
+  const hasQueuedFetchRef = useRef(false);
 
   const fetchBranches = useCallback(async () => {
-    const fetchId = ++fetchIdRef.current;
-
-    try {
-      const branches = await window.electronAPI.getGitBranches(repoPath);
-
-      if (fetchIdRef.current !== fetchId) return;
-
-      setState({ status: 'ready', data: branches, error: null });
-    } catch (error) {
-      if (fetchIdRef.current !== fetchId) return;
-
-      setState({
-        status: 'error',
-        data: null,
-        error: error instanceof Error ? error.message : 'Failed to load branches.',
-      });
+    if (inFlightRef.current) {
+      hasQueuedFetchRef.current = true;
+      return inFlightRef.current;
     }
+
+    const runFetch = async () => {
+      do {
+        hasQueuedFetchRef.current = false;
+        const fetchId = ++fetchIdRef.current;
+
+        try {
+          const branches = await window.electronAPI.getGitBranches(repoPath);
+
+          if (fetchIdRef.current !== fetchId) {
+            continue;
+          }
+
+          setState({ status: 'ready', data: branches, error: null });
+        } catch (error) {
+          if (fetchIdRef.current !== fetchId) {
+            continue;
+          }
+
+          setState({
+            status: 'error',
+            data: null,
+            error: error instanceof Error ? error.message : 'Failed to load branches.',
+          });
+        }
+      } while (hasQueuedFetchRef.current);
+    };
+
+    const promise = runFetch().finally(() => {
+      inFlightRef.current = null;
+    });
+    inFlightRef.current = promise;
+
+    return promise;
   }, [repoPath]);
 
   useEffect(() => {
@@ -50,25 +73,48 @@ export function useGitDefaultBranch(repoPath: string) {
     error: null,
   });
   const fetchIdRef = useRef(0);
+  const inFlightRef = useRef<Promise<void> | null>(null);
+  const hasQueuedFetchRef = useRef(false);
 
   const fetchDefaultBranch = useCallback(async () => {
-    const fetchId = ++fetchIdRef.current;
-
-    try {
-      const defaultBranch = await window.electronAPI.getGitDefaultBranch(repoPath);
-
-      if (fetchIdRef.current !== fetchId) return;
-
-      setState({ status: 'ready', data: defaultBranch, error: null });
-    } catch (error) {
-      if (fetchIdRef.current !== fetchId) return;
-
-      setState({
-        status: 'error',
-        data: null,
-        error: error instanceof Error ? error.message : 'Failed to load default branch.',
-      });
+    if (inFlightRef.current) {
+      hasQueuedFetchRef.current = true;
+      return inFlightRef.current;
     }
+
+    const runFetch = async () => {
+      do {
+        hasQueuedFetchRef.current = false;
+        const fetchId = ++fetchIdRef.current;
+
+        try {
+          const defaultBranch = await window.electronAPI.getGitDefaultBranch(repoPath);
+
+          if (fetchIdRef.current !== fetchId) {
+            continue;
+          }
+
+          setState({ status: 'ready', data: defaultBranch, error: null });
+        } catch (error) {
+          if (fetchIdRef.current !== fetchId) {
+            continue;
+          }
+
+          setState({
+            status: 'error',
+            data: null,
+            error: error instanceof Error ? error.message : 'Failed to load default branch.',
+          });
+        }
+      } while (hasQueuedFetchRef.current);
+    };
+
+    const promise = runFetch().finally(() => {
+      inFlightRef.current = null;
+    });
+    inFlightRef.current = promise;
+
+    return promise;
   }, [repoPath]);
 
   useEffect(() => {
@@ -86,25 +132,48 @@ export function useGitStatus(repoPath: string) {
     error: null,
   });
   const fetchIdRef = useRef(0);
+  const inFlightRef = useRef<Promise<void> | null>(null);
+  const hasQueuedFetchRef = useRef(false);
 
   const fetchStatus = useCallback(async () => {
-    const fetchId = ++fetchIdRef.current;
-
-    try {
-      const gitStatus = await window.electronAPI.getGitStatus(repoPath);
-
-      if (fetchIdRef.current !== fetchId) return;
-
-      setState({ status: 'ready', data: gitStatus, error: null });
-    } catch (error) {
-      if (fetchIdRef.current !== fetchId) return;
-
-      setState({
-        status: 'error',
-        data: null,
-        error: error instanceof Error ? error.message : 'Failed to load status.',
-      });
+    if (inFlightRef.current) {
+      hasQueuedFetchRef.current = true;
+      return inFlightRef.current;
     }
+
+    const runFetch = async () => {
+      do {
+        hasQueuedFetchRef.current = false;
+        const fetchId = ++fetchIdRef.current;
+
+        try {
+          const gitStatus = await window.electronAPI.getGitStatus(repoPath);
+
+          if (fetchIdRef.current !== fetchId) {
+            continue;
+          }
+
+          setState({ status: 'ready', data: gitStatus, error: null });
+        } catch (error) {
+          if (fetchIdRef.current !== fetchId) {
+            continue;
+          }
+
+          setState({
+            status: 'error',
+            data: null,
+            error: error instanceof Error ? error.message : 'Failed to load status.',
+          });
+        }
+      } while (hasQueuedFetchRef.current);
+    };
+
+    const promise = runFetch().finally(() => {
+      inFlightRef.current = null;
+    });
+    inFlightRef.current = promise;
+
+    return promise;
   }, [repoPath]);
 
   useEffect(() => {

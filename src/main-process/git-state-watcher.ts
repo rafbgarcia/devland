@@ -14,6 +14,21 @@ import { promisify } from 'node:util';
 const execFileAsync = promisify(execFile);
 
 const GIT_WATCH_DEBOUNCE_MS = 120;
+const ROOT_WATCH_EVENT_NAMES = new Set([
+  'HEAD',
+  'index',
+  'ORIG_HEAD',
+  'MERGE_HEAD',
+  'REBASE_HEAD',
+  'CHERRY_PICK_HEAD',
+  'REVERT_HEAD',
+  'packed-refs',
+  'COMMIT_EDITMSG',
+  'rebase-merge',
+  'rebase-apply',
+  'sequencer',
+  'refs',
+]);
 
 type GitStateWatcherChangeEvent = {
   repoPath: string;
@@ -38,7 +53,24 @@ type WatchedRepo = {
 const getGitExecOptions = () => ({
   timeout: 8000,
   windowsHide: true,
+  env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' },
 });
+
+const shouldHandleWatchEvent = (
+  kind: WatchEntry['kind'],
+  filename: string | Buffer | null,
+): boolean => {
+  if (kind === 'refs') {
+    return true;
+  }
+
+  if (typeof filename !== 'string') {
+    return false;
+  }
+
+  const normalizedName = path.basename(filename);
+  return ROOT_WATCH_EVENT_NAMES.has(normalizedName);
+};
 
 const listDirectoriesRecursively = (rootPath: string): string[] => {
   if (!existsSync(rootPath)) {
@@ -187,8 +219,12 @@ class GitStateWatcher extends EventEmitter<{
       const watcher = watch(
         watchPath,
         { persistent: false },
-        () => {
+        (_eventType, filename) => {
           if (watchedRepo.isDisposed) {
+            return;
+          }
+
+          if (!shouldHandleWatchEvent(kind, filename)) {
             return;
           }
 

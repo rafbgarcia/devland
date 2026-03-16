@@ -14,6 +14,7 @@ import { CheckIcon, FileCodeIcon, MinusIcon } from 'lucide-react';
 
 import {
   getDiffRowsRenderLineCount,
+  type DiffFileStatus,
   type DiffCommentAnchor,
   type DiffDisplayMode,
   type DiffSelectionType,
@@ -25,6 +26,13 @@ import { DiffFileSection } from './diff-renderer';
 import type { AsyncState } from './diff-types';
 import { TruncatedFilePath } from './truncated-file-path';
 import { type DiffRenderFile } from './use-diff-render-files';
+
+export type DiffListFile = {
+  path: string;
+  status: DiffFileStatus;
+  additions: number;
+  deletions: number;
+};
 
 const FILE_STATUS_CONFIG: Record<
   DiffRenderFile['status'],
@@ -159,7 +167,7 @@ export function FilesChangedList({
   onToggleFileSelection,
 }: {
   title?: string;
-  files: DiffRenderFile[];
+  files: DiffListFile[];
   visibleFiles: Set<string>;
   onSelectFile: (path: string) => void;
   actions?: ReactNode;

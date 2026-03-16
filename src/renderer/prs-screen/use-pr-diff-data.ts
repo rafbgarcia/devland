@@ -2,7 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { PrDiffMetaResult } from '@/ipc/contracts';
 import { parseDiffFiles, type DiffFile } from '@/renderer/shared/ui/diff/code-diff';
+import { getFromLruCache, setLruCacheValue } from '@/renderer/shared/lib/lru';
 import type { AsyncState, DiffSelection } from '@/renderer/shared/ui/diff/diff-types';
+
+const PR_DIFF_CACHE_LIMIT = 8;
 
 export type PrDiffContext =
   | { kind: 'commit'; commitRevision: string; parentRevision: string | null }
@@ -64,7 +67,7 @@ export function usePrDiffData({
       return;
     }
 
-    const cached = diffCacheRef.current.get(cacheKey);
+    const cached = getFromLruCache(diffCacheRef.current, cacheKey);
     if (cached !== undefined) {
       setRawDiff({ status: 'ready', data: cached });
       return;
@@ -81,7 +84,7 @@ export function usePrDiffData({
     fetchDiff
       .then((data) => {
         if (cancelled) return;
-        diffCacheRef.current.set(cacheKey, data);
+        setLruCacheValue(diffCacheRef.current, cacheKey, data, PR_DIFF_CACHE_LIMIT);
         setRawDiff({ status: 'ready', data });
       })
       .catch((error) => {

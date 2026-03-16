@@ -45,6 +45,9 @@ const getGitExecOptionsWithEnv = (env?: NodeJS.ProcessEnv) => ({
   env: env ? { ...process.env, ...env } : process.env,
 });
 
+const getGitReadOnlyExecOptions = () =>
+  getGitExecOptionsWithEnv({ GIT_OPTIONAL_LOCKS: '0' });
+
 const DEFAULT_TEXT_READ_MAX_BYTES = 256 * 1024;
 
 const normalizeGitHubSlug = (value: string): string | null => {
@@ -144,7 +147,7 @@ export const resolveGitHubSlugFromProjectPath = async (
     const { stdout } = await execFileAsync(
       'git',
       ['-C', projectPath, 'remote', 'get-url', 'origin'],
-      getGitExecOptions(),
+      getGitReadOnlyExecOptions(),
     );
     const remoteUrl = stdout.trim();
     const githubSlug = parseGitHubSlugFromRemoteUrl(remoteUrl);
@@ -175,7 +178,7 @@ export const validateLocalGitRepository = async (
     const { stdout } = await execFileAsync(
       'git',
       ['-C', directoryPath, 'rev-parse', '--show-toplevel'],
-      getGitExecOptions(),
+      getGitReadOnlyExecOptions(),
     );
     const repoRoot = path.resolve(stdout.trim());
     const normalizedInput = path.resolve(directoryPath);
@@ -392,7 +395,7 @@ export const getGitBranches = async (repoPath: string): Promise<GitBranch[]> => 
   const { stdout } = await execFileAsync(
     'git',
     ['-C', repoPath, 'branch', '--format=%(HEAD)|%(refname:short)'],
-    getGitExecOptions(),
+    getGitReadOnlyExecOptions(),
   );
 
   return stdout
@@ -411,7 +414,7 @@ const getHeadRevision = async (repoPath: string): Promise<string | null> => {
     const { stdout } = await execFileAsync(
       'git',
       ['-C', repoPath, 'rev-parse', 'HEAD'],
-      getGitExecOptions(),
+      getGitReadOnlyExecOptions(),
     );
     const revision = stdout.trim();
 
@@ -426,12 +429,12 @@ export const getGitStatus = async (repoPath: string): Promise<GitStatus> => {
     execFileAsync(
       'git',
       ['-C', repoPath, 'branch', '--show-current'],
-      getGitExecOptions(),
+      getGitReadOnlyExecOptions(),
     ),
     execFileAsync(
       'git',
       ['-C', repoPath, 'status', '--porcelain=v1', '-z', '--untracked-files=all'],
-      getGitExecOptions(),
+      getGitReadOnlyExecOptions(),
     ),
     getHeadRevision(repoPath),
   ]);
@@ -507,7 +510,7 @@ export const getGitFileDiff = async (
     const { stdout } = await execFileAsync(
       'git',
       ['-C', repoPath, 'diff', 'HEAD', '--', filePath],
-      getGitExecOptions(),
+      getGitReadOnlyExecOptions(),
     );
 
     if (stdout.trim()) {
@@ -522,7 +525,7 @@ export const getGitFileDiff = async (
     const { stdout } = await execFileAsync(
       'git',
       ['-C', repoPath, 'diff', '--', filePath],
-      getGitExecOptions(),
+      getGitReadOnlyExecOptions(),
     );
 
     if (stdout.trim()) {
@@ -537,7 +540,7 @@ export const getGitFileDiff = async (
     const { stdout } = await execFileAsync(
       'git',
       ['-C', repoPath, 'diff', '--cached', '--', filePath],
-      getGitExecOptions(),
+      getGitReadOnlyExecOptions(),
     );
 
     if (stdout.trim()) {
@@ -559,7 +562,7 @@ const getGitDiffOutput = async (
     const { stdout } = await execFileAsync(
       'git',
       ['-C', repoPath, ...args],
-      getGitExecOptions(),
+      getGitReadOnlyExecOptions(),
     );
 
     return stdout;
@@ -612,7 +615,7 @@ async function resolveGitHeadRevision(repoPath: string): Promise<string | null> 
     const { stdout } = await execFileAsync(
       'git',
       ['-C', repoPath, 'rev-parse', '--verify', 'HEAD'],
-      getGitExecOptions(),
+      getGitReadOnlyExecOptions(),
     );
 
     const revision = stdout.trim();
@@ -694,7 +697,7 @@ export const getGitSnapshotDiff = async (
       beforeRevision || EMPTY_TREE_SHA,
       afterRevision || EMPTY_TREE_SHA,
     ],
-    getGitExecOptions(),
+    getGitReadOnlyExecOptions(),
   );
   const patch = stdout.trim();
 
@@ -732,8 +735,8 @@ export const getGitBlobText = async ({
       'git',
       ['-C', repoPath, 'show', `${revision}:${filePath}`],
       {
+        ...getGitReadOnlyExecOptions(),
         timeout: 15000,
-        windowsHide: true,
         maxBuffer: Math.max(maxBytes * 2, DEFAULT_TEXT_READ_MAX_BYTES),
         encoding: 'buffer',
       },
@@ -1056,7 +1059,7 @@ export const getGitDefaultBranch = async (repoPath: string): Promise<string> => 
     const { stdout } = await execFileAsync(
       'git',
       ['-C', repoPath, 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD'],
-      getGitExecOptions(),
+      getGitReadOnlyExecOptions(),
     );
     const ref = stdout.trim();
 
@@ -1089,7 +1092,7 @@ const getGitCommonDir = async (repoPath: string): Promise<string> => {
   const { stdout } = await execFileAsync(
     'git',
     ['-C', repoPath, 'rev-parse', '--git-common-dir'],
-    getGitExecOptions(),
+    getGitReadOnlyExecOptions(),
   );
 
   return path.resolve(repoPath, stdout.trim());
@@ -1240,7 +1243,7 @@ const loadLocalPrDiffMeta = async (
       `--format=${format}`,
       '--reverse',
     ],
-    { timeout: 15000, windowsHide: true },
+    { ...getGitReadOnlyExecOptions(), timeout: 15000 },
   );
 
   const commits = parsePrCommitLogOutput(logOutput);
@@ -1338,7 +1341,7 @@ export const getGitBranchCompareMeta = async (
       `--format=${format}`,
       '--reverse',
     ],
-    { timeout: 15000, windowsHide: true },
+    { ...getGitReadOnlyExecOptions(), timeout: 15000 },
   );
 
   return CodeChangesMetaSchema.parse({
@@ -1396,7 +1399,7 @@ export const getGitBranchCompareDiff = async (
   const { stdout } = await execFileAsync(
     'git',
     ['-C', repoPath, 'diff', `${baseRevision}...${headRevision}`],
-    { timeout: 30000, windowsHide: true, maxBuffer: 10 * 1024 * 1024 },
+    { ...getGitReadOnlyExecOptions(), timeout: 30000, maxBuffer: 10 * 1024 * 1024 },
   );
 
   return stdout;
@@ -1438,7 +1441,7 @@ export const getCommitDiff = async (
   const { stdout } = await execFileAsync(
     'git',
     ['-C', repoPath, 'show', commitSha, '--format=', '-p'],
-    { timeout: 30000, windowsHide: true, maxBuffer: 10 * 1024 * 1024 },
+    { ...getGitReadOnlyExecOptions(), timeout: 30000, maxBuffer: 10 * 1024 * 1024 },
   );
 
   return stdout;
@@ -1453,7 +1456,7 @@ export const getPrDiff = async (
   const { stdout } = await execFileAsync(
     'git',
     ['-C', repoPath, 'diff', `${snapshot.baseRevision}...${snapshot.headRef}`],
-    { timeout: 30000, windowsHide: true, maxBuffer: 10 * 1024 * 1024 },
+    { ...getGitReadOnlyExecOptions(), timeout: 30000, maxBuffer: 10 * 1024 * 1024 },
   );
 
   return stdout;

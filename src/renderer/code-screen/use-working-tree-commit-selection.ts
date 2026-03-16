@@ -5,10 +5,9 @@ import {
   type DiffSelectionType,
   formatPatchFromSelection,
   getSelectableDiffLineNumbers,
+  type DiffFile,
   type DiffRow,
 } from '@/lib/diff';
-import type { DiffFile } from '@/lib/diff/types';
-import type { DiffRenderFile } from '@/renderer/shared/ui/diff/use-diff-render-files';
 
 type WholeFileSelection = {
   kind: 'whole-file';
@@ -26,9 +25,9 @@ function getStagePaths(file: DiffFile) {
   return [...new Set([file.oldPath, file.newPath].filter((path): path is string => path !== null))];
 }
 
-function canSelectByLine(file: DiffRenderFile) {
-  return (file.diff.kind === 'text' || file.diff.kind === 'large-text') &&
-    getSelectableDiffLineNumbers(file.diff).size > 0;
+function canSelectByLine(file: DiffFile) {
+  return (file.kind === 'text' || file.kind === 'large-text') &&
+    getSelectableDiffLineNumbers(file).size > 0;
 }
 
 function getSelectionType(selection: FileCommitSelection): DiffSelectionType {
@@ -78,7 +77,7 @@ export function useWorkingTreeCommitSelection({
   enabled,
 }: {
   repoPath: string;
-  diffFiles: DiffRenderFile[];
+  diffFiles: DiffFile[];
   enabled: boolean;
 }): WorkingTreeCommitSelectionState {
   const [selectionByPath, setSelectionByPath] = useState<Record<string, FileCommitSelection>>({});
@@ -96,21 +95,21 @@ export function useWorkingTreeCommitSelection({
     setSelectionByPath((current) =>
       Object.fromEntries(
         diffFiles.map((file) => {
-          const previous = current[file.path];
+          const previous = current[file.displayPath];
 
           if (!canSelectByLine(file)) {
             return [
-              file.path,
+              file.displayPath,
               previous?.kind === 'whole-file'
                 ? previous
                 : { kind: 'whole-file', selected: true } satisfies WholeFileSelection,
             ];
           }
 
-          const selectableLines = getSelectableDiffLineNumbers(file.diff);
+          const selectableLines = getSelectableDiffLineNumbers(file);
 
           return [
-            file.path,
+            file.displayPath,
             previous?.kind === 'lines'
               ? {
                   kind: 'lines',
@@ -190,13 +189,13 @@ export function useWorkingTreeCommitSelection({
   ) => {
     setSelectionByPath((current) => {
       const selection = current[path];
-      const file = diffFiles.find((candidate) => candidate.path === path);
+      const file = diffFiles.find((candidate) => candidate.displayPath === path);
 
       if (!selection || selection.kind !== 'lines' || !file) {
         return current;
       }
 
-      const hunk = file.diff.hunks.find(
+      const hunk = file.hunks.find(
         (candidate) => candidate.originalStartLineNumber === hunkStartLineNumber,
       );
 
@@ -252,7 +251,7 @@ export function useWorkingTreeCommitSelection({
   }, []);
 
   const selectedFileCount = useMemo(
-    () => diffFiles.filter((file) => getFileSelectionType(file.path) !== 'none').length,
+    () => diffFiles.filter((file) => getFileSelectionType(file.displayPath) !== 'none').length,
     [diffFiles, getFileSelectionType],
   );
 
@@ -266,7 +265,7 @@ export function useWorkingTreeCommitSelection({
     }
 
     const files: CommitSelectionPayloadFile[] = diffFiles.flatMap((file): CommitSelectionPayloadFile[] => {
-      const selection = selectionByPath[file.path];
+      const selection = selectionByPath[file.displayPath];
 
       if (!selection) {
         return [];
@@ -280,21 +279,21 @@ export function useWorkingTreeCommitSelection({
 
       if (selection.kind === 'whole-file' || selectionType === 'all') {
         return [{
-          path: file.path,
-          paths: getStagePaths(file.diff),
+          path: file.displayPath,
+          paths: getStagePaths(file),
           kind: 'full' as const,
         }];
       }
 
-      const patch = formatPatchFromSelection(file.diff, selection.selection);
+      const patch = formatPatchFromSelection(file, selection.selection);
 
       if (!patch) {
         return [];
       }
 
       return [{
-        path: file.path,
-        paths: getStagePaths(file.diff),
+        path: file.displayPath,
+        paths: getStagePaths(file),
         kind: 'partial' as const,
         patch,
       }];

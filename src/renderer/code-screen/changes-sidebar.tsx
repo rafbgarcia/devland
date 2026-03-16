@@ -10,9 +10,9 @@ import type { PrCommit } from '@/ipc/contracts';
 import type { DiffSelectionType } from '@/lib/diff';
 import {
   FilesChangedList,
+  type DiffListFile,
 } from '@/renderer/shared/ui/diff/code-changes-files-viewport';
 import { CommitComposer } from '@/renderer/code-screen/commit-composer';
-import type { DiffRenderFile } from '@/renderer/shared/ui/diff/use-diff-render-files';
 import { RelativeTime } from '@/renderer/shared/ui/relative-time';
 import {
   Alert,
@@ -86,7 +86,7 @@ export const ChangesSidebar = memo(function ChangesSidebar({
   emptyMessage,
   workingTreeCommitState,
 }: {
-  diffFiles: DiffRenderFile[];
+  diffFiles: DiffListFile[];
   selectedPath: string | null;
   onSelectFile: (path: string) => void;
   selectedCommit: PrCommit | null;

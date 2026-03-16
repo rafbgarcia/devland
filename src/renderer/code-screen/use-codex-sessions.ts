@@ -17,6 +17,7 @@ import { buildSessionHistoryBootstrap } from '@/renderer/code-screen/session-his
 import { appJotaiStore } from '@/renderer/shared/lib/jotai-store';
 
 const SESSION_SNAPSHOTS_STORAGE_KEY = 'devland:codex-session-snapshots';
+const MAX_PERSISTED_SESSION_SNAPSHOTS = 16;
 
 const sessionStatesAtom = atom<Record<string, CodexSessionState>>({});
 const persistedSessionSnapshotsAtom = atomWithStorage<Record<string, CodexSessionSnapshot>>(
@@ -66,12 +67,30 @@ function writeSessionState(
   });
   set(
     persistedSessionSnapshotsAtom,
-    nextSnapshot === null
-      ? remainingSnapshots
-      : {
-          ...remainingSnapshots,
-          [sessionId]: nextSnapshot,
-        },
+    pruneSessionSnapshots(
+      nextSnapshot === null
+        ? remainingSnapshots
+        : {
+            ...remainingSnapshots,
+            [sessionId]: nextSnapshot,
+          },
+    ),
+  );
+}
+
+function pruneSessionSnapshots(
+  snapshots: Record<string, CodexSessionSnapshot>,
+): Record<string, CodexSessionSnapshot> {
+  const entries = Object.entries(snapshots);
+
+  if (entries.length <= MAX_PERSISTED_SESSION_SNAPSHOTS) {
+    return snapshots;
+  }
+
+  return Object.fromEntries(
+    entries
+      .sort((left, right) => right[1].updatedAt.localeCompare(left[1].updatedAt))
+      .slice(0, MAX_PERSISTED_SESSION_SNAPSHOTS),
   );
 }
 

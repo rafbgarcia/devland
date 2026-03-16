@@ -16,6 +16,7 @@ import {
   highlightDiffFileContents,
   type DiffFileTokens,
 } from '@/renderer/shared/ui/diff/highlighter';
+import { getFromLruCache, setLruCacheValue } from '@/renderer/shared/lib/lru';
 
 import type { AsyncState } from './diff-types';
 
@@ -121,42 +122,6 @@ function hashString(value: string) {
   }
 
   return (hash >>> 0).toString(16);
-}
-
-function getFromLruCache<T>(cache: Map<string, T>, key: string) {
-  const cached = cache.get(key);
-
-  if (cached === undefined) {
-    return undefined;
-  }
-
-  cache.delete(key);
-  cache.set(key, cached);
-
-  return cached;
-}
-
-function setLruCacheValue<T>(
-  cache: Map<string, T>,
-  key: string,
-  value: T,
-  limit: number,
-) {
-  if (cache.has(key)) {
-    cache.delete(key);
-  }
-
-  cache.set(key, value);
-
-  while (cache.size > limit) {
-    const oldestKey = cache.keys().next().value;
-
-    if (oldestKey === undefined) {
-      break;
-    }
-
-    cache.delete(oldestKey);
-  }
 }
 
 export function useDiffRenderFiles({

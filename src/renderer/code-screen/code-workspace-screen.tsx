@@ -363,6 +363,7 @@ export function CodeWorkspaceScreen({
             branchName={statusState.data.branch}
             headRevision={statusState.data.headRevision}
             workingTreeFiles={statusState.data.files}
+            isViewportActive={activeLayer === 'files'}
             onFileSelect={() => setActiveLayer('files')}
             onSubmitDiffComment={(anchor, body) => handleSubmitDiffComment(anchor, body)}
           >

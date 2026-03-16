@@ -2,7 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { GitBranchHistory, GitStatusFile } from '@/ipc/contracts';
 import { parseDiffFiles, type DiffFile } from '@/renderer/shared/ui/diff/code-diff';
+import { getFromLruCache, setLruCacheValue } from '@/renderer/shared/lib/lru';
 import type { AsyncState } from '@/renderer/shared/ui/diff/diff-types';
+
+const BRANCH_HISTORY_CACHE_LIMIT = 8;
+const COMMIT_DIFF_CACHE_LIMIT = 8;
 
 type BranchHistoryState =
   | {
@@ -66,7 +70,7 @@ export function useGitBranchHistory({
       return Promise.resolve(emptyHistory);
     }
 
-    const cachedHistory = historyCacheRef.current.get(historyKey) ?? null;
+    const cachedHistory = getFromLruCache(historyCacheRef.current, historyKey) ?? null;
 
     setHistoryState(
       cachedHistory === null
@@ -90,7 +94,12 @@ export function useGitBranchHistory({
           return history;
         }
 
-        historyCacheRef.current.set(historyKey, history);
+        setLruCacheValue(
+          historyCacheRef.current,
+          historyKey,
+          history,
+          BRANCH_HISTORY_CACHE_LIMIT,
+        );
         setHistoryState({
           status: 'ready',
           data: history,
@@ -218,7 +227,7 @@ export function useGitCommitDiff({
       return undefined;
     }
 
-    const cached = diffCacheRef.current.get(commitSha);
+    const cached = getFromLruCache(diffCacheRef.current, commitSha);
     if (cached !== undefined) {
       setRawDiff({ status: 'ready', data: cached });
     } else {
@@ -231,7 +240,7 @@ export function useGitCommitDiff({
             return;
           }
 
-          diffCacheRef.current.set(commitSha, diff);
+          setLruCacheValue(diffCacheRef.current, commitSha, diff, COMMIT_DIFF_CACHE_LIMIT);
           setRawDiff({ status: 'ready', data: diff });
         })
         .catch((error) => {
