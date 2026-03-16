@@ -28,6 +28,7 @@ import {
 } from '@/shadcn/components/ui/tabs';
 
 import { PrCodeChanges } from './pr-code-changes';
+import { PullRequestDiffStats } from './pull-request-diff-stats';
 import { PrReviewContent } from './pr-review-overlay';
 
 type AiReviewState =
@@ -516,23 +517,5 @@ export function PrReviewDialog({
         )}
       </motion.div>
     </>
-  );
-}
-
-function PullRequestDiffStats({
-  commitCount,
-  additions,
-  deletions,
-}: {
-  commitCount: number;
-  additions: number;
-  deletions: number;
-}) {
-  return (
-    <span className="inline-flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
-      <span>{commitCount} {commitCount === 1 ? 'commit' : 'commits'}</span>
-      <span className="text-green-600">+{additions.toLocaleString()}</span>
-      <span className="text-red-500">-{deletions.toLocaleString()}</span>
-    </span>
   );
 }

@@ -2,54 +2,15 @@ import { useState } from 'react';
 
 import { MessageSquareDotIcon } from 'lucide-react';
 
-import type { ProjectIssueFeed, ProjectIssueFeedItem } from '@/ipc/contracts';
+import type { ProjectIssueFeed } from '@/ipc/contracts';
 import {
-  ProjectFeedItemFrame,
   ProjectFeedScaffold,
   type ProjectFeedDefinition,
-} from '@/renderer/components/project-workspace-feed';
-import { useProjectIssues } from '@/renderer/hooks/use-project-issues';
-import { cn } from '@/shadcn/lib/utils';
+} from '@/renderer/shared/project-feed/project-feed';
 
+import { IssueFeedItem } from './issue-feed-item';
 import { IssueDetailDrawer } from './issue-detail-drawer';
-
-function IssueFeedItem({
-  item,
-  isSelected,
-  onSelect,
-}: {
-  item: ProjectIssueFeedItem;
-  isSelected: boolean;
-  onSelect: (item: ProjectIssueFeedItem) => void;
-}) {
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={() => onSelect(item)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onSelect(item);
-        }
-      }}
-      className={cn(
-        'w-full text-left transition-colors hover:bg-muted/50',
-        isSelected && 'bg-muted',
-      )}
-    >
-      <ProjectFeedItemFrame
-        item={item}
-        title={
-          <span className="truncate text-sm font-medium text-foreground">
-            {item.title}{' '}
-            <span className="font-normal text-muted-foreground">(#{item.number})</span>
-          </span>
-        }
-      />
-    </div>
-  );
-}
+import { useProjectIssues } from './use-project-issues';
 
 export function ProjectIssuesFeed() {
   const { refetch, isRefetching, ...feedState } = useProjectIssues();

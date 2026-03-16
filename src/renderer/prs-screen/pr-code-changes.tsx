@@ -2,7 +2,6 @@ import { LayersIcon } from 'lucide-react';
 
 import type { PrDiffMetaResult } from '@/ipc/contracts';
 import { DiffDisplayModeToolbar } from '@/renderer/components/diff-display-mode-toolbar';
-import { PrDiffViewport } from '@/renderer/components/pr-diff-viewport';
 import { useDiffRenderFiles } from '@/renderer/hooks/use-diff-render-files';
 import { usePrDiffData, type AsyncState } from '@/renderer/hooks/use-pr-diff-data';
 import { useUserPreferences } from '@/renderer/hooks/use-user-preferences';
@@ -22,6 +21,8 @@ import {
   EmptyTitle,
 } from '@/shadcn/components/ui/empty';
 import { Spinner } from '@/shadcn/components/ui/spinner';
+
+import { PrDiffViewport } from './pr-diff-viewport';
 
 type ReviewSyncState =
   | { status: 'idle' }

@@ -1,13 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { ProjectIssueFeed } from '@/ipc/contracts';
-import type { ProjectFeedStatus } from '@/renderer/components/project-workspace-feed';
+import type { ProjectFeed } from '@/ipc/contracts';
+import { useProjectRepoDetailsState } from '@/renderer/hooks/use-project-repo';
 
-import { useProjectRepoDetailsState } from './use-project-repo';
+import type { ProjectFeedStatus } from './project-feed';
 
-type ProjectIssuesState = ProjectFeedStatus<ProjectIssueFeed>;
+type ProjectFeedFetcher<TFeed extends ProjectFeed> = (args: {
+  owner: string;
+  name: string;
+  skipCache: boolean;
+}) => Promise<TFeed>;
 
-export function useProjectIssues(): ProjectIssuesState & {
+export function useProjectFeedState<TFeed extends ProjectFeed>({
+  fetchFeed,
+  errorMessage,
+}: {
+  fetchFeed: ProjectFeedFetcher<TFeed>;
+  errorMessage: string;
+}): ProjectFeedStatus<TFeed> & {
   isRefetching: boolean;
   refetch: () => void;
 } {
@@ -16,7 +26,7 @@ export function useProjectIssues(): ProjectIssuesState & {
   const repoError = repoDetails.status === 'error' ? repoDetails.error : null;
   const owner = repoDetails.status === 'ready' ? repoDetails.data.owner : null;
   const name = repoDetails.status === 'ready' ? repoDetails.data.name : null;
-  const [state, setState] = useState<ProjectIssuesState>({
+  const [state, setState] = useState<ProjectFeedStatus<TFeed>>({
     status: 'loading',
     data: null,
     error: null,
@@ -24,7 +34,7 @@ export function useProjectIssues(): ProjectIssuesState & {
   const [isRefetching, setIsRefetching] = useState(false);
   const fetchIdRef = useRef(0);
 
-  const fetchIssues = useCallback(
+  const loadFeed = useCallback(
     (skipCache: boolean) => {
       if (repoStatus === 'idle' || repoStatus === 'loading') {
         fetchIdRef.current += 1;
@@ -58,8 +68,7 @@ export function useProjectIssues(): ProjectIssuesState & {
         setState({ status: 'loading', data: null, error: null });
       }
 
-      void window.electronAPI
-        .getProjectIssues(owner, name, skipCache)
+      void fetchFeed({ owner, name, skipCache })
         .then((data) => {
           if (fetchIdRef.current !== fetchId) return;
           setState({ status: 'ready', data, error: null });
@@ -69,7 +78,7 @@ export function useProjectIssues(): ProjectIssuesState & {
           setState({
             status: 'error',
             data: null,
-            error: error instanceof Error ? error.message : 'Could not fetch project issues.',
+            error: error instanceof Error ? error.message : errorMessage,
           });
         })
         .finally(() => {
@@ -77,16 +86,16 @@ export function useProjectIssues(): ProjectIssuesState & {
           setIsRefetching(false);
         });
     },
-    [name, owner, repoError, repoStatus],
+    [errorMessage, fetchFeed, name, owner, repoError, repoStatus],
   );
 
   const refetch = useCallback(() => {
-    fetchIssues(true);
-  }, [fetchIssues]);
+    loadFeed(true);
+  }, [loadFeed]);
 
   useEffect(() => {
-    fetchIssues(false);
-  }, [fetchIssues]);
+    loadFeed(false);
+  }, [loadFeed]);
 
   return { ...state, isRefetching, refetch };
 }

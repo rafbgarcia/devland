@@ -27,8 +27,8 @@ export function PrReviewButton({
   const repoId = repoDetails.status === 'ready' ? repoDetails.data.id : null;
   const { isGenerating } = usePrReviewGeneration(repoId, pr.number);
 
-  const handleClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
     setReviewPr({
       number: pr.number,
       title: pr.title,

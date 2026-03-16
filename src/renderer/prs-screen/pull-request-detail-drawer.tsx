@@ -1,39 +1,18 @@
-import { useEffect } from 'react';
-
 import {
   ExternalLinkIcon,
   GitPullRequestDraftIcon,
   GitPullRequestIcon,
 } from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
 
 import type { ProjectPullRequestFeedItem } from '@/ipc/contracts';
-import { DrawerCloseButton } from '@/renderer/components/drawer-close-button';
-import { PrReviewButton } from '@/renderer/components/pr-review-button';
 import { getAuthorLogin } from '@/renderer/lib/github-view';
+import { SlidingDetailDrawer } from '@/renderer/shared/ui/sliding-detail-drawer';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shadcn/components/ui/avatar';
 import { Badge } from '@/shadcn/components/ui/badge';
 import { RelativeTime } from '@/ui/relative-time';
 
-function PullRequestDiffStats({
-  commitCount,
-  additions,
-  deletions,
-}: {
-  commitCount: number;
-  additions: number;
-  deletions: number;
-}) {
-  return (
-    <span className="inline-flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
-      <span>
-        {commitCount} {commitCount === 1 ? 'commit' : 'commits'}
-      </span>
-      <span className="text-green-600">+{additions.toLocaleString()}</span>
-      <span className="text-red-500">-{deletions.toLocaleString()}</span>
-    </span>
-  );
-}
+import { PrReviewButton } from './pr-review-button';
+import { PullRequestDiffStats } from './pull-request-diff-stats';
 
 function PullRequestDetailContent({
   pr,
@@ -164,40 +143,17 @@ export function PullRequestDetailDrawer({
   prNumber: number | null;
   onClose: () => void;
 }) {
-  useEffect(() => {
-    if (prNumber === null) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [prNumber, onClose]);
-
   return (
-    <AnimatePresence>
-      {prNumber !== null && (
-        <motion.aside
-          initial={{ x: '100%' }}
-          animate={{ x: 0 }}
-          exit={{ x: '100%' }}
-          transition={{ type: 'tween', duration: 0.15 }}
-          className="fixed inset-y-0 right-0 z-50 flex w-[60vw] flex-row shadow-lg"
-        >
-          <DrawerCloseButton onClick={onClose} />
-
-          <div className="flex min-w-0 flex-1 flex-col bg-background">
-            {pr === null && (
-              <div className="flex flex-1 items-center justify-center p-4">
-                <p className="text-sm text-muted-foreground">
-                  Pull request details are not available in the current feed.
-                </p>
-              </div>
-            )}
-
-            {pr !== null && <PullRequestDetailContent pr={pr} />}
-          </div>
-        </motion.aside>
+    <SlidingDetailDrawer open={prNumber !== null} onClose={onClose}>
+      {pr === null ? (
+        <div className="flex flex-1 items-center justify-center p-4">
+          <p className="text-sm text-muted-foreground">
+            Pull request details are not available in the current feed.
+          </p>
+        </div>
+      ) : (
+        <PullRequestDetailContent pr={pr} />
       )}
-    </AnimatePresence>
+    </SlidingDetailDrawer>
   );
 }

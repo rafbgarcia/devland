@@ -1,11 +1,8 @@
-import { useEffect } from 'react';
-
 import { ExternalLinkIcon } from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
 
 import type { ProjectIssueFeedItem } from '@/ipc/contracts';
-import { DrawerCloseButton } from '@/renderer/components/drawer-close-button';
 import { getAuthorLogin } from '@/renderer/lib/github-view';
+import { SlidingDetailDrawer } from '@/renderer/shared/ui/sliding-detail-drawer';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shadcn/components/ui/avatar';
 import { Badge } from '@/shadcn/components/ui/badge';
 import { RelativeTime } from '@/ui/relative-time';
@@ -114,40 +111,17 @@ export function IssueDetailDrawer({
   issueNumber: number | null;
   onClose: () => void;
 }) {
-  useEffect(() => {
-    if (issueNumber === null) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [issueNumber, onClose]);
-
   return (
-    <AnimatePresence>
-      {issueNumber !== null && (
-        <motion.aside
-          initial={{ x: '100%' }}
-          animate={{ x: 0 }}
-          exit={{ x: '100%' }}
-          transition={{ type: 'tween', duration: 0.15 }}
-          className="fixed inset-y-0 right-0 z-50 flex w-[60vw] flex-row shadow-lg"
-        >
-          <DrawerCloseButton onClick={onClose} />
-
-          <div className="flex min-w-0 flex-1 flex-col bg-background">
-            {issue === null && (
-              <div className="flex flex-1 items-center justify-center p-4">
-                <p className="text-sm text-muted-foreground">
-                  Issue details are not available in the current feed.
-                </p>
-              </div>
-            )}
-
-            {issue !== null && <IssueDetailContent issue={issue} />}
-          </div>
-        </motion.aside>
+    <SlidingDetailDrawer open={issueNumber !== null} onClose={onClose}>
+      {issue === null ? (
+        <div className="flex flex-1 items-center justify-center p-4">
+          <p className="text-sm text-muted-foreground">
+            Issue details are not available in the current feed.
+          </p>
+        </div>
+      ) : (
+        <IssueDetailContent issue={issue} />
       )}
-    </AnimatePresence>
+    </SlidingDetailDrawer>
   );
 }
