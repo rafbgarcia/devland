@@ -12,6 +12,7 @@ export type CodexChatMessage = {
   id: string;
   role: 'user' | 'assistant';
   text: string;
+  activities: CodexSessionActivity[];
 };
 
 export type CodexSessionActivity = {
@@ -41,7 +42,7 @@ export type CodexSessionState = {
   turnId: string | null;
   messages: CodexChatMessage[];
   streamingAssistantText: string;
-  activities: CodexSessionActivity[];
+  currentTurnActivities: CodexSessionActivity[];
   pendingApprovals: PendingApproval[];
   pendingUserInputs: PendingUserInput[];
   error: string | null;
@@ -53,7 +54,7 @@ const DEFAULT_SESSION_STATE: CodexSessionState = {
   turnId: null,
   messages: [],
   streamingAssistantText: '',
-  activities: [],
+  currentTurnActivities: [],
   pendingApprovals: [],
   pendingUserInputs: [],
   error: null,
@@ -87,10 +88,10 @@ const updateSessionEventAtom = atom(
       case 'activity':
         nextState = {
           ...previous,
-          activities: [
-            ...previous.activities,
+          currentTurnActivities: [
+            ...previous.currentTurnActivities,
             {
-              id: `${event.sessionId}:${previous.activities.length}`,
+              id: `${event.sessionId}:${previous.currentTurnActivities.length}`,
               tone: event.tone,
               label: event.label,
               detail: event.detail ?? null,
@@ -142,26 +143,31 @@ const updateSessionEventAtom = atom(
           ),
         };
         break;
-      case 'turn-completed':
+      case 'turn-completed': {
+        const hasText = previous.streamingAssistantText.trim().length > 0;
+        const hasActivities = previous.currentTurnActivities.length > 0;
+        const shouldAddMessage = hasText || hasActivities;
         nextState = {
           ...previous,
           turnId: null,
           status: event.status === 'failed' ? 'error' : 'ready',
           error: event.status === 'failed' ? event.error ?? previous.error : null,
-          messages:
-            previous.streamingAssistantText.trim().length > 0
-              ? [
-                  ...previous.messages,
-                  {
-                    id: `${event.sessionId}:assistant:${previous.messages.length}`,
-                    role: 'assistant',
-                    text: previous.streamingAssistantText,
-                  },
-                ]
-              : previous.messages,
+          messages: shouldAddMessage
+            ? [
+                ...previous.messages,
+                {
+                  id: `${event.sessionId}:assistant:${previous.messages.length}`,
+                  role: 'assistant',
+                  text: previous.streamingAssistantText,
+                  activities: previous.currentTurnActivities,
+                },
+              ]
+            : previous.messages,
           streamingAssistantText: '',
+          currentTurnActivities: [],
         };
         break;
+      }
     }
 
     set(sessionStatesAtom, {
@@ -188,6 +194,7 @@ const registerUserPromptAtom = atom(
             id: `${input.sessionId}:user:${previous.messages.length}`,
             role: 'user',
             text: input.prompt,
+            activities: [],
           },
         ],
         streamingAssistantText: '',
