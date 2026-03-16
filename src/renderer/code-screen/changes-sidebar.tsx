@@ -10,6 +10,7 @@ import {
   FilesChangedList,
   type CodeChangesSidebarRenderProps,
 } from '@/renderer/components/code-changes-files-viewport';
+import { CommitComposer } from '@/renderer/code-screen/commit-composer';
 import { RelativeTime } from '@/ui/relative-time';
 import {
   Alert,
@@ -23,7 +24,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/shadcn/components/ui/tooltip';
-import { Textarea } from '@/shadcn/components/ui/textarea';
 
 function HistorySnapshotBanner({
   commit,
@@ -73,75 +73,7 @@ function HistorySnapshotBanner({
   );
 }
 
-function CommitComposer({
-  selectedFileCount,
-  totalFileCount,
-  summary,
-  description,
-  isSubmitting,
-  error,
-  onSummaryChange,
-  onDescriptionChange,
-  onCommit,
-}: {
-  selectedFileCount: number;
-  totalFileCount: number;
-  summary: string;
-  description: string;
-  isSubmitting: boolean;
-  error: string | null;
-  onSummaryChange: (summary: string) => void;
-  onDescriptionChange: (description: string) => void;
-  onCommit: () => void;
-}) {
-  return (
-    <div className="border-t border-border bg-muted/20 p-3">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <div className="text-xs font-semibold text-foreground">
-          Commit {selectedFileCount} of {totalFileCount} {totalFileCount === 1 ? 'file' : 'files'}
-        </div>
-      </div>
-
-      {error ? (
-        <Alert className="mb-3">
-          <AlertTitle>Commit failed</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      <div className="flex flex-col gap-2">
-        <Textarea
-          value={summary}
-          onChange={(event) => onSummaryChange(event.target.value)}
-          placeholder="Commit summary"
-          rows={2}
-          disabled={isSubmitting}
-        />
-        <Textarea
-          value={description}
-          onChange={(event) => onDescriptionChange(event.target.value)}
-          placeholder="Description (optional)"
-          rows={4}
-          disabled={isSubmitting}
-        />
-        <Button
-          type="button"
-          onClick={onCommit}
-          disabled={
-            isSubmitting ||
-            selectedFileCount === 0 ||
-            summary.trim().length === 0
-          }
-        >
-          <GitCommitHorizontalIcon data-icon="inline-start" />
-          {isSubmitting ? 'Committing…' : 'Commit selected changes'}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-export function CodeChangesSidebar({
+export function ChangesSidebar({
   diffFiles,
   visibleFiles,
   onSelectFile,
@@ -160,15 +92,11 @@ export function CodeChangesSidebar({
   workingTreeCommitState?: {
     selectedFileCount: number;
     totalFileCount: number;
-    summary: string;
-    description: string;
     isSubmitting: boolean;
     error: string | null;
     getFileSelectionType: (path: string) => DiffSelectionType;
     onToggleFileSelection: (path: string) => void;
-    onSummaryChange: (summary: string) => void;
-    onDescriptionChange: (description: string) => void;
-    onCommit: () => void;
+    onCommit: (draft: { summary: string; description: string }) => Promise<boolean>;
   } | undefined;
 }) {
   return (
@@ -190,12 +118,8 @@ export function CodeChangesSidebar({
         <CommitComposer
           selectedFileCount={workingTreeCommitState.selectedFileCount}
           totalFileCount={workingTreeCommitState.totalFileCount}
-          summary={workingTreeCommitState.summary}
-          description={workingTreeCommitState.description}
           isSubmitting={workingTreeCommitState.isSubmitting}
           error={workingTreeCommitState.error}
-          onSummaryChange={workingTreeCommitState.onSummaryChange}
-          onDescriptionChange={workingTreeCommitState.onDescriptionChange}
           onCommit={workingTreeCommitState.onCommit}
         />
       ) : undefined}

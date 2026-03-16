@@ -250,6 +250,7 @@ export function useGitCommitDiff({
       };
     }
 
+    return undefined;
   }, [commitSha, repoPath]);
 
   useEffect(() => {
@@ -278,14 +279,8 @@ export function useGitCommitDiff({
     };
   }, [commitSha, repoPath]);
 
-  const diffFiles = useMemo<DiffFile[]>(
-    () => (rawDiff.status === 'ready' ? parseDiffFiles(rawDiff.data) : []),
-    [rawDiff],
-  );
-
   return {
     rawDiff,
-    diffFiles,
     parentRevision,
   };
 }

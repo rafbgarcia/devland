@@ -22,11 +22,6 @@ type LineSelection = {
 
 type FileCommitSelection = WholeFileSelection | LineSelection;
 
-type CommitDraft = {
-  summary: string;
-  description: string;
-};
-
 function getStagePaths(file: DiffFile) {
   return [...new Set([file.oldPath, file.newPath].filter((path): path is string => path !== null))];
 }
@@ -58,7 +53,6 @@ function getRowLineNumbers(row: DiffRow) {
 }
 
 export type WorkingTreeCommitSelectionState = {
-  draft: CommitDraft;
   isSubmitting: boolean;
   error: string | null;
   selectedFileCount: number;
@@ -68,9 +62,7 @@ export type WorkingTreeCommitSelectionState = {
   toggleFileSelection: (path: string, nextSelected: boolean) => void;
   toggleHunkSelection: (path: string, hunkStartLineNumber: number, nextSelected: boolean) => void;
   toggleRowSelection: (path: string, row: DiffRow, nextSelected: boolean) => void;
-  setDraftSummary: (summary: string) => void;
-  setDraftDescription: (description: string) => void;
-  commitSelection: () => Promise<void>;
+  commitSelection: (draft: { summary: string; description: string }) => Promise<boolean>;
 };
 
 type CommitSelectionPayloadFile = {
@@ -90,14 +82,12 @@ export function useWorkingTreeCommitSelection({
   enabled: boolean;
 }): WorkingTreeCommitSelectionState {
   const [selectionByPath, setSelectionByPath] = useState<Record<string, FileCommitSelection>>({});
-  const [draft, setDraft] = useState<CommitDraft>({ summary: '', description: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!enabled) {
       setSelectionByPath({});
-      setDraft({ summary: '', description: '' });
       setError(null);
       setIsSubmitting(false);
       return;
@@ -266,19 +256,13 @@ export function useWorkingTreeCommitSelection({
     [diffFiles, getFileSelectionType],
   );
 
-  const setDraftSummary = useCallback((summary: string) => {
-    setDraft((current) => ({ ...current, summary }));
-  }, []);
-
-  const setDraftDescription = useCallback((description: string) => {
-    setDraft((current) => ({ ...current, description }));
-  }, []);
-
-  const commitSelection = useCallback(async () => {
+  const commitSelection = useCallback(async (
+    draft: { summary: string; description: string },
+  ) => {
     const summary = draft.summary.trim();
 
     if (!enabled || summary.length === 0 || isSubmitting) {
-      return;
+      return false;
     }
 
     const files: CommitSelectionPayloadFile[] = diffFiles.flatMap((file): CommitSelectionPayloadFile[] => {
@@ -318,7 +302,7 @@ export function useWorkingTreeCommitSelection({
 
     if (files.length === 0) {
       setError('Select at least one change to commit.');
-      return;
+      return false;
     }
 
     setIsSubmitting(true);
@@ -331,20 +315,20 @@ export function useWorkingTreeCommitSelection({
         description: draft.description.trim(),
         files,
       });
-      setDraft({ summary: '', description: '' });
+      return true;
     } catch (commitError) {
       setError(
         commitError instanceof Error
           ? commitError.message
           : 'Failed to commit the selected changes.',
       );
+      return false;
     } finally {
       setIsSubmitting(false);
     }
-  }, [diffFiles, draft.description, draft.summary, enabled, isSubmitting, repoPath, selectionByPath]);
+  }, [diffFiles, enabled, isSubmitting, repoPath, selectionByPath]);
 
   return {
-    draft,
     isSubmitting,
     error,
     selectedFileCount,
@@ -354,8 +338,6 @@ export function useWorkingTreeCommitSelection({
     toggleFileSelection,
     toggleHunkSelection,
     toggleRowSelection,
-    setDraftSummary,
-    setDraftDescription,
     commitSelection,
   };
 }

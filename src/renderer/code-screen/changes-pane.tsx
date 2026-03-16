@@ -7,16 +7,16 @@ import {
   type CodeChangesViewportHandle,
 } from '@/renderer/components/code-changes-files-viewport';
 import { DiffDisplayModeToolbar } from '@/renderer/components/diff-display-mode-toolbar';
-import { CodeChangesHistoryDrawer } from '@/renderer/components/code-changes-history-drawer';
-import { CodeChangesSidebar } from '@/renderer/components/code-changes-sidebar';
+import { ChangesSidebar } from '@/renderer/code-screen/changes-sidebar';
+import { CodeChangesHistoryDrawer } from '@/renderer/code-screen/changes-history-drawer';
 import {
   useGitBranchHistory,
   useGitCommitDiff,
   useGitWorkingTreeDiff,
-} from '@/renderer/hooks/use-git-code-changes';
+} from '@/renderer/code-screen/use-git-code-changes';
+import { useWorkingTreeCommitSelection } from '@/renderer/code-screen/use-working-tree-commit-selection';
 import { useDiffRenderFiles } from '@/renderer/hooks/use-diff-render-files';
 import { useUserPreferences } from '@/renderer/hooks/use-user-preferences';
-import { useWorkingTreeCommitSelection } from '@/renderer/hooks/use-working-tree-commit-selection';
 
 type CodeChangesSelection =
   | { type: 'working-tree' }
@@ -42,7 +42,7 @@ function areVisibleFileSetsEqual(left: Set<string>, right: Set<string>) {
   return true;
 }
 
-export function CodeChanges({
+export function ChangesPane({
   repoPath,
   baseBranchName,
   branchName,
@@ -164,26 +164,27 @@ export function CodeChanges({
     return 'partial' as const;
   };
 
-  const toggleWorkingTreeFileSelection = (path: string) => {
+  const toggleWorkingTreeFileSelection = useCallback((path: string) => {
     workingTreeCommitSelection.toggleFileSelection(
       path,
       workingTreeCommitSelection.getFileSelectionType(path) === 'none',
     );
-  };
+  }, [workingTreeCommitSelection]);
 
-  const handleRestoreWorkingTree = () => {
+  const handleRestoreWorkingTree = useCallback(() => {
     setSelection({ type: 'working-tree' });
-  };
+  }, []);
 
-  const handleSelectHistoryCommit = (commit: PrCommit) => {
+  const handleSelectHistoryCommit = useCallback((commit: PrCommit) => {
     setSelection({ type: 'commit', commit });
     setIsHistoryOpen(false);
-  };
+  }, []);
 
-  const handleFileSelect = (path: string) => {
+  const handleFileSelect = useCallback((path: string) => {
     viewportRef.current?.scrollToFile(path);
     onFileSelect?.();
-  };
+  }, [onFileSelect]);
+
   const handleVisibleFilesChange = useCallback((nextVisibleFiles: Set<string>) => {
     setVisibleFiles((currentVisibleFiles) =>
       areVisibleFileSetsEqual(currentVisibleFiles, nextVisibleFiles)
@@ -194,8 +195,12 @@ export function CodeChanges({
 
   const drawerCommits = useMemo(() => historyCommits, [historyCommits]);
 
+  const handleCommitSelection = useCallback((
+    draft: { summary: string; description: string },
+  ) => workingTreeCommitSelection.commitSelection(draft), [workingTreeCommitSelection]);
+
   const sidebar = (
-    <CodeChangesSidebar
+    <ChangesSidebar
       diffFiles={activeRenderFiles}
       visibleFiles={visibleFiles}
       onSelectFile={handleFileSelect}
@@ -211,17 +216,11 @@ export function CodeChanges({
           ? {
               selectedFileCount: workingTreeCommitSelection.selectedFileCount,
               totalFileCount: activeRenderFiles.length,
-              summary: workingTreeCommitSelection.draft.summary,
-              description: workingTreeCommitSelection.draft.description,
               isSubmitting: workingTreeCommitSelection.isSubmitting,
               error: workingTreeCommitSelection.error,
               getFileSelectionType: workingTreeCommitSelection.getFileSelectionType,
               onToggleFileSelection: toggleWorkingTreeFileSelection,
-              onSummaryChange: workingTreeCommitSelection.setDraftSummary,
-              onDescriptionChange: workingTreeCommitSelection.setDraftDescription,
-              onCommit: () => {
-                void workingTreeCommitSelection.commitSelection();
-              },
+              onCommit: handleCommitSelection,
             }
           : undefined
       }
