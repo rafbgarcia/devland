@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   BotIcon,
@@ -31,6 +31,7 @@ import {
 import { cn } from '@/shadcn/lib/utils';
 
 const MAX_VISIBLE_ACTIVITIES = 4;
+const AUTO_SCROLL_THRESHOLD_PX = 48;
 
 function activityIcon(activity: CodexSessionActivity) {
   if (activity.tone === 'error') return <XIcon className="size-3 text-rose-400/70" />;
@@ -173,15 +174,27 @@ export function SessionTranscript({
   onCreateSession: () => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const shouldAutoScrollRef = useRef(true);
   const hasConversation =
     sessionState.messages.length > 0 ||
     sessionState.streamingAssistantText.trim().length > 0 ||
     sessionState.currentTurnActivities.length > 0;
 
-  useEffect(() => {
+  const handleScroll = useCallback(() => {
     const element = scrollRef.current;
 
     if (!element) {
+      return;
+    }
+
+    const distanceFromBottom = element.scrollHeight - element.scrollTop - element.clientHeight;
+    shouldAutoScrollRef.current = distanceFromBottom <= AUTO_SCROLL_THRESHOLD_PX;
+  }, []);
+
+  useEffect(() => {
+    const element = scrollRef.current;
+
+    if (!element || !shouldAutoScrollRef.current) {
       return;
     }
 
@@ -221,7 +234,7 @@ export function SessionTranscript({
   }
 
   return (
-    <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+    <div ref={scrollRef} onScroll={handleScroll} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
       <div className="mx-auto flex min-h-full w-full max-w-2xl flex-col gap-3">
         <AnimatePresence mode="popLayout">
           {sessionState.messages.map((message) => (

@@ -19,8 +19,17 @@ import {
 } from '@/renderer/lib/diff/highlighter';
 
 const SYNTAX_CACHE_LIMIT = 40;
+const PARSED_DIFF_CACHE_LIMIT = 12;
 
 type SyntaxCacheEntry = Promise<DiffFileTokens> | DiffFileTokens;
+type ParsedDiffEntry = Array<{
+  path: string;
+  status: DiffFile['status'];
+  additions: number;
+  deletions: number;
+  diff: DiffFile;
+  rows: DiffRow[];
+}>;
 
 export type DiffRenderContext =
   | { kind: 'working-tree'; repoPath: string }
@@ -89,7 +98,7 @@ function hashString(value: string) {
   return (hash >>> 0).toString(16);
 }
 
-function getFromSyntaxCache(cache: Map<string, SyntaxCacheEntry>, key: string) {
+function getFromLruCache<T>(cache: Map<string, T>, key: string) {
   const cached = cache.get(key);
 
   if (cached === undefined) {
@@ -102,10 +111,11 @@ function getFromSyntaxCache(cache: Map<string, SyntaxCacheEntry>, key: string) {
   return cached;
 }
 
-function setSyntaxCacheValue(
-  cache: Map<string, SyntaxCacheEntry>,
+function setLruCacheValue<T>(
+  cache: Map<string, T>,
   key: string,
-  value: SyntaxCacheEntry,
+  value: T,
+  limit: number,
 ) {
   if (cache.has(key)) {
     cache.delete(key);
@@ -113,7 +123,7 @@ function setSyntaxCacheValue(
 
   cache.set(key, value);
 
-  while (cache.size > SYNTAX_CACHE_LIMIT) {
+  while (cache.size > limit) {
     const oldestKey = cache.keys().next().value;
 
     if (oldestKey === undefined) {
@@ -137,33 +147,59 @@ export function useDiffRenderFiles({
 }) {
   const [syntaxTokensByPath, setSyntaxTokensByPath] = useState<Record<string, DiffFileTokens | null>>({});
   const syntaxCacheRef = useRef<Map<string, SyntaxCacheEntry>>(new Map());
+  const parsedDiffCacheRef = useRef<Map<string, ParsedDiffEntry>>(new Map());
   const highlightPathSet = useMemo(
     () => highlightPaths === undefined ? null : new Set(highlightPaths),
     [highlightPaths],
   );
+  const rawDiffCacheKey = useMemo(() => {
+    if (rawDiff.status !== 'ready') {
+      return null;
+    }
+
+    return `${rawDiff.data.length}:${hashString(rawDiff.data)}`;
+  }, [rawDiff]);
 
   const baseFiles = useMemo(() => {
     if (rawDiff.status !== 'ready' || context === null) {
       return [] as DiffRenderFile[];
     }
 
-    return parseUnifiedDiffDocument(rawDiff.data).files.map((file) => {
-      const rows = projectDiffRows(file);
-      const contentPair = createContentPair(context, file);
+    let parsedDiff = rawDiffCacheKey === null
+      ? undefined
+      : getFromLruCache(parsedDiffCacheRef.current, rawDiffCacheKey);
 
-      return {
+    if (parsedDiff === undefined) {
+      parsedDiff = parseUnifiedDiffDocument(rawDiff.data).files.map((file) => ({
         path: file.displayPath,
         status: file.status,
         additions: file.additions,
         deletions: file.deletions,
-        renderLineCount: getDiffRowsRenderLineCount(rows, displayMode),
         diff: file,
-        rows,
+        rows: projectDiffRows(file),
+      }));
+
+      if (rawDiffCacheKey !== null) {
+        setLruCacheValue(parsedDiffCacheRef.current, rawDiffCacheKey, parsedDiff, PARSED_DIFF_CACHE_LIMIT);
+      }
+    }
+
+    return parsedDiff.map((file) => {
+      const contentPair = createContentPair(context, file.diff);
+
+      return {
+        path: file.path,
+        status: file.status,
+        additions: file.additions,
+        deletions: file.deletions,
+        renderLineCount: getDiffRowsRenderLineCount(file.rows, displayMode),
+        diff: file.diff,
+        rows: file.rows,
         contentPair,
         syntaxTokens: null,
       } satisfies DiffRenderFile;
     });
-  }, [context, displayMode, rawDiff]);
+  }, [context, displayMode, rawDiff, rawDiffCacheKey]);
 
   useEffect(() => {
     if (rawDiff.status !== 'ready' || context === null || baseFiles.length === 0) {
@@ -185,7 +221,7 @@ export function useDiffRenderFiles({
 
         try {
           const cacheKey = getSyntaxCacheKey(file.diff, file.contentPair);
-          const cached = getFromSyntaxCache(syntaxCacheRef.current, cacheKey);
+          const cached = getFromLruCache(syntaxCacheRef.current, cacheKey);
 
           if (cached instanceof Promise) {
             return [file.path, await cached] as const;
@@ -197,7 +233,7 @@ export function useDiffRenderFiles({
 
           const pending = highlightDiffFileContents(file.contentPair, file.diff)
             .then((tokens: DiffFileTokens) => {
-              setSyntaxCacheValue(syntaxCacheRef.current, cacheKey, tokens);
+              setLruCacheValue(syntaxCacheRef.current, cacheKey, tokens, SYNTAX_CACHE_LIMIT);
               return tokens;
             })
             .catch((error: unknown) => {
@@ -205,7 +241,7 @@ export function useDiffRenderFiles({
               throw error;
             });
 
-          setSyntaxCacheValue(syntaxCacheRef.current, cacheKey, pending);
+          setLruCacheValue(syntaxCacheRef.current, cacheKey, pending, SYNTAX_CACHE_LIMIT);
 
           return [file.path, await pending] as const;
         } catch (error) {

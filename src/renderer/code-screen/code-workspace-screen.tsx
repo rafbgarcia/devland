@@ -177,12 +177,22 @@ export function CodeWorkspaceScreen({
   const activeBranch = statusState.data?.branch ?? 'HEAD';
   const rootBranch = rootStatusState.data?.branch ?? 'HEAD';
 
-  useGitStateWatch([repoPath, activeTarget.cwd], () => {
-    void Promise.all([
-      rootStatusState.refetch(),
-      statusState.refetch(),
-      defaultBranchState.refetch(),
-    ]).catch((error) => {
+  useGitStateWatch([repoPath, activeTarget.cwd], (changedRepoPath) => {
+    const refreshes: Promise<unknown>[] = [];
+
+    if (changedRepoPath === repoPath) {
+      refreshes.push(rootStatusState.refetch());
+    }
+
+    if (changedRepoPath === activeTarget.cwd) {
+      refreshes.push(statusState.refetch(), defaultBranchState.refetch());
+    }
+
+    if (refreshes.length === 0) {
+      return;
+    }
+
+    void Promise.all(refreshes).catch((error) => {
       console.error('Failed to refresh Git state:', error);
     });
   });
