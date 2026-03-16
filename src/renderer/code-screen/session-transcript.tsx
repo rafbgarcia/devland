@@ -1,24 +1,39 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import {
   BotIcon,
   CheckIcon,
-  ChevronRightIcon,
+  CircleAlertIcon,
+  GlobeIcon,
+  HammerIcon,
+  ImageIcon,
   LoaderCircleIcon,
   PlusIcon,
+  SearchIcon,
   SquarePenIcon,
   TerminalIcon,
-  XIcon,
+  WrenchIcon,
   ZapIcon,
 } from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
-import { Collapsible } from '@base-ui/react/collapsible';
+import ReactMarkdown from 'react-markdown';
+import { useVirtualizer, type VirtualItem } from '@tanstack/react-virtual';
 
+import type { CodexSessionState } from '@/renderer/code-screen/codex-session-state';
 import {
-  type CodexChatMessage,
-  type CodexSessionActivity,
-  type CodexSessionState,
-} from '@/renderer/code-screen/use-codex-sessions';
+  deriveSessionTimelineRows,
+  estimateSessionTimelineRowHeight,
+  type SessionTimelineRow,
+  type SessionTimelineToolEntry,
+} from '@/renderer/code-screen/session-timeline';
+import { Badge } from '@/shadcn/components/ui/badge';
 import { Button } from '@/shadcn/components/ui/button';
 import {
   Empty,
@@ -30,138 +45,271 @@ import {
 } from '@/shadcn/components/ui/empty';
 import { cn } from '@/shadcn/lib/utils';
 
-const MAX_VISIBLE_ACTIVITIES = 4;
+const MAX_VISIBLE_TOOL_ENTRIES = 6;
 const AUTO_SCROLL_THRESHOLD_PX = 48;
+const ALWAYS_UNVIRTUALIZED_TAIL_ROWS = 6;
 
-function activityIcon(activity: CodexSessionActivity) {
-  if (activity.tone === 'error') return <XIcon className="size-3 text-rose-400/70" />;
-  if (activity.tone === 'tool') {
-    const label = activity.label.toLowerCase();
-    if (label.includes('command') || label.includes('exec') || label.includes('bash'))
-      return <TerminalIcon className="size-3 text-muted-foreground/70" />;
-    if (label.includes('file') || label.includes('write') || label.includes('edit') || label.includes('read'))
-      return <SquarePenIcon className="size-3 text-muted-foreground/70" />;
-    return <ZapIcon className="size-3 text-amber-400/70" />;
+function toolEntryIcon(entry: SessionTimelineToolEntry) {
+  if (entry.tone === 'error') {
+    return CircleAlertIcon;
   }
-  return <CheckIcon className="size-3 text-muted-foreground/50" />;
+
+  if (entry.itemType === 'command_execution') {
+    return TerminalIcon;
+  }
+
+  if (entry.itemType === 'file_change') {
+    return SquarePenIcon;
+  }
+
+  if (entry.itemType === 'web_search') {
+    return SearchIcon;
+  }
+
+  if (entry.itemType === 'image_view') {
+    return ImageIcon;
+  }
+
+  if (entry.itemType === 'mcp_tool_call') {
+    return WrenchIcon;
+  }
+
+  if (entry.itemType === 'dynamic_tool_call') {
+    return HammerIcon;
+  }
+
+  if (entry.itemType === 'collab_agent_tool_call') {
+    return GlobeIcon;
+  }
+
+  return entry.status === 'completed' ? CheckIcon : ZapIcon;
 }
 
-function ActivityGroup({ activities }: { activities: CodexSessionActivity[] }) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const hasOverflow = activities.length > MAX_VISIBLE_ACTIVITIES;
-  const visibleActivities = hasOverflow && !isExpanded
-    ? activities.slice(-MAX_VISIBLE_ACTIVITIES)
-    : activities;
+function toolEntryIconClassName(entry: SessionTimelineToolEntry): string {
+  if (entry.tone === 'error') {
+    return 'text-destructive';
+  }
+
+  if (entry.status === 'running') {
+    return 'text-primary';
+  }
+
+  return 'text-muted-foreground';
+}
+
+const AssistantMarkdown = memo(function AssistantMarkdown({
+  text,
+  isStreaming = false,
+}: {
+  text: string;
+  isStreaming?: boolean;
+}) {
+  return (
+    <div className="min-w-0 px-1">
+      <div className="prose prose-sm max-w-none text-foreground prose-headings:font-medium prose-headings:text-foreground prose-p:text-foreground prose-p:leading-7 prose-a:text-primary prose-a:no-underline hover:prose-a:underline prose-strong:text-foreground prose-code:rounded-md prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:font-medium prose-code:text-foreground prose-code:before:content-none prose-code:after:content-none prose-pre:overflow-x-auto prose-pre:rounded-2xl prose-pre:border prose-pre:border-border/70 prose-pre:bg-card prose-pre:px-4 prose-pre:py-3 prose-pre:text-foreground dark:prose-invert">
+        <ReactMarkdown
+          components={{
+            ul: ({ children, ...props }) => (
+              <ul className="my-4 flex list-disc flex-col gap-1 pl-5" {...props}>
+                {children}
+              </ul>
+            ),
+            ol: ({ children, ...props }) => (
+              <ol className="my-4 flex list-decimal flex-col gap-1 pl-5" {...props}>
+                {children}
+              </ol>
+            ),
+            blockquote: ({ children, ...props }) => (
+              <blockquote
+                className="border-l-2 border-border/70 pl-4 text-muted-foreground"
+                {...props}
+              >
+                {children}
+              </blockquote>
+            ),
+          }}
+        >
+          {text}
+        </ReactMarkdown>
+      </div>
+      {isStreaming ? (
+        <div className="mt-2 flex items-center gap-2 px-1 text-[11px] text-muted-foreground">
+          <LoaderCircleIcon className="size-3 animate-spin" />
+          Streaming response
+        </div>
+      ) : null}
+    </div>
+  );
+});
+
+const ToolEntryRow = memo(function ToolEntryRow({
+  entry,
+}: {
+  entry: SessionTimelineToolEntry;
+}) {
+  const EntryIcon = toolEntryIcon(entry);
 
   return (
-    <div className="rounded-lg border border-border/40 bg-card/30">
-      <Collapsible.Root open={isExpanded} onOpenChange={setIsExpanded}>
-        <Collapsible.Trigger className="flex w-full items-center gap-2 px-3 py-2 text-xs text-muted-foreground transition-colors hover:text-foreground">
-          <ZapIcon className="size-3 shrink-0 text-amber-400/70" />
-          <span className="font-medium">
-            {activities.length} tool {activities.length === 1 ? 'call' : 'calls'}
-          </span>
-          <ChevronRightIcon
-            className={cn(
-              'ml-auto size-3 transition-transform duration-200',
-              isExpanded && 'rotate-90',
-            )}
-          />
-        </Collapsible.Trigger>
-        <Collapsible.Panel>
-          <div className="flex flex-col gap-px border-t border-border/30 px-1 py-1">
-            {visibleActivities.map((activity) => (
-              <div
-                key={activity.id}
-                className="group flex items-start gap-2 rounded-md px-2 py-1.5 transition-colors hover:bg-muted/30"
-              >
-                <span className="mt-0.5 shrink-0">{activityIcon(activity)}</span>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[11px] font-medium text-muted-foreground/80">
-                    {activity.label}
-                  </div>
-                  {activity.detail ? (
-                    <div className="mt-0.5 truncate text-[10px] text-muted-foreground/50">
-                      {activity.detail}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            ))}
+    <div className="flex items-start gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-background/70">
+      <div
+        className={cn(
+          'flex size-7 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-background/70',
+          toolEntryIconClassName(entry),
+        )}
+      >
+        <EntryIcon className="size-3.5" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className="truncate text-sm font-medium text-foreground">{entry.label}</p>
+          {entry.status === 'running' ? <Badge variant="secondary">Running</Badge> : null}
+          {entry.tone === 'error' ? <Badge variant="destructive">Error</Badge> : null}
+        </div>
+        {entry.detail ? (
+          <p className="truncate text-xs text-muted-foreground" title={entry.detail}>
+            {entry.detail}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+});
+
+function ToolGroupRow({ entries }: { entries: SessionTimelineToolEntry[] }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const hasOverflow = entries.length > MAX_VISIBLE_TOOL_ENTRIES;
+  const visibleEntries =
+    hasOverflow && !isExpanded ? entries.slice(-MAX_VISIBLE_TOOL_ENTRIES) : entries;
+  const onlyToolEntries = entries.every((entry) => entry.tone === 'tool');
+
+  return (
+    <div className="px-1 pb-4">
+      <div className="overflow-hidden rounded-2xl border border-border/70 bg-card/75 shadow-sm">
+        <div className="flex items-center justify-between gap-3 border-b border-border/60 px-3 py-2.5">
+          <div className="flex items-center gap-2">
+            <Badge variant="outline">{onlyToolEntries ? 'Tool calls' : 'Progress'}</Badge>
+            <p className="text-xs text-muted-foreground">
+              {entries.length} {entries.length === 1 ? 'action' : 'actions'}
+            </p>
           </div>
-        </Collapsible.Panel>
-      </Collapsible.Root>
+          {hasOverflow ? (
+            <Button
+              type="button"
+              size="xs"
+              variant="ghost"
+              onClick={() => setIsExpanded((current) => !current)}
+            >
+              {isExpanded ? 'Show less' : `Show ${entries.length - visibleEntries.length} more`}
+            </Button>
+          ) : null}
+        </div>
+        <div className="flex flex-col gap-1 p-2">
+          {visibleEntries.map((entry) => (
+            <ToolEntryRow key={entry.id} entry={entry} />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
 
-function MessageBubble({ message }: { message: CodexChatMessage }) {
-  const isUser = message.role === 'user';
-
-  return (
-    <motion.div
-      className={cn('flex', isUser ? 'justify-end' : 'justify-start')}
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2, ease: 'easeOut' }}
-    >
-      <div className={cn('flex max-w-[85%] flex-col gap-2', isUser ? 'items-end' : 'items-start')}>
-        {!isUser && message.activities.length > 0 ? (
-          <ActivityGroup activities={message.activities} />
-        ) : null}
-
-        {message.text.trim().length > 0 ? (
-          <div
-            className={cn(
-              'rounded-2xl px-4 py-2.5 text-sm leading-relaxed',
-              isUser
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted/50 text-foreground',
-            )}
-          >
-            <span className="whitespace-pre-wrap">{message.text}</span>
-          </div>
-        ) : null}
-      </div>
-    </motion.div>
-  );
-}
-
-function StreamingMessage({
+const UserMessageRow = memo(function UserMessageRow({
   text,
-  activities,
 }: {
   text: string;
-  activities: CodexSessionActivity[];
 }) {
-  const hasText = text.trim().length > 0;
-  const hasActivities = activities.length > 0;
+  return (
+    <div className="flex justify-end px-1 pb-4">
+      <div className="max-w-[78%] rounded-[1.35rem] rounded-br-md border border-primary/15 bg-primary px-4 py-3 text-sm leading-7 text-primary-foreground shadow-sm">
+        <span className="whitespace-pre-wrap">{text}</span>
+      </div>
+    </div>
+  );
+});
 
-  if (!hasText && !hasActivities) return null;
+const AssistantMessageRow = memo(function AssistantMessageRow({
+  text,
+  diff,
+  isStreaming = false,
+}: {
+  text: string;
+  diff?: NonNullable<CodexSessionState['messages'][number]['diff']> | null;
+  isStreaming?: boolean;
+}) {
+  const totalAdditions = diff?.files.reduce((sum, file) => sum + file.additions, 0) ?? 0;
+  const totalDeletions = diff?.files.reduce((sum, file) => sum + file.deletions, 0) ?? 0;
+  const visibleFiles = diff?.files.slice(0, 4) ?? [];
 
   return (
-    <motion.div
-      className="flex justify-start"
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.15 }}
-    >
-      <div className="flex max-w-[85%] flex-col items-start gap-2">
-        {hasActivities ? <ActivityGroup activities={activities} /> : null}
-        {hasText ? (
-          <div className="rounded-2xl bg-muted/50 px-4 py-2.5 text-sm leading-relaxed text-foreground">
-            <span className="whitespace-pre-wrap">{text}</span>
-            <span className="ml-1 inline-block size-1.5 animate-pulse rounded-full bg-foreground/40" />
+    <div className="min-w-0 pb-4">
+      <AssistantMarkdown text={text.trim().length > 0 ? text : '(empty response)'} isStreaming={isStreaming} />
+      {diff && diff.files.length > 0 ? (
+        <div className="mt-3 px-1">
+          <div className="rounded-2xl border border-border/70 bg-card/75 p-3 shadow-sm">
+            <div className="flex items-center gap-2">
+              <Badge variant="outline">Turn diff</Badge>
+              <p className="text-xs text-muted-foreground">
+                {diff.files.length} {diff.files.length === 1 ? 'file' : 'files'}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                +{totalAdditions} / -{totalDeletions}
+              </p>
+            </div>
+            <div className="mt-3 flex flex-col gap-2">
+              {visibleFiles.map((file) => (
+                <div
+                  key={`${file.status}:${file.path}`}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/70 px-3 py-2 text-xs"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-foreground">{file.path}</p>
+                    <p className="text-muted-foreground">{file.status}</p>
+                  </div>
+                  <p className="shrink-0 text-muted-foreground">
+                    +{file.additions} / -{file.deletions}
+                  </p>
+                </div>
+              ))}
+              {diff.files.length > visibleFiles.length ? (
+                <p className="text-xs text-muted-foreground">
+                  +{diff.files.length - visibleFiles.length} more files in this turn
+                </p>
+              ) : null}
+            </div>
           </div>
-        ) : (
-          <div className="flex items-center gap-2 px-1 py-1">
-            <LoaderCircleIcon className="size-3.5 animate-spin text-muted-foreground/60" />
-            <span className="text-xs text-muted-foreground/60">Thinking...</span>
-          </div>
-        )}
-      </div>
-    </motion.div>
+        </div>
+      ) : null}
+    </div>
   );
+});
+
+const WorkingRow = memo(function WorkingRow() {
+  return (
+    <div className="flex items-center gap-2 px-2 pb-4 text-sm text-muted-foreground">
+      <LoaderCircleIcon className="size-3.5 animate-spin" />
+      Codex is working
+    </div>
+  );
+});
+
+function TimelineRowView({ row }: { row: SessionTimelineRow }) {
+  if (row.kind === 'work') {
+    return <ToolGroupRow entries={row.entries} />;
+  }
+
+  if (row.kind === 'working') {
+    return <WorkingRow />;
+  }
+
+  if (row.kind === 'streaming-message') {
+    return <AssistantMessageRow text={row.text} diff={null} isStreaming />;
+  }
+
+  if (row.message.role === 'user') {
+    return <UserMessageRow text={row.message.text} />;
+  }
+
+  return <AssistantMessageRow text={row.message.text} diff={row.message.diff} />;
 }
 
 export const SessionTranscript = memo(function SessionTranscript({
@@ -174,11 +322,20 @@ export const SessionTranscript = memo(function SessionTranscript({
   onCreateSession: () => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const timelineRootRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true);
-  const hasConversation =
-    sessionState.messages.length > 0 ||
-    sessionState.streamingAssistantText.trim().length > 0 ||
-    sessionState.currentTurnActivities.length > 0;
+  const [timelineWidthPx, setTimelineWidthPx] = useState<number | null>(null);
+
+  const rows = useMemo(
+    () => deriveSessionTimelineRows(sessionState),
+    [
+      sessionState.currentTurnActivities,
+      sessionState.messages,
+      sessionState.status,
+      sessionState.streamingAssistantText,
+    ],
+  );
+  const hasConversation = rows.length > 0;
 
   const handleScroll = useCallback(() => {
     const element = scrollRef.current;
@@ -190,6 +347,54 @@ export const SessionTranscript = memo(function SessionTranscript({
     const distanceFromBottom = element.scrollHeight - element.scrollTop - element.clientHeight;
     shouldAutoScrollRef.current = distanceFromBottom <= AUTO_SCROLL_THRESHOLD_PX;
   }, []);
+
+  useLayoutEffect(() => {
+    const element = timelineRootRef.current;
+
+    if (!element) {
+      return;
+    }
+
+    const updateWidth = (nextWidth: number) => {
+      setTimelineWidthPx((currentWidth) => {
+        if (currentWidth !== null && Math.abs(currentWidth - nextWidth) < 0.5) {
+          return currentWidth;
+        }
+
+        return nextWidth;
+      });
+    };
+
+    updateWidth(element.getBoundingClientRect().width);
+
+    if (typeof ResizeObserver === 'undefined') {
+      return;
+    }
+
+    const observer = new ResizeObserver(() => {
+      updateWidth(element.getBoundingClientRect().width);
+    });
+    observer.observe(element);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [hasConversation]);
+
+  const virtualizedRowCount = Math.max(rows.length - ALWAYS_UNVIRTUALIZED_TAIL_ROWS, 0);
+  const rowVirtualizer = useVirtualizer({
+    count: virtualizedRowCount,
+    getScrollElement: () => scrollRef.current,
+    getItemKey: (index) => rows[index]?.id ?? index,
+    estimateSize: (index) => estimateSessionTimelineRowHeight(rows[index]!, timelineWidthPx),
+    overscan: 6,
+  });
+  const virtualRows = rowVirtualizer.getVirtualItems();
+  const nonVirtualizedRows = rows.slice(virtualizedRowCount);
+
+  useEffect(() => {
+    rowVirtualizer.measure();
+  }, [rowVirtualizer, rows, timelineWidthPx]);
 
   useEffect(() => {
     const element = scrollRef.current;
@@ -204,9 +409,10 @@ export const SessionTranscript = memo(function SessionTranscript({
 
     return () => window.cancelAnimationFrame(frameId);
   }, [
-    sessionState.messages.length,
-    sessionState.streamingAssistantText,
+    rowVirtualizer,
+    rows.length,
     sessionState.currentTurnActivities.length,
+    sessionState.streamingAssistantText,
   ]);
 
   if (!hasConversation) {
@@ -234,20 +440,40 @@ export const SessionTranscript = memo(function SessionTranscript({
   }
 
   return (
-    <div ref={scrollRef} onScroll={handleScroll} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-      <div className="mx-auto flex min-h-full w-full max-w-2xl flex-col gap-3">
-        <AnimatePresence mode="popLayout">
-          {sessionState.messages.map((message) => (
-            <MessageBubble key={message.id} message={message} />
-          ))}
-        </AnimatePresence>
+    <div
+      ref={scrollRef}
+      onScroll={handleScroll}
+      className="min-h-0 flex-1 overflow-y-auto px-4 py-4"
+    >
+      <div ref={timelineRootRef} className="mx-auto w-full max-w-3xl min-w-0">
+        {virtualizedRowCount > 0 ? (
+          <div className="relative" style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
+            {virtualRows.map((virtualRow: VirtualItem) => {
+              const row = rows[virtualRow.index];
 
-        {sessionState.status === 'running' ? (
-          <StreamingMessage
-            text={sessionState.streamingAssistantText}
-            activities={sessionState.currentTurnActivities}
-          />
+              if (!row) {
+                return null;
+              }
+
+              return (
+                <div
+                  key={`virtual-row:${row.id}`}
+                  ref={rowVirtualizer.measureElement}
+                  className="absolute left-0 top-0 w-full"
+                  style={{ transform: `translateY(${virtualRow.start}px)` }}
+                >
+                  <TimelineRowView row={row} />
+                </div>
+              );
+            })}
+          </div>
         ) : null}
+
+        {nonVirtualizedRows.map((row) => (
+          <div key={`tail-row:${row.id}`}>
+            <TimelineRowView row={row} />
+          </div>
+        ))}
       </div>
     </div>
   );

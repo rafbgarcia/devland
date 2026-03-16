@@ -43,6 +43,7 @@ export function ChangesPane({
   onFileSelect?: () => void;
   onSubmitDiffComment?: ((anchor: DiffCommentAnchor, body: string) => Promise<void>) | undefined;
 }) {
+  const emptyHighlightPaths = useMemo(() => [] as string[], []);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [selection, setSelection] = useState<CodeChangesSelection>({ type: 'working-tree' });
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
@@ -101,12 +102,16 @@ export function ChangesPane({
       parentRevision: commitDiffState.parentRevision,
     } as const;
   }, [commitDiffState.parentRevision, repoPath, selectedCommit, selection.type]);
+  const highlightPaths = useMemo(
+    () => selectedFilePath === null ? emptyHighlightPaths : [selectedFilePath],
+    [emptyHighlightPaths, selectedFilePath],
+  );
 
   const activeRenderFiles = useDiffRenderFiles({
     rawDiff: activeDiffState,
     context: renderContext,
     displayMode: preferences.diffDisplayMode,
-    highlightPaths: selectedFilePath === null ? [] : [selectedFilePath],
+    highlightPaths,
   });
 
   useEffect(() => {

@@ -49,6 +49,30 @@ export type DiffRenderFile = {
   syntaxTokens: DiffFileTokens | null;
 };
 
+function areSyntaxTokenMapsEqual(
+  left: Record<string, DiffFileTokens | null>,
+  right: Record<string, DiffFileTokens | null>,
+) {
+  const leftEntries = Object.entries(left);
+  const rightEntries = Object.entries(right);
+
+  if (leftEntries.length !== rightEntries.length) {
+    return false;
+  }
+
+  for (const [path, leftValue] of leftEntries) {
+    if (!(path in right)) {
+      return false;
+    }
+
+    if (right[path] !== leftValue) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function createContentPair(context: DiffRenderContext, file: DiffFile): DiffContentPair {
   switch (context.kind) {
     case 'working-tree':
@@ -149,10 +173,22 @@ export function useDiffRenderFiles({
   const [syntaxTokensByPath, setSyntaxTokensByPath] = useState<Record<string, DiffFileTokens | null>>({});
   const syntaxCacheRef = useRef<Map<string, SyntaxCacheEntry>>(new Map());
   const parsedDiffCacheRef = useRef<Map<string, ParsedDiffEntry>>(new Map());
-  const highlightPathSet = useMemo(
-    () => highlightPaths === undefined ? null : new Set(highlightPaths),
-    [highlightPaths],
-  );
+  const highlightPathsKey = highlightPaths === undefined
+    ? null
+    : highlightPaths
+      .filter((path) => path.trim().length > 0)
+      .join('\0');
+  const highlightPathSet = useMemo(() => {
+    if (highlightPathsKey === null) {
+      return null;
+    }
+
+    if (highlightPathsKey.length === 0) {
+      return new Set<string>();
+    }
+
+    return new Set(highlightPathsKey.split('\0'));
+  }, [highlightPathsKey]);
   const rawDiffCacheKey = useMemo(() => {
     if (rawDiff.status !== 'ready') {
       return null;
@@ -204,7 +240,9 @@ export function useDiffRenderFiles({
 
   useEffect(() => {
     if (rawDiff.status !== 'ready' || context === null || baseFiles.length === 0) {
-      setSyntaxTokensByPath({});
+      setSyntaxTokensByPath((current) =>
+        Object.keys(current).length === 0 ? current : {}
+      );
       return;
     }
 
@@ -256,7 +294,13 @@ export function useDiffRenderFiles({
           return;
         }
 
-        setSyntaxTokensByPath(Object.fromEntries(entries));
+        const nextSyntaxTokensByPath = Object.fromEntries(entries);
+
+        setSyntaxTokensByPath((current) =>
+          areSyntaxTokenMapsEqual(current, nextSyntaxTokensByPath)
+            ? current
+            : nextSyntaxTokensByPath
+        );
       });
 
     return () => {

@@ -18,6 +18,7 @@ import {
   type CodeChangesMeta,
   type CommitWorkingTreeSelectionInput,
   type CommitWorkingTreeSelectionResult,
+  type CodexTurnDiff,
   type CreateGitWorktreeResult,
   type GitBranchHistory,
   type GitBranch,
@@ -602,6 +603,117 @@ export const getGitWorkingTreeDiff = async (repoPath: string): Promise<string> =
   return [combinedDiff, ...missingDiffs]
     .filter((output) => output.trim().length > 0)
     .join('\n');
+};
+
+const EMPTY_TREE_SHA = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
+
+async function resolveGitHeadRevision(repoPath: string): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['-C', repoPath, 'rev-parse', '--verify', 'HEAD'],
+      getGitExecOptions(),
+    );
+
+    const revision = stdout.trim();
+    return revision.length > 0 ? revision : null;
+  } catch {
+    return null;
+  }
+}
+
+export const captureGitWorkingTreeSnapshot = async (repoPath: string): Promise<string> => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'devland-turn-snapshot-'));
+  const tempIndexPath = path.join(tempDir, 'index');
+  const env = { GIT_INDEX_FILE: tempIndexPath };
+
+  try {
+    const headRevision = await resolveGitHeadRevision(repoPath);
+
+    if (headRevision) {
+      await execFileAsync(
+        'git',
+        ['-C', repoPath, 'read-tree', headRevision],
+        getGitExecOptionsWithEnv(env),
+      );
+    }
+
+    await execFileAsync(
+      'git',
+      ['-C', repoPath, 'add', '-A', '--', '.'],
+      getGitExecOptionsWithEnv(env),
+    );
+
+    const { stdout: treeStdout } = await execFileAsync(
+      'git',
+      ['-C', repoPath, 'write-tree'],
+      getGitExecOptionsWithEnv(env),
+    );
+    const treeRevision = treeStdout.trim();
+
+    if (!treeRevision) {
+      throw new Error('Unable to create Git tree snapshot.');
+    }
+
+    const parentArgs = headRevision ? ['-p', headRevision] : [];
+    const { stdout: commitStdout } = await execFileAsync(
+      'git',
+      ['-C', repoPath, 'commit-tree', treeRevision, ...parentArgs, '-m', 'devland turn snapshot'],
+      getGitExecOptionsWithEnv(env),
+    );
+    const snapshotRevision = commitStdout.trim();
+
+    if (!snapshotRevision) {
+      throw new Error('Unable to create Git commit snapshot.');
+    }
+
+    return snapshotRevision;
+  } finally {
+    rmSync(tempDir, { force: true, recursive: true });
+  }
+};
+
+export const getGitSnapshotDiff = async (
+  repoPath: string,
+  beforeRevision: string,
+  afterRevision: string,
+): Promise<CodexTurnDiff | null> => {
+  if (beforeRevision === afterRevision) {
+    return null;
+  }
+
+  const { stdout } = await execFileAsync(
+    'git',
+    [
+      '-C',
+      repoPath,
+      'diff',
+      '--find-renames',
+      '--src-prefix=a/',
+      '--dst-prefix=b/',
+      beforeRevision || EMPTY_TREE_SHA,
+      afterRevision || EMPTY_TREE_SHA,
+    ],
+    getGitExecOptions(),
+  );
+  const patch = stdout.trim();
+
+  if (patch.length === 0) {
+    return null;
+  }
+
+  const parsed = parseUnifiedDiffDocument(patch);
+
+  return {
+    patch,
+    files: parsed.files.map((file) => ({
+      path: file.displayPath,
+      oldPath: file.oldPath,
+      status: file.status,
+      additions: file.additions,
+      deletions: file.deletions,
+    })),
+  };
 };
 
 export const getGitBlobText = async ({

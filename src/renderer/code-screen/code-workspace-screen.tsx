@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 
 import {
   BotIcon,
@@ -8,11 +8,11 @@ import {
   PlusIcon,
   XIcon,
 } from 'lucide-react';
-import { motion } from 'motion/react';
 
 import { ChangesPane } from '@/renderer/code-screen/changes-pane';
 import { ChatComposer } from '@/renderer/code-screen/chat-composer';
 import { SessionAlerts } from '@/renderer/code-screen/session-alerts';
+import { SessionHistoryDrawer } from '@/renderer/code-screen/session-history-drawer';
 import { SessionTranscript } from '@/renderer/code-screen/session-transcript';
 import { useCodeTargets } from '@/renderer/code-screen/use-code-targets';
 import {
@@ -116,30 +116,6 @@ function LayerToggle({
   );
 }
 
-function Layer({
-  active,
-  children,
-}: {
-  active: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <motion.div
-      className="absolute inset-0 flex flex-col"
-      initial={false}
-      animate={{
-        opacity: active ? 1 : 0,
-        y: active ? 0 : 6,
-        scale: active ? 1 : 0.99,
-      }}
-      transition={{ duration: 0.2, ease: 'easeOut' }}
-      style={{ pointerEvents: active ? 'auto' : 'none', zIndex: active ? 2 : 1 }}
-    >
-      {children}
-    </motion.div>
-  );
-}
-
 export function CodeWorkspaceScreen({
   repoId,
   repoPath,
@@ -149,6 +125,7 @@ export function CodeWorkspaceScreen({
 }) {
   const [isCreatingWorktree, setIsCreatingWorktree] = useState(false);
   const [activeLayer, setActiveLayer] = useState<ActiveLayer>('codex');
+  const [isSessionHistoryOpen, setIsSessionHistoryOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
   const sidebarWidthAtDragStart = useRef(SIDEBAR_DEFAULT_WIDTH);
 
@@ -312,6 +289,11 @@ export function CodeWorkspaceScreen({
 
   const isRunning = sessionState.status === 'running';
   const activeTargetLabel = targetLabels[activeTarget.id] ?? activeTarget.title;
+  const hasSessionHistory = sessionState.messages.length > 0;
+
+  useEffect(() => {
+    setIsSessionHistoryOpen(false);
+  }, [activeTarget.id]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -398,16 +380,15 @@ export function CodeWorkspaceScreen({
                   <LayerToggle activeLayer={activeLayer} onChangeLayer={setActiveLayer} />
 
                   <div className="relative min-h-0 flex-1">
-                    <Layer active={activeLayer === 'files'}>
-                      {viewport}
-                    </Layer>
-                    <Layer active={activeLayer === 'codex'}>
+                    {activeLayer === 'files' ? (
+                      viewport
+                    ) : (
                       <SessionTranscript
                         sessionState={sessionState}
                         targetLabel={activeTargetLabel}
                         onCreateSession={addCurrentBranchSession}
                       />
-                    </Layer>
+                    )}
                   </div>
 
                   <div
@@ -426,13 +407,20 @@ export function CodeWorkspaceScreen({
                     <ChatComposer
                       targetLabel={activeTargetLabel}
                       isRunning={isRunning}
+                      hasHistory={hasSessionHistory}
+                      onOpenHistory={() => setIsSessionHistoryOpen(true)}
                       onSendPrompt={handleSendPrompt}
                       onInterrupt={() => interruptSession(activeTarget.id)}
                     />
                   </div>
                 </div>
 
-                {historyDrawer}
+                {activeLayer === 'files' ? historyDrawer : null}
+                <SessionHistoryDrawer
+                  open={isSessionHistoryOpen}
+                  onClose={() => setIsSessionHistoryOpen(false)}
+                  messages={sessionState.messages}
+                />
               </>
             )}
           </ChangesPane>

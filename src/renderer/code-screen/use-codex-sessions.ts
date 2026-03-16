@@ -1,68 +1,79 @@
 import { atom, useAtomValue, useSetAtom } from 'jotai';
-import { selectAtom } from 'jotai/utils';
+import type { Getter, Setter } from 'jotai/vanilla';
+import { atomWithStorage, selectAtom } from 'jotai/utils';
 
 import type {
   CodexApprovalDecision,
   CodexSessionEvent,
-  CodexSessionStatus,
-  CodexUserInputQuestion,
 } from '@/ipc/contracts';
+import {
+  applyCodexSessionEvent,
+  hydrateCodexSessionState,
+  toCodexSessionSnapshot,
+  type CodexSessionSnapshot,
+  type CodexSessionState,
+} from '@/renderer/code-screen/codex-session-state';
+import { buildSessionHistoryBootstrap } from '@/renderer/code-screen/session-history-bootstrap';
 import { appJotaiStore } from '@/renderer/shared/lib/jotai-store';
 
-export type CodexChatMessage = {
-  id: string;
-  role: 'user' | 'assistant';
-  text: string;
-  activities: CodexSessionActivity[];
-};
-
-export type CodexSessionActivity = {
-  id: string;
-  tone: 'info' | 'tool' | 'error';
-  label: string;
-  detail: string | null;
-};
-
-export type PendingApproval = {
-  requestId: string;
-  kind: 'command' | 'file-change' | 'permissions' | 'generic';
-  title: string;
-  detail: string | null;
-  command: string | null;
-  cwd: string | null;
-};
-
-export type PendingUserInput = {
-  requestId: string;
-  questions: CodexUserInputQuestion[];
-};
-
-export type CodexSessionState = {
-  status: CodexSessionStatus;
-  threadId: string | null;
-  turnId: string | null;
-  messages: CodexChatMessage[];
-  streamingAssistantText: string;
-  currentTurnActivities: CodexSessionActivity[];
-  pendingApprovals: PendingApproval[];
-  pendingUserInputs: PendingUserInput[];
-  error: string | null;
-};
-
-const DEFAULT_SESSION_STATE: CodexSessionState = {
-  status: 'closed',
-  threadId: null,
-  turnId: null,
-  messages: [],
-  streamingAssistantText: '',
-  currentTurnActivities: [],
-  pendingApprovals: [],
-  pendingUserInputs: [],
-  error: null,
-};
+const SESSION_SNAPSHOTS_STORAGE_KEY = 'devland:codex-session-snapshots';
 
 const sessionStatesAtom = atom<Record<string, CodexSessionState>>({});
-const sessionStateAtoms = new Map<string, ReturnType<typeof selectAtom<Record<string, CodexSessionState>, CodexSessionState>>>();
+const persistedSessionSnapshotsAtom = atomWithStorage<Record<string, CodexSessionSnapshot>>(
+  SESSION_SNAPSHOTS_STORAGE_KEY,
+  {},
+);
+const sessionStateSourceAtom = atom((get) => ({
+  liveStates: get(sessionStatesAtom),
+  persistedSnapshots: get(persistedSessionSnapshotsAtom),
+}));
+function createSessionStateAtom(sessionId: string) {
+  return selectAtom(sessionStateSourceAtom, ({ liveStates, persistedSnapshots }) =>
+    readSessionState(liveStates, persistedSnapshots, sessionId),
+  );
+}
+
+const sessionStateAtoms = new Map<string, ReturnType<typeof createSessionStateAtom>>();
+
+function readSessionState(
+  liveStates: Record<string, CodexSessionState>,
+  persistedSnapshots: Record<string, CodexSessionSnapshot>,
+  sessionId: string,
+): CodexSessionState {
+  return liveStates[sessionId] ?? hydrateCodexSessionState(persistedSnapshots[sessionId] ?? null);
+}
+
+function getSessionState(get: Getter, sessionId: string) {
+  return readSessionState(get(sessionStatesAtom), get(persistedSessionSnapshotsAtom), sessionId);
+}
+
+function writeSessionState(
+  get: Getter,
+  set: Setter,
+  sessionId: string,
+  nextState: CodexSessionState,
+) {
+  const currentStates = get(sessionStatesAtom);
+  const currentSnapshots = get(persistedSessionSnapshotsAtom);
+  const nextSnapshot = toCodexSessionSnapshot(nextState);
+  const remainingSnapshots = Object.fromEntries(
+    Object.entries(currentSnapshots).filter(([currentSessionId]) => currentSessionId !== sessionId),
+  );
+
+  set(sessionStatesAtom, {
+    ...currentStates,
+    [sessionId]: nextState,
+  });
+  set(
+    persistedSessionSnapshotsAtom,
+    nextSnapshot === null
+      ? remainingSnapshots
+      : {
+          ...remainingSnapshots,
+          [sessionId]: nextSnapshot,
+        },
+  );
+}
 
 function getSessionStateAtom(sessionId: string) {
   const existingAtom = sessionStateAtoms.get(sessionId);
@@ -71,10 +82,7 @@ function getSessionStateAtom(sessionId: string) {
     return existingAtom;
   }
 
-  const nextAtom = selectAtom(
-    sessionStatesAtom,
-    (sessionStates) => sessionStates[sessionId] ?? DEFAULT_SESSION_STATE,
-  );
+  const nextAtom = createSessionStateAtom(sessionId);
   sessionStateAtoms.set(sessionId, nextAtom);
 
   return nextAtom;
@@ -83,151 +91,55 @@ function getSessionStateAtom(sessionId: string) {
 const updateSessionEventAtom = atom(
   null,
   (get, set, event: CodexSessionEvent) => {
-    const current = get(sessionStatesAtom);
-    const previous = current[event.sessionId] ?? DEFAULT_SESSION_STATE;
-    let nextState = previous;
+    const previous = getSessionState(get, event.sessionId);
+    const nextState = applyCodexSessionEvent(previous, event);
 
-    switch (event.type) {
-      case 'state':
-        nextState = {
-          ...previous,
-          status: event.status,
-          threadId: event.threadId ?? previous.threadId,
-          turnId: event.turnId ?? previous.turnId,
-          error: event.status === 'error' ? event.message ?? previous.error : null,
-        };
-        break;
-      case 'assistant-delta':
-        nextState = {
-          ...previous,
-          streamingAssistantText: `${previous.streamingAssistantText}${event.text}`,
-        };
-        break;
-      case 'activity':
-        nextState = {
-          ...previous,
-          currentTurnActivities: [
-            ...previous.currentTurnActivities,
-            {
-              id: `${event.sessionId}:${previous.currentTurnActivities.length}`,
-              tone: event.tone,
-              label: event.label,
-              detail: event.detail ?? null,
-            },
-          ],
-        };
-        break;
-      case 'approval-requested':
-        nextState = {
-          ...previous,
-          pendingApprovals: [
-            ...previous.pendingApprovals,
-            {
-              requestId: event.requestId,
-              kind: event.kind,
-              title: event.title,
-              detail: event.detail ?? null,
-              command: event.command ?? null,
-              cwd: event.cwd ?? null,
-            },
-          ],
-        };
-        break;
-      case 'approval-resolved':
-        nextState = {
-          ...previous,
-          pendingApprovals: previous.pendingApprovals.filter(
-            (approval) => approval.requestId !== event.requestId,
-          ),
-        };
-        break;
-      case 'user-input-requested':
-        nextState = {
-          ...previous,
-          pendingUserInputs: [
-            ...previous.pendingUserInputs,
-            {
-              requestId: event.requestId,
-              questions: event.questions,
-            },
-          ],
-        };
-        break;
-      case 'user-input-resolved':
-        nextState = {
-          ...previous,
-          pendingUserInputs: previous.pendingUserInputs.filter(
-            (input) => input.requestId !== event.requestId,
-          ),
-        };
-        break;
-      case 'turn-completed': {
-        const hasText = previous.streamingAssistantText.trim().length > 0;
-        const hasActivities = previous.currentTurnActivities.length > 0;
-        const shouldAddMessage = hasText || hasActivities;
-        nextState = {
-          ...previous,
-          turnId: null,
-          status: event.status === 'failed' ? 'error' : 'ready',
-          error: event.status === 'failed' ? event.error ?? previous.error : null,
-          messages: shouldAddMessage
-            ? [
-                ...previous.messages,
-                {
-                  id: `${event.sessionId}:assistant:${previous.messages.length}`,
-                  role: 'assistant',
-                  text: previous.streamingAssistantText,
-                  activities: previous.currentTurnActivities,
-                },
-              ]
-            : previous.messages,
-          streamingAssistantText: '',
-          currentTurnActivities: [],
-        };
-        break;
-      }
-    }
-
-    set(sessionStatesAtom, {
-      ...current,
-      [event.sessionId]: nextState,
-    });
+    writeSessionState(get, set, event.sessionId, nextState);
   },
 );
 
 const registerUserPromptAtom = atom(
   null,
   (get, set, input: { sessionId: string; prompt: string }) => {
-    const current = get(sessionStatesAtom);
-    const previous = current[input.sessionId] ?? DEFAULT_SESSION_STATE;
+    const previous = getSessionState(get, input.sessionId);
 
-    set(sessionStatesAtom, {
-      ...current,
-      [input.sessionId]: {
-        ...previous,
-        status: previous.status === 'closed' ? 'connecting' : previous.status,
-        messages: [
-          ...previous.messages,
-          {
-            id: `${input.sessionId}:user:${previous.messages.length}`,
-            role: 'user',
-            text: input.prompt,
-            activities: [],
-          },
-        ],
-        streamingAssistantText: '',
-        error: null,
-      },
+    writeSessionState(get, set, input.sessionId, {
+      ...previous,
+      status: previous.status === 'closed' ? 'connecting' : previous.status,
+      messages: [
+        ...previous.messages,
+        {
+          id: `${input.sessionId}:user:${previous.messages.length}`,
+          role: 'user',
+          text: input.prompt,
+          createdAt: new Date().toISOString(),
+          completedAt: null,
+          turnId: null,
+          diff: null,
+          activities: [],
+        },
+      ],
+      streamingAssistantText: '',
+      error: null,
     });
   },
 );
 
 const removeSessionStateAtom = atom(null, (get, set, sessionId: string) => {
-  const current = get(sessionStatesAtom);
+  const currentStates = get(sessionStatesAtom);
+  const currentSnapshots = get(persistedSessionSnapshotsAtom);
+  sessionStateAtoms.delete(sessionId);
+
   set(
     sessionStatesAtom,
     Object.fromEntries(
-      Object.entries(current).filter(([currentSessionId]) => currentSessionId !== sessionId),
+      Object.entries(currentStates).filter(([currentSessionId]) => currentSessionId !== sessionId),
+    ),
+  );
+  set(
+    persistedSessionSnapshotsAtom,
+    Object.fromEntries(
+      Object.entries(currentSnapshots).filter(([currentSessionId]) => currentSessionId !== sessionId),
     ),
   );
 });
@@ -235,16 +147,12 @@ const removeSessionStateAtom = atom(null, (get, set, sessionId: string) => {
 const registerSessionFailureAtom = atom(
   null,
   (get, set, input: { sessionId: string; message: string }) => {
-    const current = get(sessionStatesAtom);
-    const previous = current[input.sessionId] ?? DEFAULT_SESSION_STATE;
+    const previous = getSessionState(get, input.sessionId);
 
-    set(sessionStatesAtom, {
-      ...current,
-      [input.sessionId]: {
-        ...previous,
-        status: 'error',
-        error: input.message,
-      },
+    writeSessionState(get, set, input.sessionId, {
+      ...previous,
+      status: 'error',
+      error: input.message,
     });
   },
 );
@@ -276,10 +184,22 @@ export function useCodexSessionActions() {
   const removeSessionState = useSetAtom(removeSessionStateAtom);
 
   const sendPrompt = async (sessionId: string, cwd: string, prompt: string) => {
+    const previous = appJotaiStore.get(getSessionStateAtom(sessionId));
+    const transcriptBootstrap =
+      previous.threadId && previous.messages.length > 0
+        ? buildSessionHistoryBootstrap(previous.messages, prompt, 120_000)
+        : null;
+
     registerUserPrompt({ sessionId, prompt });
 
     try {
-      await window.electronAPI.sendCodexSessionPrompt({ sessionId, cwd, prompt });
+      await window.electronAPI.sendCodexSessionPrompt({
+        sessionId,
+        cwd,
+        prompt,
+        resumeThreadId: previous.threadId,
+        transcriptBootstrap,
+      });
     } catch (error) {
       registerSessionFailure({
         sessionId,

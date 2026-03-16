@@ -9,6 +9,15 @@ import type {
   CodexSessionStatus,
   CodexUserInputQuestion,
 } from '@/ipc/contracts';
+import {
+  formatCodexActivityLabel,
+  isToolLifecycleItemType,
+  toCodexActivityItemType,
+} from '@/lib/codex-session-items';
+import {
+  captureGitWorkingTreeSnapshot,
+  getGitSnapshotDiff,
+} from '@/main-process/git';
 
 import { codexExecutable } from './codex-cli';
 
@@ -49,7 +58,13 @@ type SessionContext = {
   status: CodexSessionStatus;
   threadId: string | null;
   activeTurnId: string | null;
+  activeTurnStartSnapshot: string | null;
   stopped: boolean;
+};
+
+type EnsureSessionResult = {
+  context: SessionContext;
+  didResumeFallback: boolean;
 };
 
 type JsonRpcRequest = {
@@ -81,6 +96,31 @@ const asString = (value: unknown): string | undefined =>
 
 const asArray = (value: unknown): unknown[] | undefined =>
   Array.isArray(value) ? value : undefined;
+
+const coalesceStrings = (...values: Array<string | null | undefined>): string | null => {
+  for (const value of values) {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed.length > 0) {
+        return trimmed;
+      }
+    }
+  }
+
+  return null;
+};
+
+const extractActivityDetail = (item: Record<string, unknown> | undefined): string | null =>
+  coalesceStrings(
+    asString(item?.command),
+    asString(item?.summary),
+    asString(item?.reason),
+    asString(item?.path),
+    asString(item?.filePath),
+    asString(item?.title),
+    asString(item?.name),
+    asString(item?.text),
+  );
 
 const toApprovalKind = (method: PendingApprovalRequest['method']): CodexApprovalKind => {
   switch (method) {
@@ -120,12 +160,42 @@ export class CodexAppServerManager extends EventEmitter<{
 }> {
   private readonly sessions = new Map<string, SessionContext>();
 
-  async sendPrompt(sessionId: string, cwd: string, prompt: string): Promise<void> {
+  async sendPrompt(
+    sessionId: string,
+    cwd: string,
+    prompt: string,
+    resumeThreadId: string | null = null,
+    transcriptBootstrap: string | null = null,
+  ): Promise<void> {
     try {
-      const context = await this.ensureSession(sessionId, cwd);
+      const { context, didResumeFallback } = await this.ensureSession(sessionId, cwd, resumeThreadId);
+      const turnStartPrompt =
+        didResumeFallback && transcriptBootstrap && transcriptBootstrap.trim().length > 0
+          ? transcriptBootstrap
+          : prompt;
+
+      try {
+        context.activeTurnStartSnapshot = await captureGitWorkingTreeSnapshot(cwd);
+      } catch {
+        context.activeTurnStartSnapshot = null;
+      }
+
+      if (didResumeFallback) {
+        this.emit('event', {
+          type: 'activity',
+          sessionId,
+          tone: 'info',
+          phase: 'instant',
+          label: 'Restored transcript context',
+          detail: 'Started a new Codex thread because the previous one could not be resumed.',
+          itemId: null,
+          itemType: 'context_compaction',
+        });
+      }
+
       const response = await this.sendRequest(context, 'turn/start', {
         threadId: context.threadId,
-        input: [{ type: 'text', text: prompt, text_elements: [] }],
+        input: [{ type: 'text', text: turnStartPrompt, text_elements: [] }],
       });
       const turnId = asString(asObject(asObject(response)?.turn)?.id);
       context.status = 'running';
@@ -232,15 +302,23 @@ export class CodexAppServerManager extends EventEmitter<{
     }
     context.status = 'closed';
     context.activeTurnId = null;
+    context.activeTurnStartSnapshot = null;
     this.emitState(context, 'closed', null, 'Session stopped');
     this.sessions.delete(sessionId);
   }
 
-  private async ensureSession(sessionId: string, cwd: string): Promise<SessionContext> {
+  private async ensureSession(
+    sessionId: string,
+    cwd: string,
+    resumeThreadId: string | null = null,
+  ): Promise<EnsureSessionResult> {
     const existing = this.sessions.get(sessionId);
 
     if (existing && existing.status !== 'closed' && existing.cwd === cwd) {
-      return existing;
+      return {
+        context: existing,
+        didResumeFallback: false,
+      };
     }
 
     if (existing) {
@@ -269,6 +347,7 @@ export class CodexAppServerManager extends EventEmitter<{
       status: 'connecting',
       threadId: null,
       activeTurnId: null,
+      activeTurnStartSnapshot: null,
       stopped: false,
     };
 
@@ -287,13 +366,30 @@ export class CodexAppServerManager extends EventEmitter<{
       });
       this.writeMessage(context, { method: 'initialized' });
 
-      const threadResponse = await this.sendRequest(context, 'thread/start', {
+      const threadParams = {
         cwd,
         approvalPolicy: 'on-request',
         sandbox: 'workspace-write',
         experimentalRawEvents: false,
-        persistExtendedHistory: false,
-      });
+        persistExtendedHistory: true,
+      };
+      let threadResponse: unknown;
+      let didResumeFallback = false;
+
+      if (resumeThreadId) {
+        try {
+          threadResponse = await this.sendRequest(context, 'thread/resume', {
+            ...threadParams,
+            threadId: resumeThreadId,
+          });
+        } catch {
+          didResumeFallback = true;
+          threadResponse = await this.sendRequest(context, 'thread/start', threadParams);
+        }
+      } else {
+        threadResponse = await this.sendRequest(context, 'thread/start', threadParams);
+      }
+
       const threadId =
         asString(asObject(asObject(threadResponse)?.thread)?.id) ??
         asString(asObject(threadResponse)?.threadId);
@@ -306,7 +402,10 @@ export class CodexAppServerManager extends EventEmitter<{
       context.status = 'ready';
       this.emitState(context, 'ready', null, 'Ready');
 
-      return context;
+      return {
+        context,
+        didResumeFallback,
+      };
     } catch (error) {
       this.emit('event', {
         type: 'state',
@@ -348,8 +447,11 @@ export class CodexAppServerManager extends EventEmitter<{
         type: 'activity',
         sessionId: context.sessionId,
         tone: 'error',
+        phase: 'instant',
         label: 'Codex stderr',
         detail: message,
+        itemId: null,
+        itemType: 'error',
       });
     });
 
@@ -385,8 +487,11 @@ export class CodexAppServerManager extends EventEmitter<{
         type: 'activity',
         sessionId: context.sessionId,
         tone: 'error',
+        phase: 'instant',
         label: 'Protocol error',
         detail: 'Received invalid JSON from Codex app-server.',
+        itemId: null,
+        itemType: 'error',
       });
       return;
     }
@@ -401,7 +506,21 @@ export class CodexAppServerManager extends EventEmitter<{
     }
 
     if ('method' in parsed) {
-      this.handleNotification(context, parsed as JsonRpcNotification);
+      void this.handleNotification(context, parsed as JsonRpcNotification).catch((error) => {
+        this.emit('event', {
+          type: 'activity',
+          sessionId: context.sessionId,
+          tone: 'error',
+          phase: 'instant',
+          label: 'Codex protocol error',
+          detail:
+            error instanceof Error
+              ? error.message
+              : 'Failed to process a Codex notification.',
+          itemId: null,
+          itemType: 'error',
+        });
+      });
       return;
     }
 
@@ -483,7 +602,10 @@ export class CodexAppServerManager extends EventEmitter<{
     });
   }
 
-  private handleNotification(context: SessionContext, notification: JsonRpcNotification): void {
+  private async handleNotification(
+    context: SessionContext,
+    notification: JsonRpcNotification,
+  ): Promise<void> {
     const params = asObject(notification.params);
 
     switch (notification.method) {
@@ -505,6 +627,7 @@ export class CodexAppServerManager extends EventEmitter<{
         const turn = asObject(params?.turn);
         const status = asString(turn?.status);
         const errorMessage = asString(asObject(turn?.error)?.message) ?? null;
+        const diff = await this.captureTurnDiff(context);
         context.status = status === 'failed' ? 'error' : 'ready';
         context.activeTurnId = null;
         this.emitState(
@@ -526,6 +649,8 @@ export class CodexAppServerManager extends EventEmitter<{
                   ? 'cancelled'
                   : 'completed',
           error: errorMessage,
+          completedAt: new Date().toISOString(),
+          diff,
         });
         return;
       }
@@ -541,24 +666,51 @@ export class CodexAppServerManager extends EventEmitter<{
         }
         return;
       }
-      case 'item/started':
-      case 'item/completed': {
-        const item = asObject(params?.item) ?? params;
-        const type = asString(item?.type) ?? 'item';
+      case 'item/reasoning/summaryPartAdded':
+      case 'item/plan/delta': {
+        const rawType =
+          notification.method === 'item/reasoning/summaryPartAdded' ? 'reasoning' : 'plan';
+        const itemType = toCodexActivityItemType(rawType);
         const detail =
-          asString(item?.command) ??
-          asString(item?.summary) ??
-          asString(item?.path) ??
-          asString(item?.text) ??
+          asString(params?.delta) ??
+          asString(params?.text) ??
+          asString(asObject(params?.content)?.text) ??
           null;
+
+        if (!detail) {
+          return;
+        }
+
         this.emit('event', {
           type: 'activity',
           sessionId: context.sessionId,
-          tone: type.includes('command') || type.includes('file') ? 'tool' : 'info',
-          label:
-            notification.method === 'item/started'
-              ? `Started ${type}`
-              : `Completed ${type}`,
+          tone: 'info',
+          phase: 'updated',
+          itemId: asString(params?.itemId) ?? null,
+          itemType,
+          label: formatCodexActivityLabel({ itemType, rawType }),
+          detail,
+        });
+        return;
+      }
+      case 'item/started':
+      case 'item/completed': {
+        const item = asObject(params?.item) ?? params;
+        const rawType = asString(item?.type) ?? asString(item?.kind) ?? 'item';
+        const itemType = toCodexActivityItemType(rawType);
+        const detail = extractActivityDetail(item);
+        this.emit('event', {
+          type: 'activity',
+          sessionId: context.sessionId,
+          phase: notification.method === 'item/completed' ? 'completed' : 'started',
+          tone: isToolLifecycleItemType(itemType) ? 'tool' : 'info',
+          itemId: asString(item?.id) ?? asString(params?.itemId) ?? null,
+          itemType,
+          label: formatCodexActivityLabel({
+            itemType,
+            rawType,
+            title: asString(item?.title) ?? asString(item?.name) ?? null,
+          }),
           detail,
         });
         return;
@@ -566,18 +718,38 @@ export class CodexAppServerManager extends EventEmitter<{
       case 'error': {
         const message = asString(asObject(params?.error)?.message) ?? 'Codex error';
         context.status = 'error';
+        context.activeTurnStartSnapshot = null;
         this.emitState(context, 'error', context.activeTurnId, message);
         this.emit('event', {
           type: 'activity',
           sessionId: context.sessionId,
           tone: 'error',
+          phase: 'instant',
           label: 'Codex error',
           detail: message,
+          itemId: null,
+          itemType: 'error',
         });
         return;
       }
       default:
         return;
+    }
+  }
+
+  private async captureTurnDiff(context: SessionContext) {
+    const startSnapshot = context.activeTurnStartSnapshot;
+    context.activeTurnStartSnapshot = null;
+
+    if (!startSnapshot) {
+      return null;
+    }
+
+    try {
+      const endSnapshot = await captureGitWorkingTreeSnapshot(context.cwd);
+      return await getGitSnapshotDiff(context.cwd, startSnapshot, endSnapshot);
+    } catch {
+      return null;
     }
   }
 

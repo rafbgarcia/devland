@@ -1,6 +1,6 @@
 import { memo, useMemo, useState } from 'react';
 
-import type { PendingApproval, PendingUserInput } from '@/renderer/code-screen/use-codex-sessions';
+import type { PendingApproval, PendingUserInput } from '@/renderer/code-screen/codex-session-state';
 import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';
 import { Button } from '@/shadcn/components/ui/button';
 
@@ -113,11 +113,11 @@ export const SessionAlerts = memo(function SessionAlerts({
               Codex needs a structured answer before it can continue.
             </AlertDescription>
             <div className="mt-3 flex flex-col gap-3">
-              {activePendingUserInput.questions.map((question) => (
+              {activePendingUserInput.questions.map((question: PendingUserInput['questions'][number]) => (
                 <div key={question.id} className="flex flex-col gap-2">
                   <div className="text-sm font-medium">{question.question}</div>
                   <div className="flex flex-wrap gap-2">
-                    {question.options.map((option) => {
+                    {question.options.map((option: PendingUserInput['questions'][number]['options'][number]) => {
                       const isSelected = activeDraftAnswers[question.id] === option.label;
 
                       return (
@@ -149,7 +149,7 @@ export const SessionAlerts = memo(function SessionAlerts({
                   type="button"
                   disabled={
                     activePendingUserInput.questions.some(
-                      (question) => !activeDraftAnswers[question.id],
+                      (question: PendingUserInput['questions'][number]) => !activeDraftAnswers[question.id],
                     )
                   }
                   onClick={() =>

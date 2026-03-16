@@ -273,8 +273,23 @@ export const registerAppIpcHandlers = (
   );
   ipcMain.handle(
     SEND_CODEX_SESSION_PROMPT_CHANNEL,
-    (_event, input: { sessionId: string; cwd: string; prompt: string }) =>
-      codexAppServerManager.sendPrompt(input.sessionId, input.cwd, input.prompt),
+    (
+      _event,
+      input: {
+        sessionId: string;
+        cwd: string;
+        prompt: string;
+        resumeThreadId?: string | null;
+        transcriptBootstrap?: string | null;
+      },
+    ) =>
+      codexAppServerManager.sendPrompt(
+        input.sessionId,
+        input.cwd,
+        input.prompt,
+        input.resumeThreadId ?? null,
+        input.transcriptBootstrap ?? null,
+      ),
   );
   ipcMain.handle(
     INTERRUPT_CODEX_SESSION_CHANNEL,

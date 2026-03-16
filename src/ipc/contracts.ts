@@ -302,6 +302,9 @@ export type CodexApprovalKind = z.infer<typeof CodexApprovalKindSchema>;
 
 export const CodexApprovalDecisionSchema = z.enum(['accept', 'acceptForSession', 'decline', 'cancel']);
 export type CodexApprovalDecision = z.infer<typeof CodexApprovalDecisionSchema>;
+export const CODEX_ACTIVITY_PHASES = ['started', 'updated', 'completed', 'instant'] as const;
+export const CodexActivityPhaseSchema = z.enum(CODEX_ACTIVITY_PHASES);
+export type CodexActivityPhase = z.infer<typeof CodexActivityPhaseSchema>;
 
 export const CodexUserInputQuestionOptionSchema = z.object({
   label: z.string().min(1),
@@ -316,6 +319,21 @@ export const CodexUserInputQuestionSchema = z.object({
   options: z.array(CodexUserInputQuestionOptionSchema).min(1),
 });
 export type CodexUserInputQuestion = z.infer<typeof CodexUserInputQuestionSchema>;
+
+export const CodexTurnDiffFileSchema = z.object({
+  path: z.string().min(1),
+  oldPath: z.string().min(1).nullable().optional(),
+  status: z.string().min(1),
+  additions: z.number().int().nonnegative(),
+  deletions: z.number().int().nonnegative(),
+});
+export type CodexTurnDiffFile = z.infer<typeof CodexTurnDiffFileSchema>;
+
+export const CodexTurnDiffSchema = z.object({
+  patch: z.string(),
+  files: z.array(CodexTurnDiffFileSchema),
+});
+export type CodexTurnDiff = z.infer<typeof CodexTurnDiffSchema>;
 
 export const CodexSessionEventSchema = z.discriminatedUnion('type', [
   z.object({
@@ -336,8 +354,11 @@ export const CodexSessionEventSchema = z.discriminatedUnion('type', [
     type: z.literal('activity'),
     sessionId: z.string().min(1),
     tone: z.enum(['info', 'tool', 'error']),
+    phase: CodexActivityPhaseSchema,
     label: z.string().min(1),
     detail: z.string().nullable().optional(),
+    itemId: z.string().min(1).nullable().optional(),
+    itemType: z.string().min(1).nullable().optional(),
   }),
   z.object({
     type: z.literal('approval-requested'),
@@ -372,6 +393,8 @@ export const CodexSessionEventSchema = z.discriminatedUnion('type', [
     turnId: z.string().min(1).nullable().optional(),
     status: z.enum(['completed', 'failed', 'interrupted', 'cancelled']),
     error: z.string().nullable().optional(),
+    completedAt: z.string().min(1).nullable().optional(),
+    diff: CodexTurnDiffSchema.nullable().optional(),
   }),
 ]);
 export type CodexSessionEvent = z.infer<typeof CodexSessionEventSchema>;
@@ -513,6 +536,8 @@ export interface ElectronApi {
     sessionId: string;
     cwd: string;
     prompt: string;
+    resumeThreadId?: string | null;
+    transcriptBootstrap?: string | null;
   }) => Promise<void>;
   interruptCodexSession: (sessionId: string) => Promise<void>;
   stopCodexSession: (sessionId: string) => Promise<void>;

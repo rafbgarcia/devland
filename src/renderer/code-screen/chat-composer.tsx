@@ -1,4 +1,4 @@
-import { memo, useState, type CSSProperties, type FormEvent, type KeyboardEvent } from 'react';
+import { memo, useState, type FormEvent, type KeyboardEvent } from 'react';
 
 import {
   CheckIcon,
@@ -90,11 +90,15 @@ function SettingsDropdown() {
 export const ChatComposer = memo(function ChatComposer({
   targetLabel,
   isRunning,
+  hasHistory,
+  onOpenHistory,
   onSendPrompt,
   onInterrupt,
 }: {
   targetLabel: string;
   isRunning: boolean;
+  hasHistory: boolean;
+  onOpenHistory: () => void;
   onSendPrompt: (prompt: string) => Promise<void>;
   onInterrupt: () => Promise<void>;
 }) {
@@ -141,7 +145,9 @@ export const ChatComposer = memo(function ChatComposer({
         <div className="flex shrink-0 items-center gap-0.5 pb-0.5">
           <button
             type="button"
-            className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            onClick={onOpenHistory}
+            disabled={!hasHistory}
+            className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
             aria-label="Session history"
           >
             <HistoryIcon className="size-4" />
@@ -150,14 +156,13 @@ export const ChatComposer = memo(function ChatComposer({
         </div>
 
         <textarea
-          className="max-h-32 min-h-[2rem] flex-1 resize-none border-0 bg-transparent px-1 py-1 text-sm leading-normal text-foreground outline-none placeholder:text-muted-foreground/60"
+          className="min-h-[2rem] flex-1 resize-none overflow-y-auto border-0 bg-transparent px-1 py-1 text-sm leading-normal text-foreground outline-none placeholder:text-muted-foreground/60"
           placeholder={`Message Codex about ${targetLabel}`}
           value={prompt}
           onChange={(event) => setPrompt(event.target.value)}
           onKeyDown={handleKeyDown}
           disabled={isInputDisabled}
           rows={1}
-          style={{ fieldSizing: 'content' } as CSSProperties}
         />
 
         {isRunning ? (
