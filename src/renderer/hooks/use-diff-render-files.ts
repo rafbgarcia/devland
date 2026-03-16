@@ -77,13 +77,19 @@ export function useDiffRenderFiles({
   rawDiff,
   context,
   displayMode,
+  highlightPaths,
 }: {
   rawDiff: AsyncState<string>;
   context: DiffRenderContext | null;
   displayMode: DiffDisplayMode;
+  highlightPaths?: readonly string[] | undefined;
 }) {
   const [syntaxTokensByPath, setSyntaxTokensByPath] = useState<Record<string, DiffFileTokens | null>>({});
   const syntaxCacheRef = useRef<Map<string, Promise<DiffFileTokens> | DiffFileTokens>>(new Map());
+  const highlightPathSet = useMemo(
+    () => highlightPaths === undefined ? null : new Set(highlightPaths),
+    [highlightPaths],
+  );
 
   const baseFiles = useMemo(() => {
     if (rawDiff.status !== 'ready' || context === null) {
@@ -119,6 +125,10 @@ export function useDiffRenderFiles({
     void Promise.all(
       baseFiles.map(async (file) => {
         if (file.diff.kind !== 'text' || file.diff.hunks.length === 0) {
+          return [file.path, null] as const;
+        }
+
+        if (highlightPathSet !== null && !highlightPathSet.has(file.path)) {
           return [file.path, null] as const;
         }
 
@@ -164,7 +174,7 @@ export function useDiffRenderFiles({
     return () => {
       cancelled = true;
     };
-  }, [baseFiles, context, rawDiff.status]);
+  }, [baseFiles, context, highlightPathSet, rawDiff.status]);
 
   return useMemo(
     () => baseFiles.map((file) => ({

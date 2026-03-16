@@ -8,9 +8,9 @@ import type { PrCommit } from '@/ipc/contracts';
 import type { DiffSelectionType } from '@/lib/diff';
 import {
   FilesChangedList,
-  type CodeChangesSidebarRenderProps,
 } from '@/renderer/components/code-changes-files-viewport';
 import { CommitComposer } from '@/renderer/code-screen/commit-composer';
+import type { DiffRenderFile } from '@/renderer/hooks/use-diff-render-files';
 import { RelativeTime } from '@/ui/relative-time';
 import {
   Alert,
@@ -75,7 +75,7 @@ function HistorySnapshotBanner({
 
 export function ChangesSidebar({
   diffFiles,
-  visibleFiles,
+  selectedPath,
   onSelectFile,
   selectedCommit,
   isDiffLoading,
@@ -83,7 +83,10 @@ export function ChangesSidebar({
   onRestoreBranchState,
   emptyMessage,
   workingTreeCommitState,
-}: CodeChangesSidebarRenderProps & {
+}: {
+  diffFiles: DiffRenderFile[];
+  selectedPath: string | null;
+  onSelectFile: (path: string) => void;
   selectedCommit: PrCommit | null;
   isDiffLoading: boolean;
   onOpenHistory: () => void;
@@ -99,11 +102,13 @@ export function ChangesSidebar({
     onCommit: (draft: { summary: string; description: string }) => Promise<boolean>;
   } | undefined;
 }) {
+  const selectedFiles = selectedPath === null ? new Set<string>() : new Set([selectedPath]);
+
   return (
     <FilesChangedList
       title="Changes"
       files={diffFiles}
-      visibleFiles={visibleFiles}
+      visibleFiles={selectedFiles}
       onSelectFile={onSelectFile}
       getFileSelectionType={workingTreeCommitState?.getFileSelectionType}
       onToggleFileSelection={workingTreeCommitState?.onToggleFileSelection}

@@ -1,14 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import type { GitStatusFile, PrCommit } from '@/ipc/contracts';
 import type { DiffCommentAnchor } from '@/lib/diff';
-import {
-  CodeChangesFilesViewport,
-  type CodeChangesViewportHandle,
-} from '@/renderer/components/code-changes-files-viewport';
-import { DiffDisplayModeToolbar } from '@/renderer/components/diff-display-mode-toolbar';
 import { ChangesSidebar } from '@/renderer/code-screen/changes-sidebar';
 import { CodeChangesHistoryDrawer } from '@/renderer/code-screen/changes-history-drawer';
+import { SelectedFileDiffView } from '@/renderer/code-screen/selected-file-diff-view';
 import {
   useGitBranchHistory,
   useGitCommitDiff,
@@ -27,20 +23,6 @@ type CodeChangesRenderProps = {
   viewport: ReactNode;
   historyDrawer: ReactNode;
 };
-
-function areVisibleFileSetsEqual(left: Set<string>, right: Set<string>) {
-  if (left.size !== right.size) {
-    return false;
-  }
-
-  for (const value of left) {
-    if (!right.has(value)) {
-      return false;
-    }
-  }
-
-  return true;
-}
 
 export function ChangesPane({
   repoPath,
@@ -63,8 +45,7 @@ export function ChangesPane({
 }) {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [selection, setSelection] = useState<CodeChangesSelection>({ type: 'working-tree' });
-  const [visibleFiles, setVisibleFiles] = useState<Set<string>>(new Set());
-  const viewportRef = useRef<CodeChangesViewportHandle>(null);
+  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const { preferences } = useUserPreferences();
 
   const { historyState } = useGitBranchHistory({
@@ -84,6 +65,7 @@ export function ChangesPane({
   useEffect(() => {
     setIsHistoryOpen(false);
     setSelection({ type: 'working-tree' });
+    setSelectedFilePath(null);
   }, [baseBranchName, branchName, repoPath]);
 
   const activeDiffState = selection.type === 'working-tree'
@@ -102,6 +84,7 @@ export function ChangesPane({
   const historyError = historyState.status === 'error'
     ? historyState.error
     : null;
+
   const renderContext = useMemo(() => {
     if (selection.type === 'working-tree') {
       return { kind: 'working-tree', repoPath } as const;
@@ -118,11 +101,40 @@ export function ChangesPane({
       parentRevision: commitDiffState.parentRevision,
     } as const;
   }, [commitDiffState.parentRevision, repoPath, selectedCommit, selection.type]);
+
   const activeRenderFiles = useDiffRenderFiles({
     rawDiff: activeDiffState,
     context: renderContext,
     displayMode: preferences.diffDisplayMode,
+    highlightPaths: selectedFilePath === null ? [] : [selectedFilePath],
   });
+
+  useEffect(() => {
+    if (activeRenderFiles.length === 0) {
+      if (selectedFilePath !== null) {
+        setSelectedFilePath(null);
+      }
+      return;
+    }
+
+    if (
+      selectedFilePath !== null &&
+      activeRenderFiles.some((file) => file.path === selectedFilePath)
+    ) {
+      return;
+    }
+
+    setSelectedFilePath(activeRenderFiles[0]?.path ?? null);
+  }, [activeRenderFiles, selectedFilePath]);
+
+  const selectedFile = useMemo(
+    () =>
+      selectedFilePath === null
+        ? null
+        : (activeRenderFiles.find((file) => file.path === selectedFilePath) ?? null),
+    [activeRenderFiles, selectedFilePath],
+  );
+
   const workingTreeCommitSelection = useWorkingTreeCommitSelection({
     repoPath,
     diffFiles: selection.type === 'working-tree' ? activeRenderFiles : [],
@@ -173,25 +185,19 @@ export function ChangesPane({
 
   const handleRestoreWorkingTree = useCallback(() => {
     setSelection({ type: 'working-tree' });
+    setSelectedFilePath(null);
   }, []);
 
   const handleSelectHistoryCommit = useCallback((commit: PrCommit) => {
     setSelection({ type: 'commit', commit });
     setIsHistoryOpen(false);
+    setSelectedFilePath(null);
   }, []);
 
   const handleFileSelect = useCallback((path: string) => {
-    viewportRef.current?.scrollToFile(path);
+    setSelectedFilePath(path);
     onFileSelect?.();
   }, [onFileSelect]);
-
-  const handleVisibleFilesChange = useCallback((nextVisibleFiles: Set<string>) => {
-    setVisibleFiles((currentVisibleFiles) =>
-      areVisibleFileSetsEqual(currentVisibleFiles, nextVisibleFiles)
-        ? currentVisibleFiles
-        : nextVisibleFiles,
-    );
-  }, []);
 
   const drawerCommits = useMemo(() => historyCommits, [historyCommits]);
 
@@ -202,7 +208,7 @@ export function ChangesPane({
   const sidebar = (
     <ChangesSidebar
       diffFiles={activeRenderFiles}
-      visibleFiles={visibleFiles}
+      selectedPath={selectedFilePath}
       onSelectFile={handleFileSelect}
       selectedCommit={selectedCommit}
       isDiffLoading={activeDiffState.status === 'loading'}
@@ -228,14 +234,11 @@ export function ChangesPane({
   );
 
   const viewport = (
-    <CodeChangesFilesViewport
-      ref={viewportRef}
+    <SelectedFileDiffView
       rawDiff={activeDiffState}
-      diffFiles={activeRenderFiles}
+      selectedFile={selectedFile}
       displayMode={preferences.diffDisplayMode}
-      mainTop={<DiffDisplayModeToolbar />}
       emptyMessage={emptyMessage}
-      onVisibleFilesChange={handleVisibleFilesChange}
       getFileSelectionType={
         isWorkingTreeSelection
           ? workingTreeCommitSelection.getFileSelectionType
