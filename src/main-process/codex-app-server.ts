@@ -88,6 +88,17 @@ type JsonRpcNotification = {
 
 const REQUEST_TIMEOUT_MS = 20_000;
 
+export const buildCodexInitializeParams = () => ({
+  clientInfo: {
+    name: 'devland',
+    title: 'Devland',
+    version: process.env.npm_package_version ?? '0.0.0',
+  },
+  capabilities: {
+    experimentalApi: true,
+  },
+});
+
 const asObject = (value: unknown): Record<string, unknown> | undefined =>
   value && typeof value === 'object' ? (value as Record<string, unknown>) : undefined;
 
@@ -356,14 +367,7 @@ export class CodexAppServerManager extends EventEmitter<{
     this.emitState(context, 'connecting', null, 'Starting Codex');
 
     try {
-      await this.sendRequest(context, 'initialize', {
-        clientInfo: {
-          name: 'devland',
-          title: 'Devland',
-          version: process.env.npm_package_version ?? '0.0.0',
-        },
-        capabilities: null,
-      });
+      await this.sendRequest(context, 'initialize', buildCodexInitializeParams());
       this.writeMessage(context, { method: 'initialized' });
 
       const threadParams = {
