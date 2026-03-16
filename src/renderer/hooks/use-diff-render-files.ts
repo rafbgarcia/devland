@@ -18,6 +18,10 @@ import {
   type DiffFileTokens,
 } from '@/renderer/lib/diff/highlighter';
 
+const SYNTAX_CACHE_LIMIT = 40;
+
+type SyntaxCacheEntry = Promise<DiffFileTokens> | DiffFileTokens;
+
 export type DiffRenderContext =
   | { kind: 'working-tree'; repoPath: string }
   | { kind: 'commit'; repoPath: string; commitRevision: string; parentRevision: string | null }
@@ -69,8 +73,55 @@ function getSyntaxCacheKey(file: DiffFile, pair: DiffContentPair) {
       : pair.newSource.type === 'working-tree'
       ? `working-tree:${pair.newSource.path}`
       : 'none';
+  const diffHash = hashString(file.rawText);
 
-  return `${file.displayPath}|${oldKey}|${newKey}|${file.rawText}`;
+  return `${file.displayPath}|${file.status}|${file.additions}|${file.deletions}|${oldKey}|${newKey}|${diffHash}`;
+}
+
+function hashString(value: string) {
+  let hash = 2166136261;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return (hash >>> 0).toString(16);
+}
+
+function getFromSyntaxCache(cache: Map<string, SyntaxCacheEntry>, key: string) {
+  const cached = cache.get(key);
+
+  if (cached === undefined) {
+    return undefined;
+  }
+
+  cache.delete(key);
+  cache.set(key, cached);
+
+  return cached;
+}
+
+function setSyntaxCacheValue(
+  cache: Map<string, SyntaxCacheEntry>,
+  key: string,
+  value: SyntaxCacheEntry,
+) {
+  if (cache.has(key)) {
+    cache.delete(key);
+  }
+
+  cache.set(key, value);
+
+  while (cache.size > SYNTAX_CACHE_LIMIT) {
+    const oldestKey = cache.keys().next().value;
+
+    if (oldestKey === undefined) {
+      break;
+    }
+
+    cache.delete(oldestKey);
+  }
 }
 
 export function useDiffRenderFiles({
@@ -85,7 +136,7 @@ export function useDiffRenderFiles({
   highlightPaths?: readonly string[] | undefined;
 }) {
   const [syntaxTokensByPath, setSyntaxTokensByPath] = useState<Record<string, DiffFileTokens | null>>({});
-  const syntaxCacheRef = useRef<Map<string, Promise<DiffFileTokens> | DiffFileTokens>>(new Map());
+  const syntaxCacheRef = useRef<Map<string, SyntaxCacheEntry>>(new Map());
   const highlightPathSet = useMemo(
     () => highlightPaths === undefined ? null : new Set(highlightPaths),
     [highlightPaths],
@@ -134,7 +185,7 @@ export function useDiffRenderFiles({
 
         try {
           const cacheKey = getSyntaxCacheKey(file.diff, file.contentPair);
-          const cached = syntaxCacheRef.current.get(cacheKey);
+          const cached = getFromSyntaxCache(syntaxCacheRef.current, cacheKey);
 
           if (cached instanceof Promise) {
             return [file.path, await cached] as const;
@@ -146,7 +197,7 @@ export function useDiffRenderFiles({
 
           const pending = highlightDiffFileContents(file.contentPair, file.diff)
             .then((tokens: DiffFileTokens) => {
-              syntaxCacheRef.current.set(cacheKey, tokens);
+              setSyntaxCacheValue(syntaxCacheRef.current, cacheKey, tokens);
               return tokens;
             })
             .catch((error: unknown) => {
@@ -154,7 +205,7 @@ export function useDiffRenderFiles({
               throw error;
             });
 
-          syntaxCacheRef.current.set(cacheKey, pending);
+          setSyntaxCacheValue(syntaxCacheRef.current, cacheKey, pending);
 
           return [file.path, await pending] as const;
         } catch (error) {

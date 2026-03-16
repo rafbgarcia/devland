@@ -1,4 +1,5 @@
 import { atom, useAtomValue, useSetAtom } from 'jotai';
+import { selectAtom } from 'jotai/utils';
 
 import type {
   CodexApprovalDecision,
@@ -61,6 +62,23 @@ const DEFAULT_SESSION_STATE: CodexSessionState = {
 };
 
 const sessionStatesAtom = atom<Record<string, CodexSessionState>>({});
+const sessionStateAtoms = new Map<string, ReturnType<typeof selectAtom<Record<string, CodexSessionState>, CodexSessionState>>>();
+
+function getSessionStateAtom(sessionId: string) {
+  const existingAtom = sessionStateAtoms.get(sessionId);
+
+  if (existingAtom) {
+    return existingAtom;
+  }
+
+  const nextAtom = selectAtom(
+    sessionStatesAtom,
+    (sessionStates) => sessionStates[sessionId] ?? DEFAULT_SESSION_STATE,
+  );
+  sessionStateAtoms.set(sessionId, nextAtom);
+
+  return nextAtom;
+}
 
 const updateSessionEventAtom = atom(
   null,
@@ -247,7 +265,7 @@ const ensureSessionSubscription = () => {
 export function useCodexSessionState(sessionId: string): CodexSessionState {
   ensureSessionSubscription();
 
-  return useAtomValue(sessionStatesAtom)[sessionId] ?? DEFAULT_SESSION_STATE;
+  return useAtomValue(getSessionStateAtom(sessionId));
 }
 
 export function useCodexSessionActions() {
