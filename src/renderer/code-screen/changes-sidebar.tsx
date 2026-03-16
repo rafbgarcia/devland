@@ -1,3 +1,5 @@
+import { memo, useMemo } from 'react';
+
 import {
   GitCommitHorizontalIcon,
   HistoryIcon,
@@ -73,7 +75,7 @@ function HistorySnapshotBanner({
   );
 }
 
-export function ChangesSidebar({
+export const ChangesSidebar = memo(function ChangesSidebar({
   diffFiles,
   selectedPath,
   onSelectFile,
@@ -102,7 +104,10 @@ export function ChangesSidebar({
     onCommit: (draft: { summary: string; description: string }) => Promise<boolean>;
   } | undefined;
 }) {
-  const selectedFiles = selectedPath === null ? new Set<string>() : new Set([selectedPath]);
+  const selectedFiles = useMemo(
+    () => selectedPath === null ? new Set<string>() : new Set([selectedPath]),
+    [selectedPath],
+  );
 
   return (
     <FilesChangedList
@@ -147,4 +152,4 @@ export function ChangesSidebar({
       )}
     />
   );
-}
+});

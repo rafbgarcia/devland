@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 
 import type { PendingApproval, PendingUserInput } from '@/renderer/hooks/use-codex-sessions';
 import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';
 import { Button } from '@/shadcn/components/ui/button';
 
-export function SessionAlerts({
+export const SessionAlerts = memo(function SessionAlerts({
   targetId,
   sessionError,
   pendingApprovals,
@@ -169,4 +169,4 @@ export function SessionAlerts({
       ) : null}
     </>
   );
-}
+});

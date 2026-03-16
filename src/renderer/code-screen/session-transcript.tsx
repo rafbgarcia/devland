@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   BotIcon,
@@ -164,7 +164,7 @@ function StreamingMessage({
   );
 }
 
-export function SessionTranscript({
+export const SessionTranscript = memo(function SessionTranscript({
   sessionState,
   targetLabel,
   onCreateSession,
@@ -251,4 +251,4 @@ export function SessionTranscript({
       </div>
     </div>
   );
-}
+});

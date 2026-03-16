@@ -182,6 +182,32 @@ export function ChangesPane({
       workingTreeCommitSelection.getFileSelectionType(path) === 'none',
     );
   }, [workingTreeCommitSelection]);
+  const handleOpenHistory = useCallback(() => {
+    setIsHistoryOpen(true);
+  }, []);
+  const handleCloseHistory = useCallback(() => {
+    setIsHistoryOpen(false);
+  }, []);
+  const handleToggleRowSelection = useCallback((
+    path: string,
+    row: Parameters<typeof workingTreeCommitSelection.toggleRowSelection>[1],
+  ) => {
+    workingTreeCommitSelection.toggleRowSelection(
+      path,
+      row,
+      workingTreeCommitSelection.getRowSelectionType(path, row) === 'none',
+    );
+  }, [workingTreeCommitSelection]);
+  const handleToggleHunkSelection = useCallback((
+    path: string,
+    hunkStartLineNumber: number,
+  ) => {
+    workingTreeCommitSelection.toggleHunkSelection(
+      path,
+      hunkStartLineNumber,
+      getWorkingTreeHunkSelectionType(path, hunkStartLineNumber) === 'none',
+    );
+  }, [getWorkingTreeHunkSelectionType, workingTreeCommitSelection]);
 
   const handleRestoreWorkingTree = useCallback(() => {
     setSelection({ type: 'working-tree' });
@@ -204,6 +230,30 @@ export function ChangesPane({
   const handleCommitSelection = useCallback((
     draft: { summary: string; description: string },
   ) => workingTreeCommitSelection.commitSelection(draft), [workingTreeCommitSelection]);
+  const workingTreeCommitState = useMemo(
+    () =>
+      isWorkingTreeSelection
+        ? {
+            selectedFileCount: workingTreeCommitSelection.selectedFileCount,
+            totalFileCount: activeRenderFiles.length,
+            isSubmitting: workingTreeCommitSelection.isSubmitting,
+            error: workingTreeCommitSelection.error,
+            getFileSelectionType: workingTreeCommitSelection.getFileSelectionType,
+            onToggleFileSelection: toggleWorkingTreeFileSelection,
+            onCommit: handleCommitSelection,
+          }
+        : undefined,
+    [
+      activeRenderFiles.length,
+      handleCommitSelection,
+      isWorkingTreeSelection,
+      toggleWorkingTreeFileSelection,
+      workingTreeCommitSelection.error,
+      workingTreeCommitSelection.getFileSelectionType,
+      workingTreeCommitSelection.isSubmitting,
+      workingTreeCommitSelection.selectedFileCount,
+    ],
+  );
 
   const sidebar = (
     <ChangesSidebar
@@ -212,24 +262,10 @@ export function ChangesPane({
       onSelectFile={handleFileSelect}
       selectedCommit={selectedCommit}
       isDiffLoading={activeDiffState.status === 'loading'}
-      onOpenHistory={() => {
-        setIsHistoryOpen(true);
-      }}
+      onOpenHistory={handleOpenHistory}
       onRestoreBranchState={handleRestoreWorkingTree}
       emptyMessage={emptyMessage}
-      workingTreeCommitState={
-        isWorkingTreeSelection
-          ? {
-              selectedFileCount: workingTreeCommitSelection.selectedFileCount,
-              totalFileCount: activeRenderFiles.length,
-              isSubmitting: workingTreeCommitSelection.isSubmitting,
-              error: workingTreeCommitSelection.error,
-              getFileSelectionType: workingTreeCommitSelection.getFileSelectionType,
-              onToggleFileSelection: toggleWorkingTreeFileSelection,
-              onCommit: handleCommitSelection,
-            }
-          : undefined
-      }
+      workingTreeCommitState={workingTreeCommitState}
     />
   );
 
@@ -261,22 +297,12 @@ export function ChangesPane({
       }
       onToggleRowSelection={
         isWorkingTreeSelection
-          ? (path, row) =>
-              workingTreeCommitSelection.toggleRowSelection(
-                path,
-                row,
-                workingTreeCommitSelection.getRowSelectionType(path, row) === 'none',
-              )
+          ? handleToggleRowSelection
           : undefined
       }
       onToggleHunkSelection={
         isWorkingTreeSelection
-          ? (path, hunkStartLineNumber) =>
-              workingTreeCommitSelection.toggleHunkSelection(
-                path,
-                hunkStartLineNumber,
-                getWorkingTreeHunkSelectionType(path, hunkStartLineNumber) === 'none',
-              )
+          ? handleToggleHunkSelection
           : undefined
       }
       onSubmitComment={onSubmitDiffComment}
@@ -291,7 +317,7 @@ export function ChangesPane({
       isRefreshing={historyIsRefreshing}
       error={historyError}
       selectedCommitSha={historySelectedCommitSha}
-      onClose={() => setIsHistoryOpen(false)}
+      onClose={handleCloseHistory}
       onSelectCommit={(index) => {
         const commit = drawerCommits[index];
 

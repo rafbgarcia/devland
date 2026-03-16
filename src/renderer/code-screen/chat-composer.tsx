@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type FormEvent, type KeyboardEvent } from 'react';
+import { memo, useState, type CSSProperties, type FormEvent, type KeyboardEvent } from 'react';
 
 import {
   CheckIcon,
@@ -87,7 +87,7 @@ function SettingsDropdown() {
   );
 }
 
-export function ChatComposer({
+export const ChatComposer = memo(function ChatComposer({
   targetLabel,
   isRunning,
   onSendPrompt,
@@ -186,4 +186,4 @@ export function ChatComposer({
       </div>
     </div>
   );
-}
+});

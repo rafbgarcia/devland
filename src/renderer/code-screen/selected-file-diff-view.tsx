@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { memo, useCallback } from 'react';
 
 import type { DiffCommentAnchor, DiffDisplayMode, DiffSelectionType } from '@/lib/diff';
 import { DiffDisplayModeToolbar } from '@/renderer/components/diff-display-mode-toolbar';
@@ -7,7 +7,7 @@ import type { DiffRenderFile } from '@/renderer/hooks/use-diff-render-files';
 import type { AsyncState } from '@/renderer/hooks/use-pr-diff-data';
 import { Spinner } from '@/shadcn/components/ui/spinner';
 
-export function SelectedFileDiffView({
+export const SelectedFileDiffView = memo(function SelectedFileDiffView({
   rawDiff,
   selectedFile,
   displayMode,
@@ -77,4 +77,4 @@ export function SelectedFileDiffView({
       ) : null}
     </div>
   );
-}
+});

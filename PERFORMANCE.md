@@ -14,10 +14,10 @@ Goal: make the app feel consistently smooth by shrinking render scope, isolating
 - [x] Stop forcing transcript scroll on every streamed delta.
   Recommended solution: auto-scroll only when the user is already pinned near the bottom, and batch scroll writes with `requestAnimationFrame`.
 
-- [ ] Memoize or split heavy renderer subtrees behind stable props.
+- [x] Memoize or split heavy renderer subtrees behind stable props.
   Recommended solution: make the diff viewport, sidebar, transcript list, and composers independent memoized boundaries so local state changes stay local.
 
-- [ ] Remove unnecessary object and callback churn in hot render paths.
+- [x] Remove unnecessary object and callback churn in hot render paths.
   Recommended solution: stop creating fresh inline objects/functions for large trees on every render, especially around `workingTreeCommitState`, file selection handlers, and viewport props.
 
 - [x] Bound the syntax highlighting cache.
