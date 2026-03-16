@@ -80,7 +80,6 @@ function CommitComposer({
   description,
   isSubmitting,
   error,
-  hasStagedChanges,
   onSummaryChange,
   onDescriptionChange,
   onCommit,
@@ -91,7 +90,6 @@ function CommitComposer({
   description: string;
   isSubmitting: boolean;
   error: string | null;
-  hasStagedChanges: boolean;
   onSummaryChange: (summary: string) => void;
   onDescriptionChange: (description: string) => void;
   onCommit: () => void;
@@ -103,15 +101,6 @@ function CommitComposer({
           Commit {selectedFileCount} of {totalFileCount} {totalFileCount === 1 ? 'file' : 'files'}
         </div>
       </div>
-
-      {hasStagedChanges ? (
-        <Alert className="mb-3">
-          <AlertTitle>Existing staged changes detected</AlertTitle>
-          <AlertDescription>
-            Devland commit selection currently requires a clean index. Clear staged changes in Git before committing here.
-          </AlertDescription>
-        </Alert>
-      ) : null}
 
       {error ? (
         <Alert className="mb-3">
@@ -126,21 +115,20 @@ function CommitComposer({
           onChange={(event) => onSummaryChange(event.target.value)}
           placeholder="Commit summary"
           rows={2}
-          disabled={isSubmitting || hasStagedChanges}
+          disabled={isSubmitting}
         />
         <Textarea
           value={description}
           onChange={(event) => onDescriptionChange(event.target.value)}
           placeholder="Description (optional)"
           rows={4}
-          disabled={isSubmitting || hasStagedChanges}
+          disabled={isSubmitting}
         />
         <Button
           type="button"
           onClick={onCommit}
           disabled={
             isSubmitting ||
-            hasStagedChanges ||
             selectedFileCount === 0 ||
             summary.trim().length === 0
           }
@@ -176,7 +164,6 @@ export function CodeChangesSidebar({
     description: string;
     isSubmitting: boolean;
     error: string | null;
-    hasStagedChanges: boolean;
     getFileSelectionType: (path: string) => DiffSelectionType;
     onToggleFileSelection: (path: string) => void;
     onSummaryChange: (summary: string) => void;
@@ -207,7 +194,6 @@ export function CodeChangesSidebar({
           description={workingTreeCommitState.description}
           isSubmitting={workingTreeCommitState.isSubmitting}
           error={workingTreeCommitState.error}
-          hasStagedChanges={workingTreeCommitState.hasStagedChanges}
           onSummaryChange={workingTreeCommitState.onSummaryChange}
           onDescriptionChange={workingTreeCommitState.onDescriptionChange}
           onCommit={workingTreeCommitState.onCommit}

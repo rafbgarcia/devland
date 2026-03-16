@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
@@ -155,6 +155,69 @@ describe('commitWorkingTreeSelection', () => {
       rmSync(repoPath, { recursive: true, force: true });
     }
   });
+
+  it('creates a commit when other changes are already staged', async () => {
+    const repoPath = mkdtempSync(path.join(tmpdir(), 'devland-git-test-'));
+
+    try {
+      await execGit(repoPath, ['init']);
+      await execGit(repoPath, ['config', 'user.name', 'Devland Test']);
+      await execGit(repoPath, ['config', 'user.email', 'devland@example.com']);
+
+      writeFileSync(path.join(repoPath, 'a.txt'), 'a1\n', 'utf8');
+      writeFileSync(path.join(repoPath, 'b.txt'), 'b1\n', 'utf8');
+      await execGit(repoPath, ['add', '.']);
+      await execGit(repoPath, ['commit', '-m', 'Initial commit']);
+
+      writeFileSync(path.join(repoPath, 'a.txt'), 'a2\n', 'utf8');
+      await execGit(repoPath, ['add', 'a.txt']);
+
+      writeFileSync(path.join(repoPath, 'b.txt'), 'b2\n', 'utf8');
+
+      const diff = await getGitWorkingTreeDiff(repoPath);
+      const file = parseUnifiedDiffDocument(diff).files.find((candidate) => candidate.displayPath === 'b.txt');
+
+      assert.ok(file);
+
+      const result = await commitWorkingTreeSelection({
+        repoPath,
+        summary: 'Commit selected file',
+        description: '',
+        files: [
+          {
+            path: file.displayPath,
+            paths: [file.displayPath],
+            kind: 'full',
+          },
+        ],
+      });
+
+      assert.match(result.commitSha, /^[0-9a-f]{40}$/);
+      assert.equal((await execGit(repoPath, ['show', 'HEAD:a.txt'])).stdout, 'a1\n');
+      assert.equal((await execGit(repoPath, ['show', 'HEAD:b.txt'])).stdout, 'b2\n');
+
+      const status = await getGitStatus(repoPath);
+      assert.equal(status.hasStagedChanges, false);
+      assert.deepEqual(
+        status.files.map((fileStatus) => ({
+          path: fileStatus.path,
+          status: fileStatus.status,
+          hasStagedChanges: fileStatus.hasStagedChanges,
+          hasUnstagedChanges: fileStatus.hasUnstagedChanges,
+        })),
+        [
+          {
+            path: 'a.txt',
+            status: 'modified',
+            hasStagedChanges: false,
+            hasUnstagedChanges: true,
+          },
+        ],
+      );
+    } finally {
+      rmSync(repoPath, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('getGitBranchHistory', () => {
@@ -176,6 +239,41 @@ describe('getGitBranchHistory', () => {
       assert.equal(history.branch, 'HEAD');
       assert.equal(history.commits.length, 1);
       assert.equal(history.commits[0]?.title, 'Initial commit');
+    } finally {
+      rmSync(repoPath, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('getGitStatus', () => {
+  it('enumerates untracked files inside directories', async () => {
+    const repoPath = mkdtempSync(path.join(tmpdir(), 'devland-git-test-'));
+
+    try {
+      await execGit(repoPath, ['init']);
+      await execGit(repoPath, ['config', 'user.name', 'Devland Test']);
+      await execGit(repoPath, ['config', 'user.email', 'devland@example.com']);
+
+      writeFileSync(path.join(repoPath, 'tracked.txt'), 'tracked\n', 'utf8');
+      await execGit(repoPath, ['add', 'tracked.txt']);
+      await execGit(repoPath, ['commit', '-m', 'Initial commit']);
+
+      const outputDir = path.join(repoPath, 'dist', 'assets');
+      mkdirSync(outputDir, { recursive: true });
+      writeFileSync(path.join(repoPath, 'dist', 'index.html'), '<html></html>\n', { encoding: 'utf8', flag: 'w' });
+      writeFileSync(path.join(outputDir, 'bundle.js'), 'console.log("hi");\n', { encoding: 'utf8', flag: 'w' });
+
+      const status = await getGitStatus(repoPath);
+
+      assert.deepEqual(
+        status.files.map((fileStatus) => fileStatus.path).sort(),
+        ['dist/assets/bundle.js', 'dist/index.html'],
+      );
+
+      const diff = await getGitWorkingTreeDiff(repoPath);
+      const diffPaths = parseUnifiedDiffDocument(diff).files.map((file) => file.displayPath).sort();
+
+      assert.deepEqual(diffPaths, ['dist/assets/bundle.js', 'dist/index.html']);
     } finally {
       rmSync(repoPath, { recursive: true, force: true });
     }

@@ -95,3 +95,5 @@ out/
 .claude/*local*
 
 .env.local
+
+dist/

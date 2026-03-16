@@ -145,7 +145,17 @@ export function useGitWorkingTreeDiff({
   const fetchIdRef = useRef(0);
 
   const snapshotKey = useMemo(
-    () => files.map((file) => `${file.status}:${file.path}`).join('|'),
+    () => files
+      .map((file) =>
+        [
+          file.status,
+          file.path,
+          file.oldPath ?? '',
+          file.hasStagedChanges ? 'staged' : 'unstaged',
+          file.hasUnstagedChanges ? 'dirty' : 'clean',
+        ].join(':'),
+      )
+      .join('|'),
     [files],
   );
 

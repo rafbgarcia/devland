@@ -196,6 +196,7 @@ export type GitBranch = z.infer<typeof GitBranchSchema>;
 
 export const GitStatusFileSchema = z.object({
   path: z.string().min(1),
+  oldPath: z.string().min(1).nullable().optional(),
   status: GitFileStatusSchema,
   hasStagedChanges: z.boolean(),
   hasUnstagedChanges: z.boolean(),

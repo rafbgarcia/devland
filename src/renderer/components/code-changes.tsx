@@ -48,7 +48,6 @@ export function CodeChanges({
   branchName,
   headRevision,
   workingTreeFiles,
-  workingTreeHasStagedChanges = false,
   children,
   onFileSelect,
   onSubmitDiffComment,
@@ -58,7 +57,6 @@ export function CodeChanges({
   branchName: string;
   headRevision: string | null;
   workingTreeFiles: GitStatusFile[];
-  workingTreeHasStagedChanges?: boolean;
   children: (props: CodeChangesRenderProps) => ReactNode;
   onFileSelect?: () => void;
   onSubmitDiffComment?: ((anchor: DiffCommentAnchor, body: string) => Promise<void>) | undefined;
@@ -217,7 +215,6 @@ export function CodeChanges({
               description: workingTreeCommitSelection.draft.description,
               isSubmitting: workingTreeCommitSelection.isSubmitting,
               error: workingTreeCommitSelection.error,
-              hasStagedChanges: workingTreeHasStagedChanges,
               getFileSelectionType: workingTreeCommitSelection.getFileSelectionType,
               onToggleFileSelection: toggleWorkingTreeFileSelection,
               onSummaryChange: workingTreeCommitSelection.setDraftSummary,
