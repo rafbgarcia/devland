@@ -146,9 +146,11 @@ export function useGitBranchHistory({
 export function useGitWorkingTreeDiff({
   repoPath,
   files,
+  refreshVersion,
 }: {
   repoPath: string;
   files: GitStatusFile[];
+  refreshVersion: number;
 }) {
   const [rawDiff, setRawDiff] = useState<AsyncState<string>>({ status: 'loading' });
   const fetchIdRef = useRef(0);
@@ -196,7 +198,7 @@ export function useGitWorkingTreeDiff({
           error: error instanceof Error ? error.message : 'Failed to load working tree diff.',
         });
       });
-  }, [files.length, repoPath, snapshotKey]);
+  }, [files.length, refreshVersion, repoPath, snapshotKey]);
 
   const diffFiles = useMemo<DiffFile[]>(
     () => (rawDiff.status === 'ready' ? parseDiffFiles(rawDiff.data) : []),

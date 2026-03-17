@@ -5,7 +5,7 @@ import Markdown from 'react-markdown';
 import { AnimatePresence, motion } from 'motion/react';
 
 import type { PrReview } from '@/ipc/contracts';
-import { getDiffRowsRenderLineCount, type DiffCommentAnchor } from '@/lib/diff';
+import type { DiffCommentAnchor } from '@/lib/diff';
 import { useUserPreferences } from '@/renderer/shared/hooks/use-user-preferences';
 import { DiffFileSection } from '@/renderer/shared/ui/diff/diff-renderer';
 import { useDiffRenderFiles, type DiffRenderFile } from '@/renderer/shared/ui/diff/use-diff-render-files';
@@ -130,7 +130,6 @@ function ReviewFileDiff({
     return {
       ...renderFile,
       rows,
-      renderLineCount: getDiffRowsRenderLineCount(rows, preferences.diffDisplayMode),
     };
   }, [lineRange, preferences.diffDisplayMode, renderFile]);
 

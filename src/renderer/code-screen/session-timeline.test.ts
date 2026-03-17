@@ -61,18 +61,83 @@ describe('compactSessionActivities', () => {
 });
 
 describe('deriveSessionTimelineRows', () => {
-  it('emits a tool row ahead of assistant messages that contain tool activity', () => {
+  it('keeps transcript rows in message and work order', () => {
     const rows = deriveSessionTimelineRows({
       ...DEFAULT_SESSION_STATE,
       messages: [
         {
+          id: 'user-1',
+          role: 'user',
+          text: 'Fix the app',
+          attachments: [],
+          createdAt: '2026-03-16T12:00:00.000Z',
+          completedAt: null,
+          turnId: 'turn-1',
+          itemId: null,
+          diff: null,
+          activities: [],
+        },
+        {
           id: 'assistant-1',
           role: 'assistant',
-          text: 'Done.',
+          text: 'Checking the workspace.',
+          attachments: [],
           createdAt: '2026-03-16T12:00:00.000Z',
           completedAt: '2026-03-16T12:00:05.000Z',
           turnId: 'turn-1',
+          itemId: 'assistant-item-1',
           diff: null,
+          activities: [],
+        },
+        {
+          id: 'assistant-2',
+          role: 'assistant',
+          text: 'Done.',
+          attachments: [],
+          createdAt: '2026-03-16T12:00:03.000Z',
+          completedAt: '2026-03-16T12:00:05.000Z',
+          turnId: 'turn-1',
+          itemId: 'assistant-item-2',
+          diff: null,
+          activities: [],
+        },
+      ],
+      transcriptEntries: [
+        {
+          id: 'user-1',
+          kind: 'message',
+          message: {
+            id: 'user-1',
+            role: 'user',
+            text: 'Fix the app',
+            attachments: [],
+            createdAt: '2026-03-16T12:00:00.000Z',
+            completedAt: null,
+            turnId: 'turn-1',
+            itemId: null,
+            diff: null,
+            activities: [],
+          },
+        },
+        {
+          id: 'assistant-1',
+          kind: 'message',
+          message: {
+            id: 'assistant-1',
+            role: 'assistant',
+            text: 'Checking the workspace.',
+            attachments: [],
+            createdAt: '2026-03-16T12:00:00.000Z',
+            completedAt: '2026-03-16T12:00:05.000Z',
+            turnId: 'turn-1',
+            itemId: 'assistant-item-1',
+            diff: null,
+            activities: [],
+          },
+        },
+        {
+          id: 'work-1',
+          kind: 'work',
           activities: [
             {
               id: 'activity-1',
@@ -85,34 +150,91 @@ describe('deriveSessionTimelineRows', () => {
             },
           ],
         },
-      ],
-    });
-
-    assert.equal(rows.length, 2);
-    assert.equal(rows[0]?.kind, 'work');
-    assert.equal(rows[1]?.kind, 'message');
-  });
-
-  it('keeps the current turn unvirtualized as work plus streaming message while running', () => {
-    const rows = deriveSessionTimelineRows({
-      ...DEFAULT_SESSION_STATE,
-      status: 'running',
-      streamingAssistantText: 'Working through it',
-      currentTurnActivities: [
         {
-          id: 'activity-1',
-          tone: 'tool',
-          phase: 'started',
-          label: 'Search the web',
-          detail: 'api docs',
-          itemId: 'item-1',
-          itemType: 'web_search',
+          id: 'assistant-2',
+          kind: 'message',
+          message: {
+            id: 'assistant-2',
+            role: 'assistant',
+            text: 'Done.',
+            attachments: [],
+            createdAt: '2026-03-16T12:00:03.000Z',
+            completedAt: '2026-03-16T12:00:05.000Z',
+            turnId: 'turn-1',
+            itemId: 'assistant-item-2',
+            diff: null,
+            activities: [],
+          },
         },
       ],
     });
 
-    assert.equal(rows.length, 2);
-    assert.equal(rows[0]?.kind, 'work');
-    assert.equal(rows[1]?.kind, 'streaming-message');
+    assert.equal(rows.length, 4);
+    assert.equal(rows[0]?.kind, 'message');
+    assert.equal(rows[1]?.kind, 'message');
+    assert.equal(rows[2]?.kind, 'work');
+    assert.equal(rows[3]?.kind, 'message');
+  });
+
+  it('keeps the current turn unvirtualized in event order while running', () => {
+    const rows = deriveSessionTimelineRows({
+      ...DEFAULT_SESSION_STATE,
+      status: 'running',
+      currentTurnEntries: [
+        {
+          id: 'assistant-1',
+          kind: 'message',
+          message: {
+            id: 'assistant-1',
+            role: 'assistant',
+            text: 'Working through it',
+            attachments: [],
+            createdAt: '2026-03-16T12:00:00.000Z',
+            completedAt: null,
+            turnId: 'turn-2',
+            itemId: 'assistant-item-1',
+            diff: null,
+            activities: [],
+          },
+        },
+        {
+          id: 'work-1',
+          kind: 'work',
+          activities: [
+            {
+              id: 'activity-1',
+              tone: 'tool',
+              phase: 'started',
+              label: 'Search the web',
+              detail: 'api docs',
+              itemId: 'item-1',
+              itemType: 'web_search',
+            },
+          ],
+        },
+        {
+          id: 'assistant-2',
+          kind: 'message',
+          message: {
+            id: 'assistant-2',
+            role: 'assistant',
+            text: 'Almost done',
+            attachments: [],
+            createdAt: '2026-03-16T12:00:01.000Z',
+            completedAt: null,
+            turnId: 'turn-2',
+            itemId: 'assistant-item-2',
+            diff: null,
+            activities: [],
+          },
+        },
+      ],
+    });
+
+    assert.equal(rows.length, 3);
+    assert.equal(rows[0]?.kind, 'message');
+    assert.equal(rows[0]?.kind === 'message' ? rows[0].isStreaming : false, true);
+    assert.equal(rows[1]?.kind, 'work');
+    assert.equal(rows[2]?.kind, 'message');
   });
 });

@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { buildCodexInitializeParams } from '@/main-process/codex-app-server';
+import {
+  buildCodexThreadOpenParams,
+  buildCodexInitializeParams,
+  buildCodexTurnStartParams,
+  mapCodexRuntimeMode,
+  shouldEmitCodexActivity,
+} from '@/main-process/codex-app-server';
 
 describe('buildCodexInitializeParams', () => {
   it('opts into Codex experimental api capabilities during initialize', () => {
@@ -15,5 +21,120 @@ describe('buildCodexInitializeParams', () => {
         experimentalApi: true,
       },
     });
+  });
+});
+
+describe('shouldEmitCodexActivity', () => {
+  it('filters reasoning activity at the server boundary', () => {
+    assert.equal(shouldEmitCodexActivity('reasoning'), false);
+    assert.equal(shouldEmitCodexActivity('command_execution'), true);
+    assert.equal(shouldEmitCodexActivity('plan'), true);
+  });
+});
+
+describe('mapCodexRuntimeMode', () => {
+  it('maps supervised mode to approval-gated workspace write access', () => {
+    assert.deepEqual(mapCodexRuntimeMode('approval-required'), {
+      approvalPolicy: 'on-request',
+      sandbox: 'workspace-write',
+    });
+  });
+
+  it('maps full access mode to unrestricted Codex access', () => {
+    assert.deepEqual(mapCodexRuntimeMode('full-access'), {
+      approvalPolicy: 'never',
+      sandbox: 'danger-full-access',
+    });
+  });
+});
+
+describe('buildCodexThreadOpenParams', () => {
+  it('passes model, fast service tier, and runtime settings into thread open params', () => {
+    assert.deepEqual(
+      buildCodexThreadOpenParams({
+        cwd: '/repo',
+        settings: {
+          model: 'gpt-5.4',
+          reasoningEffort: 'high',
+          fastMode: true,
+          runtimeMode: 'full-access',
+        },
+      }),
+      {
+        cwd: '/repo',
+        model: 'gpt-5.4',
+        serviceTier: 'fast',
+        approvalPolicy: 'never',
+        sandbox: 'danger-full-access',
+        experimentalRawEvents: false,
+        persistExtendedHistory: true,
+      },
+    );
+  });
+});
+
+describe('buildCodexTurnStartParams', () => {
+  it('passes prompt text, reasoning, fast mode, and image attachments to turn/start', () => {
+    assert.deepEqual(
+      buildCodexTurnStartParams({
+        threadId: 'thread-1',
+        prompt: 'Review this UI',
+        settings: {
+          model: 'gpt-5.4',
+          reasoningEffort: 'xhigh',
+          fastMode: true,
+          runtimeMode: 'approval-required',
+        },
+        attachments: [
+          {
+            type: 'image',
+            name: 'composer.png',
+            mimeType: 'image/png',
+            sizeBytes: 1234,
+            dataUrl: 'data:image/png;base64,abc',
+          },
+        ],
+      }),
+      {
+        threadId: 'thread-1',
+        input: [
+          { type: 'text', text: 'Review this UI', text_elements: [] },
+          { type: 'image', url: 'data:image/png;base64,abc' },
+        ],
+        model: 'gpt-5.4',
+        effort: 'xhigh',
+        serviceTier: 'fast',
+      },
+    );
+  });
+
+  it('allows attachment-only turns', () => {
+    assert.deepEqual(
+      buildCodexTurnStartParams({
+        threadId: 'thread-2',
+        prompt: '   ',
+        settings: {
+          model: 'gpt-5.3-codex',
+          reasoningEffort: 'medium',
+          fastMode: false,
+          runtimeMode: 'approval-required',
+        },
+        attachments: [
+          {
+            type: 'image',
+            name: 'issue.png',
+            mimeType: 'image/png',
+            sizeBytes: 456,
+            dataUrl: 'data:image/png;base64,xyz',
+          },
+        ],
+      }),
+      {
+        threadId: 'thread-2',
+        input: [{ type: 'image', url: 'data:image/png;base64,xyz' }],
+        model: 'gpt-5.3-codex',
+        effort: 'medium',
+      },
+    );
   });
 });

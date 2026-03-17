@@ -4,7 +4,6 @@ import {
   createCommitContentPair,
   createComparisonContentPair,
   createWorkingTreeContentPair,
-  getDiffRowsRenderLineCount,
   parseUnifiedDiffDocument,
   projectDiffRows,
   type DiffContentPair,
@@ -14,6 +13,8 @@ import {
 } from '@/lib/diff';
 import {
   highlightDiffFileContents,
+  loadDiffFileContents,
+  type DiffFileContents,
   type DiffFileTokens,
 } from '@/renderer/shared/ui/diff/highlighter';
 import { incrementDevPerformanceCounter } from '@/renderer/shared/lib/dev-performance';
@@ -25,6 +26,7 @@ const SYNTAX_CACHE_LIMIT = 40;
 const PARSED_DIFF_CACHE_LIMIT = 12;
 
 type SyntaxCacheEntry = Promise<DiffFileTokens> | DiffFileTokens;
+type ContentCacheEntry = Promise<DiffFileContents> | DiffFileContents;
 type ParsedDiffEntry = Array<{
   path: string;
   status: DiffFile['status'];
@@ -44,16 +46,40 @@ export type DiffRenderFile = {
   status: DiffFile['status'];
   additions: number;
   deletions: number;
-  renderLineCount: number;
   diff: DiffFile;
   rows: DiffRow[];
   contentPair: DiffContentPair;
+  contents: DiffFileContents | null;
   syntaxTokens: DiffFileTokens | null;
 };
 
 function areSyntaxTokenMapsEqual(
   left: Record<string, DiffFileTokens | null>,
   right: Record<string, DiffFileTokens | null>,
+) {
+  const leftEntries = Object.entries(left);
+  const rightEntries = Object.entries(right);
+
+  if (leftEntries.length !== rightEntries.length) {
+    return false;
+  }
+
+  for (const [path, leftValue] of leftEntries) {
+    if (!(path in right)) {
+      return false;
+    }
+
+    if (right[path] !== leftValue) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function areFileContentsMapsEqual(
+  left: Record<string, DiffFileContents | null>,
+  right: Record<string, DiffFileContents | null>,
 ) {
   const leftEntries = Object.entries(left);
   const rightEntries = Object.entries(right);
@@ -114,6 +140,23 @@ function getSyntaxCacheKey(file: DiffFile, pair: DiffContentPair) {
   return `${file.displayPath}|${file.status}|${file.additions}|${file.deletions}|${oldKey}|${newKey}|${diffHash}`;
 }
 
+function getContentCacheKey(pair: DiffContentPair) {
+  const oldKey =
+    pair.oldSource.type === 'git'
+      ? `git:${pair.oldSource.revision}:${pair.oldSource.path}`
+      : pair.oldSource.type === 'working-tree'
+      ? `working-tree:${pair.oldSource.path}`
+      : 'none';
+  const newKey =
+    pair.newSource.type === 'git'
+      ? `git:${pair.newSource.revision}:${pair.newSource.path}`
+      : pair.newSource.type === 'working-tree'
+      ? `working-tree:${pair.newSource.path}`
+      : 'none';
+
+  return `${pair.displayPath}|${oldKey}|${newKey}`;
+}
+
 function hashString(value: string) {
   let hash = 2166136261;
 
@@ -137,7 +180,9 @@ export function useDiffRenderFiles({
   highlightPaths?: readonly string[] | undefined;
 }) {
   const [syntaxTokensByPath, setSyntaxTokensByPath] = useState<Record<string, DiffFileTokens | null>>({});
+  const [contentsByPath, setContentsByPath] = useState<Record<string, DiffFileContents | null>>({});
   const syntaxCacheRef = useRef<Map<string, SyntaxCacheEntry>>(new Map());
+  const contentCacheRef = useRef<Map<string, ContentCacheEntry>>(new Map());
   const parsedDiffCacheRef = useRef<Map<string, ParsedDiffEntry>>(new Map());
   const highlightPathsKey = highlightPaths === undefined
     ? null
@@ -197,10 +242,10 @@ export function useDiffRenderFiles({
         status: file.status,
         additions: file.additions,
         deletions: file.deletions,
-        renderLineCount: getDiffRowsRenderLineCount(file.rows, displayMode),
         diff: file.diff,
         rows: file.rows,
         contentPair,
+        contents: null,
         syntaxTokens: null,
       } satisfies DiffRenderFile;
     });
@@ -209,6 +254,9 @@ export function useDiffRenderFiles({
   useEffect(() => {
     if (rawDiff.status !== 'ready' || context === null || baseFiles.length === 0) {
       setSyntaxTokensByPath((current) =>
+        Object.keys(current).length === 0 ? current : {}
+      );
+      setContentsByPath((current) =>
         Object.keys(current).length === 0 ? current : {}
       );
       return;
@@ -221,26 +269,49 @@ export function useDiffRenderFiles({
     void Promise.all(
       baseFiles.map(async (file) => {
         if (file.diff.kind !== 'text' || file.diff.hunks.length === 0) {
-          return [file.path, null] as const;
+          return [file.path, { syntaxTokens: null, contents: null }] as const;
         }
 
         if (highlightPathSet !== null && !highlightPathSet.has(file.path)) {
-          return [file.path, null] as const;
+          return [file.path, { syntaxTokens: null, contents: null }] as const;
         }
 
         try {
+          const contentCacheKey = getContentCacheKey(file.contentPair);
+          const cachedContents = getFromLruCache(contentCacheRef.current, contentCacheKey);
+          let contents: DiffFileContents;
+
+          if (cachedContents instanceof Promise) {
+            contents = await cachedContents;
+          } else if (cachedContents) {
+            contents = cachedContents;
+          } else {
+            const pendingContents = loadDiffFileContents(file.contentPair)
+              .then((resolvedContents: DiffFileContents) => {
+                setLruCacheValue(contentCacheRef.current, contentCacheKey, resolvedContents, SYNTAX_CACHE_LIMIT);
+                return resolvedContents;
+              })
+              .catch((error: unknown) => {
+                contentCacheRef.current.delete(contentCacheKey);
+                throw error;
+              });
+
+            setLruCacheValue(contentCacheRef.current, contentCacheKey, pendingContents, SYNTAX_CACHE_LIMIT);
+            contents = await pendingContents;
+          }
+
           const cacheKey = getSyntaxCacheKey(file.diff, file.contentPair);
           const cached = getFromLruCache(syntaxCacheRef.current, cacheKey);
 
           if (cached instanceof Promise) {
-            return [file.path, await cached] as const;
+            return [file.path, { syntaxTokens: await cached, contents }] as const;
           }
 
           if (cached) {
-            return [file.path, cached] as const;
+            return [file.path, { syntaxTokens: cached, contents }] as const;
           }
 
-          const pending = highlightDiffFileContents(file.contentPair, file.diff)
+          const pending = highlightDiffFileContents(file.contentPair, file.diff, 2, contents)
             .then((tokens: DiffFileTokens) => {
               setLruCacheValue(syntaxCacheRef.current, cacheKey, tokens, SYNTAX_CACHE_LIMIT);
               return tokens;
@@ -252,10 +323,10 @@ export function useDiffRenderFiles({
 
           setLruCacheValue(syntaxCacheRef.current, cacheKey, pending, SYNTAX_CACHE_LIMIT);
 
-          return [file.path, await pending] as const;
+          return [file.path, { syntaxTokens: await pending, contents }] as const;
         } catch (error) {
-          console.error(`Failed to load syntax tokens for ${file.path}:`, error);
-          return [file.path, null] as const;
+          console.error(`Failed to load diff render assets for ${file.path}:`, error);
+          return [file.path, { syntaxTokens: null, contents: null }] as const;
         }
       }),
     )
@@ -264,12 +335,22 @@ export function useDiffRenderFiles({
           return;
         }
 
-        const nextSyntaxTokensByPath = Object.fromEntries(entries);
+        const nextSyntaxTokensByPath = Object.fromEntries(
+          entries.map(([path, value]) => [path, value.syntaxTokens]),
+        );
+        const nextContentsByPath = Object.fromEntries(
+          entries.map(([path, value]) => [path, value.contents]),
+        );
 
         setSyntaxTokensByPath((current) =>
           areSyntaxTokenMapsEqual(current, nextSyntaxTokensByPath)
             ? current
             : nextSyntaxTokensByPath
+        );
+        setContentsByPath((current) =>
+          areFileContentsMapsEqual(current, nextContentsByPath)
+            ? current
+            : nextContentsByPath
         );
       });
 
@@ -281,8 +362,9 @@ export function useDiffRenderFiles({
   return useMemo(
     () => baseFiles.map((file) => ({
       ...file,
+      contents: contentsByPath[file.path] ?? null,
       syntaxTokens: syntaxTokensByPath[file.path] ?? null,
     })),
-    [baseFiles, syntaxTokensByPath],
+    [baseFiles, contentsByPath, syntaxTokensByPath],
   );
 }

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
   DiffSelection,
+  getDiffChangeGroupSelectableLineNumbers,
+  type DiffSelectionSide,
   type DiffSelectionType,
   formatPatchFromSelection,
   getSelectableDiffLineNumbers,
@@ -38,15 +40,24 @@ function getSelectionType(selection: FileCommitSelection): DiffSelectionType {
   return selection.selection.getSelectionType();
 }
 
-function getRowLineNumbers(row: DiffRow) {
+function getRowLineNumbers(row: DiffRow, side: DiffSelectionSide = 'all') {
   switch (row.kind) {
     case 'hunk':
     case 'context':
       return [];
     case 'added':
+      return side === 'old' ? [] : [row.data.originalDiffLineNumber];
     case 'deleted':
-      return [row.data.originalDiffLineNumber];
+      return side === 'new' ? [] : [row.data.originalDiffLineNumber];
     case 'modified':
+      if (side === 'old') {
+        return [row.before.originalDiffLineNumber];
+      }
+
+      if (side === 'new') {
+        return [row.after.originalDiffLineNumber];
+      }
+
       return [row.before.originalDiffLineNumber, row.after.originalDiffLineNumber];
   }
 }
@@ -57,10 +68,19 @@ export type WorkingTreeCommitSelectionState = {
   selectedFileCount: number;
   selectionByPath: Record<string, FileCommitSelection>;
   getFileSelectionType: (path: string) => DiffSelectionType;
-  getRowSelectionType: (path: string, row: DiffRow) => DiffSelectionType;
+  getRowSelectionType: (
+    path: string,
+    row: DiffRow,
+    side?: DiffSelectionSide,
+  ) => DiffSelectionType;
   toggleFileSelection: (path: string, nextSelected: boolean) => void;
   toggleHunkSelection: (path: string, hunkStartLineNumber: number, nextSelected: boolean) => void;
-  toggleRowSelection: (path: string, row: DiffRow, nextSelected: boolean) => void;
+  toggleRowSelection: (
+    path: string,
+    row: DiffRow,
+    nextSelected: boolean,
+    side?: DiffSelectionSide,
+  ) => void;
   commitSelection: (draft: { summary: string; description: string }) => Promise<boolean>;
 };
 
@@ -131,14 +151,18 @@ export function useWorkingTreeCommitSelection({
   );
 
   const getRowSelectionType = useCallback(
-    (path: string, row: DiffRow): DiffSelectionType => {
+    (
+      path: string,
+      row: DiffRow,
+      side: DiffSelectionSide = 'all',
+    ): DiffSelectionType => {
       const selection = selectionByPath[path];
 
       if (!selection || selection.kind !== 'lines') {
         return 'none';
       }
 
-      const lineNumbers = getRowLineNumbers(row).filter((lineNumber) =>
+      const lineNumbers = getRowLineNumbers(row, side).filter((lineNumber) =>
         selection.selection.isSelectable(lineNumber),
       );
 
@@ -195,17 +219,11 @@ export function useWorkingTreeCommitSelection({
         return current;
       }
 
-      const hunk = file.hunks.find(
-        (candidate) => candidate.originalStartLineNumber === hunkStartLineNumber,
-      );
+      const selectableLines = getDiffChangeGroupSelectableLineNumbers(file, hunkStartLineNumber);
 
-      if (!hunk) {
+      if (selectableLines.length === 0) {
         return current;
       }
-
-      const selectableLines = hunk.lines
-        .filter((line) => line.isSelectable)
-        .map((line) => line.originalDiffLineNumber);
 
       return {
         ...current,
@@ -218,7 +236,12 @@ export function useWorkingTreeCommitSelection({
     setError(null);
   }, [diffFiles]);
 
-  const toggleRowSelection = useCallback((path: string, row: DiffRow, nextSelected: boolean) => {
+  const toggleRowSelection = useCallback((
+    path: string,
+    row: DiffRow,
+    nextSelected: boolean,
+    side: DiffSelectionSide = 'all',
+  ) => {
     setSelectionByPath((current) => {
       const selection = current[path];
 
@@ -233,7 +256,7 @@ export function useWorkingTreeCommitSelection({
         };
       }
 
-      const lineNumbers = getRowLineNumbers(row);
+      const lineNumbers = getRowLineNumbers(row, side);
 
       if (lineNumbers.length === 0) {
         return current;

@@ -6,25 +6,26 @@ import {
   useMemo,
   useRef,
   useState,
+  type KeyboardEvent,
   type ReactNode,
   type UIEvent,
 } from 'react';
 
-import { CheckIcon, FileCodeIcon, MinusIcon } from 'lucide-react';
-
 import {
-  getDiffRowsRenderLineCount,
   type DiffFileStatus,
   type DiffCommentAnchor,
   type DiffDisplayMode,
+  type DiffSelectionSide,
   type DiffSelectionType,
 } from '@/lib/diff';
 import { Spinner } from '@/shadcn/components/ui/spinner';
 import { cn } from '@/shadcn/lib/utils';
 
 import { DiffFileSection } from './diff-renderer';
+import { getExpandedDiffRenderLineCount } from './diff-expansion';
 import type { AsyncState } from './diff-types';
 import { TruncatedFilePath } from './truncated-file-path';
+import { useDiffExpansionState } from './use-diff-expansion-state';
 import { type DiffRenderFile } from './use-diff-render-files';
 
 export type DiffListFile = {
@@ -91,11 +92,21 @@ function areVisibleFileSetsEqual(left: Set<string>, right: Set<string>) {
   return true;
 }
 
-function estimateFileHeight(file: DiffRenderFile, displayMode: DiffDisplayMode) {
+function estimateFileHeight(
+  file: DiffRenderFile,
+  displayMode: DiffDisplayMode,
+  expansionState: Record<string, { revealedStartCount: number; revealedEndCount: number }> = {},
+) {
   return (
     FILE_HEADER_HEIGHT_PX +
     FILE_SECTION_FRAME_PX +
-    getDiffRowsRenderLineCount(file.rows, displayMode) * DIFF_ROW_HEIGHT_PX +
+    getExpandedDiffRenderLineCount({
+      file: file.diff,
+      rows: file.rows,
+      displayMode,
+      contents: file.contents,
+      expansionState,
+    }) * DIFF_ROW_HEIGHT_PX +
     FILE_GAP_PX
   );
 }
@@ -108,26 +119,21 @@ function FileSelectionToggle({
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={(event) => {
+    <input
+      type="checkbox"
+      checked={selectionType === 'all'}
+      ref={(el) => {
+        if (el) {
+          el.indeterminate = selectionType === 'partial';
+        }
+      }}
+      onChange={(event) => {
         event.stopPropagation();
         onClick();
       }}
-      className={cn(
-        'flex size-5 shrink-0 items-center justify-center rounded-sm border text-muted-foreground transition-colors',
-        selectionType === 'all' && 'border-primary bg-primary text-primary-foreground',
-        selectionType === 'partial' && 'border-primary/70 bg-primary/15 text-primary',
-        selectionType === 'none' && 'border-border/70 bg-background hover:border-primary/40 hover:text-foreground',
-      )}
-      aria-pressed={selectionType !== 'none'}
-    >
-      {selectionType === 'all' ? (
-        <CheckIcon className="size-3" />
-      ) : selectionType === 'partial' ? (
-        <MinusIcon className="size-3" />
-      ) : null}
-    </button>
+      onClick={(event) => event.stopPropagation()}
+      className="pointer-events-auto shrink-0"
+    />
   );
 }
 
@@ -177,10 +183,77 @@ export function FilesChangedList({
   getFileSelectionType?: ((path: string) => DiffSelectionType) | undefined;
   onToggleFileSelection?: ((path: string) => void) | undefined;
 }) {
+  const listRef = useRef<HTMLDivElement>(null);
+  const [focusedIndex, setFocusedIndex] = useState(-1);
+
+  useEffect(() => {
+    if (focusedIndex < 0 || focusedIndex >= files.length) {
+      return;
+    }
+
+    const listElement = listRef.current;
+    if (!listElement) {
+      return;
+    }
+
+    const child = listElement.children[focusedIndex] as HTMLElement | undefined;
+    child?.scrollIntoView({ block: 'nearest' });
+  }, [focusedIndex, files.length]);
+
+  const handleListKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLDivElement>) => {
+      if (files.length === 0) {
+        return;
+      }
+
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        setFocusedIndex((i) => {
+          const next = Math.min(i + 1, files.length - 1);
+          const file = files[next];
+          if (file) {
+            onSelectFile(file.path);
+          }
+          return next;
+        });
+        return;
+      }
+
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        setFocusedIndex((i) => {
+          const next = Math.max(i - 1, 0);
+          const file = files[next];
+          if (file) {
+            onSelectFile(file.path);
+          }
+          return next;
+        });
+        return;
+      }
+
+      if (event.key === ' ' && onToggleFileSelection) {
+        event.preventDefault();
+        const file = files[focusedIndex];
+        if (file) {
+          onToggleFileSelection(file.path);
+        }
+      }
+    },
+    [files, focusedIndex, onSelectFile, onToggleFileSelection],
+  );
+
+  const handleRowClick = useCallback(
+    (index: number, path: string) => {
+      setFocusedIndex(index);
+      onSelectFile(path);
+    },
+    [onSelectFile],
+  );
+
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-foreground">
-        <FileCodeIcon className="size-3.5 text-muted-foreground" />
+      <div className="flex items-center gap-1.5 border-b border-border px-3 py-2 text-xs font-semibold text-foreground">
         {title}
         <span className="rounded-full bg-muted px-1.5 text-[10px] font-bold leading-4 text-muted-foreground">
           {files.length}
@@ -192,21 +265,33 @@ export function FilesChangedList({
         ) : null}
       </div>
       {topContent}
-      <div className="flex-1 overflow-y-auto">
+      <div
+        ref={listRef}
+        className="flex-1 overflow-y-auto focus:outline-none"
+        tabIndex={0}
+        onKeyDown={handleListKeyDown}
+        role="listbox"
+        aria-label="Changed files"
+      >
         {files.length === 0 ? (
           <div className="px-3 py-4 text-xs text-muted-foreground">
             {emptyMessage}
           </div>
-        ) : files.map((file) => {
+        ) : files.map((file, index) => {
           const config = FILE_STATUS_CONFIG[file.status];
-          const isVisible = visibleFiles.has(file.path);
+          const isSelected = visibleFiles.has(file.path);
 
           return (
             <div
               key={file.path}
+              role="option"
+              aria-selected={isSelected}
+              onClick={() => handleRowClick(index, file.path)}
               className={cn(
-                'flex min-w-0 w-full items-center gap-2 px-3 py-[5px] text-xs transition-colors hover:bg-accent/50',
-                isVisible && 'bg-primary/10',
+                'flex min-w-0 w-full items-center gap-2 px-2 py-1.25 text-xs cursor-default',
+                isSelected
+                  ? 'bg-primary/20 text-foreground'
+                  : 'text-foreground/90 hover:bg-accent',
               )}
             >
               {getFileSelectionType && onToggleFileSelection ? (
@@ -215,14 +300,15 @@ export function FilesChangedList({
                   onClick={() => onToggleFileSelection(file.path)}
                 />
               ) : null}
-              <button
-                type="button"
-                onClick={() => onSelectFile(file.path)}
-                className="flex min-w-0 flex-1 items-center gap-2 text-left"
+              <TruncatedFilePath path={file.path} className="min-w-0 flex-1 text-xs" />
+              <span
+                className={cn(
+                  'inline-flex size-[18px] shrink-0 items-center justify-center rounded-[3px] border border-current/20 text-[9px] font-bold leading-none',
+                  config.className,
+                )}
               >
-                <span className={cn('size-1.5 shrink-0 rounded-full', config.dotClassName)} />
-                <TruncatedFilePath path={file.path} className="flex-1 text-xs" />
-              </button>
+                {config.letter}
+              </span>
             </div>
           );
         })}
@@ -251,10 +337,18 @@ type CodeChangesFilesViewportProps = {
   emptyMessage: string;
   onVisibleFilesChange?: ((files: Set<string>) => void) | undefined;
   getFileSelectionType?: ((path: string) => DiffSelectionType) | undefined;
-  getRowSelectionType?: ((path: string, row: DiffRenderFile['rows'][number]) => DiffSelectionType) | undefined;
+  getRowSelectionType?: ((
+    path: string,
+    row: DiffRenderFile['rows'][number],
+    side?: DiffSelectionSide,
+  ) => DiffSelectionType) | undefined;
   getHunkSelectionType?: ((path: string, hunkStartLineNumber: number) => DiffSelectionType) | undefined;
   onToggleFileSelection?: ((path: string) => void) | undefined;
-  onToggleRowSelection?: ((path: string, row: DiffRenderFile['rows'][number]) => void) | undefined;
+  onToggleRowSelection?: ((
+    path: string,
+    row: DiffRenderFile['rows'][number],
+    side?: DiffSelectionSide,
+  ) => void) | undefined;
   onToggleHunkSelection?: ((path: string, hunkStartLineNumber: number) => void) | undefined;
   onSubmitComment?: ((anchor: DiffCommentAnchor, body: string) => Promise<void>) | undefined;
 };
@@ -289,6 +383,7 @@ export const CodeChangesFilesViewport = forwardRef<CodeChangesViewportHandle, Co
     () => diffFiles.map((file) => file.path).join('\0'),
     [diffFiles],
   );
+  const { getFileExpansionState, expandFileGap } = useDiffExpansionState(rawDiff);
 
   useEffect(() => {
     fileElementRefsRef.current.clear();
@@ -385,8 +480,12 @@ export const CodeChangesFilesViewport = forwardRef<CodeChangesViewportHandle, Co
   }, []);
 
   const itemHeights = useMemo(
-    () => diffFiles.map((file) => sizeCacheRef.current.get(file.path) ?? estimateFileHeight(file, displayMode)),
-    [diffFiles, displayMode, layoutVersion],
+    () => diffFiles.map((file) => sizeCacheRef.current.get(file.path) ?? estimateFileHeight(
+      file,
+      displayMode,
+      getFileExpansionState(file.path),
+    )),
+    [diffFiles, displayMode, getFileExpansionState, layoutVersion],
   );
 
   const offsets = useMemo(() => {
@@ -525,12 +624,18 @@ export const CodeChangesFilesViewport = forwardRef<CodeChangesViewportHandle, Co
                       displayMode={displayMode}
                       sectionRef={getSectionRef(file.path)}
                       selectionType={getFileSelectionType?.(file.path)}
-                      getRowSelectionType={getRowSelectionType ? (row) => getRowSelectionType(file.path, row) : undefined}
+                      getRowSelectionType={getRowSelectionType
+                        ? (row, side) => getRowSelectionType(file.path, row, side)
+                        : undefined}
                       getHunkSelectionType={getHunkSelectionType ? (hunkStartLineNumber) => getHunkSelectionType(file.path, hunkStartLineNumber) : undefined}
                       onToggleFileSelection={onToggleFileSelection ? () => onToggleFileSelection(file.path) : undefined}
-                      onToggleRowSelection={onToggleRowSelection ? (row) => onToggleRowSelection(file.path, row) : undefined}
+                      onToggleRowSelection={onToggleRowSelection
+                        ? (row, side) => onToggleRowSelection(file.path, row, side)
+                        : undefined}
                       onToggleHunkSelection={onToggleHunkSelection ? (hunkStartLineNumber) => onToggleHunkSelection(file.path, hunkStartLineNumber) : undefined}
                       onSubmitComment={onSubmitComment}
+                      expansionState={getFileExpansionState(file.path)}
+                      onExpandGap={(gap, action) => expandFileGap(file.path, gap, action)}
                     />
                   </div>
                 );

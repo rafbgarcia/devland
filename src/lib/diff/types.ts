@@ -1,5 +1,6 @@
 export type DiffFileKind = 'text' | 'binary' | 'image' | 'large-text' | 'unrenderable';
 export type DiffDisplayMode = 'unified' | 'split';
+export type DiffSelectionSide = 'all' | 'old' | 'new';
 
 export type DiffFileStatus =
   | 'added'

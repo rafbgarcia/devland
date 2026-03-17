@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+} from 'react';
 
 import {
   BotIcon,
@@ -9,10 +17,14 @@ import {
   XIcon,
 } from 'lucide-react';
 
+import {
+  DEFAULT_CODEX_COMPOSER_SETTINGS,
+  type CodexComposerSettings,
+  type CodexPromptSubmission,
+} from '@/lib/codex-chat';
 import { ChangesPane } from '@/renderer/code-screen/changes-pane';
 import { ChatComposer } from '@/renderer/code-screen/chat-composer';
 import { SessionAlerts } from '@/renderer/code-screen/session-alerts';
-import { SessionHistoryDrawer } from '@/renderer/code-screen/session-history-drawer';
 import { SessionTranscript } from '@/renderer/code-screen/session-transcript';
 import { useCodeTargets } from '@/renderer/code-screen/use-code-targets';
 import {
@@ -21,9 +33,13 @@ import {
 } from '@/renderer/code-screen/use-codex-sessions';
 import {
   useGitDefaultBranch,
-  useGitStateWatch,
   useGitStatus,
 } from '@/renderer/code-screen/use-git';
+import {
+  getGitStatusRefreshRequestForCodexEvent,
+  requestGitStatusRefresh,
+  subscribeToGitStatusRefresh,
+} from '@/renderer/shared/lib/git-status-refresh';
 import { Button } from '@/shadcn/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/shadcn/components/ui/tabs';
 import { cn } from '@/shadcn/lib/utils';
@@ -125,8 +141,10 @@ export function CodeWorkspaceScreen({
 }) {
   const [isCreatingWorktree, setIsCreatingWorktree] = useState(false);
   const [activeLayer, setActiveLayer] = useState<ActiveLayer>('codex');
-  const [isSessionHistoryOpen, setIsSessionHistoryOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
+  const [composerSettingsByTargetId, setComposerSettingsByTargetId] = useState<
+    Record<string, CodexComposerSettings>
+  >({});
   const sidebarWidthAtDragStart = useRef(SIDEBAR_DEFAULT_WIDTH);
 
   const {
@@ -144,6 +162,7 @@ export function CodeWorkspaceScreen({
     sendPrompt,
     interruptSession,
     stopSession,
+    resetSession,
     respondToApproval,
     respondToUserInput,
   } = useCodexSessionActions();
@@ -154,7 +173,7 @@ export function CodeWorkspaceScreen({
   const activeBranch = statusState.data?.branch ?? 'HEAD';
   const rootBranch = rootStatusState.data?.branch ?? 'HEAD';
 
-  useGitStateWatch([repoPath, activeTarget.cwd], (changedRepoPath) => {
+  const handleGitStatusRefresh = useEffectEvent((changedRepoPath: string) => {
     const refreshes: Promise<unknown>[] = [];
 
     if (changedRepoPath === repoPath) {
@@ -174,6 +193,38 @@ export function CodeWorkspaceScreen({
     });
   });
 
+  useEffect(() => subscribeToGitStatusRefresh((request) => {
+    handleGitStatusRefresh(request.repoPath);
+  }), [handleGitStatusRefresh]);
+
+  useEffect(() => {
+    const handleWindowFocus = () => {
+      requestGitStatusRefresh({ repoPath, reason: 'window-focus' });
+
+      if (activeTarget.cwd !== repoPath) {
+        requestGitStatusRefresh({ repoPath: activeTarget.cwd, reason: 'window-focus' });
+      }
+    };
+
+    window.addEventListener('focus', handleWindowFocus);
+
+    return () => {
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+  }, [activeTarget.cwd, repoPath]);
+
+  useEffect(() => window.electronAPI.onCodexSessionEvent((event) => {
+    if (event.sessionId !== activeTarget.id) {
+      return;
+    }
+
+    const request = getGitStatusRefreshRequestForCodexEvent(event, activeTarget.cwd);
+
+    if (request !== null) {
+      requestGitStatusRefresh(request);
+    }
+  }), [activeTarget.cwd, activeTarget.id]);
+
   const targetLabels = useMemo(
     () =>
       Object.fromEntries(
@@ -192,7 +243,22 @@ export function CodeWorkspaceScreen({
     [rootBranch, targets],
   );
 
-  const handleSendPrompt = useCallback(async (prompt: string) => {
+  const composerSettings =
+    composerSettingsByTargetId[activeTarget.id] ?? DEFAULT_CODEX_COMPOSER_SETTINGS;
+
+  const handleComposerSettingsChange = useCallback((settings: CodexComposerSettings) => {
+    setComposerSettingsByTargetId((current) => ({
+      ...current,
+      [activeTarget.id]: settings,
+    }));
+  }, [activeTarget.id]);
+
+  const handleSendPrompt = useCallback(async (submission: CodexPromptSubmission) => {
+    const branchPromotionPrompt =
+      submission.prompt.trim().length > 0
+        ? submission.prompt
+        : submission.attachments.map((attachment) => attachment.name).join(', ') || 'update';
+
     if (
       activeTarget.kind === 'worktree' &&
       sessionState.messages.length === 0 &&
@@ -201,7 +267,7 @@ export function CodeWorkspaceScreen({
       const promotion = await window.electronAPI.promoteGitWorktreeBranch(
         activeTarget.cwd,
         activeTarget.title,
-        prompt,
+        branchPromotionPrompt,
       );
 
       if (promotion.branch !== activeTarget.title) {
@@ -217,7 +283,7 @@ export function CodeWorkspaceScreen({
       }
     }
 
-    await sendPrompt(activeTarget.id, activeTarget.cwd, prompt);
+    await sendPrompt(activeTarget.id, activeTarget.cwd, submission);
   }, [
     activeTarget,
     defaultBranchState,
@@ -282,18 +348,17 @@ export function CodeWorkspaceScreen({
     await sendPrompt(
       activeTarget.id,
       activeTarget.cwd,
-      `Process this anchored diff comment.\n\nContext:\n\`\`\`json\n${payload}\n\`\`\`\n\nUser comment:\n${body}`,
+      {
+        prompt: `Process this anchored diff comment.\n\nContext:\n\`\`\`json\n${payload}\n\`\`\`\n\nUser comment:\n${body}`,
+        settings: composerSettings,
+        attachments: [],
+      },
     );
     setActiveLayer('codex');
-  }, [activeTarget.cwd, activeTarget.id, sendPrompt]);
+  }, [activeTarget.cwd, activeTarget.id, composerSettings, sendPrompt]);
 
   const isRunning = sessionState.status === 'running';
   const activeTargetLabel = targetLabels[activeTarget.id] ?? activeTarget.title;
-  const hasSessionHistory = sessionState.messages.length > 0;
-
-  useEffect(() => {
-    setIsSessionHistoryOpen(false);
-  }, [activeTarget.id]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -363,11 +428,12 @@ export function CodeWorkspaceScreen({
             branchName={statusState.data.branch}
             headRevision={statusState.data.headRevision}
             workingTreeFiles={statusState.data.files}
+            workingTreeStatusRefreshVersion={statusState.refreshVersion}
             isViewportActive={activeLayer === 'files'}
             onFileSelect={() => setActiveLayer('files')}
             onSubmitDiffComment={(anchor, body) => handleSubmitDiffComment(anchor, body)}
           >
-            {({ sidebar, viewport, historyDrawer }) => (
+            {({ sidebar, viewport }) => (
               <>
                 <div
                   className="flex shrink-0 flex-col overflow-hidden border-r border-border"
@@ -377,10 +443,10 @@ export function CodeWorkspaceScreen({
                 </div>
                 <ResizableHandle onResizeStart={() => { sidebarWidthAtDragStart.current = sidebarWidth; }} onResize={handleSidebarResize} />
 
-                <div className="flex min-w-0 flex-1 flex-col">
+                <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
                   <LayerToggle activeLayer={activeLayer} onChangeLayer={setActiveLayer} />
 
-                  <div className="relative min-h-0 flex-1">
+                  <div className="relative min-h-0 flex-1 overflow-hidden">
                     {activeLayer === 'files' ? (
                       viewport
                     ) : (
@@ -393,7 +459,7 @@ export function CodeWorkspaceScreen({
                   </div>
 
                   <div
-                    className="border-t border-border px-4 pb-3 pt-2"
+                    className="shrink-0 border-t border-border/60 bg-background px-4 pb-3 pt-2.5"
                     onFocus={() => setActiveLayer('codex')}
                   >
                     <SessionAlerts
@@ -406,22 +472,18 @@ export function CodeWorkspaceScreen({
                     />
 
                     <ChatComposer
-                      targetLabel={activeTargetLabel}
+                      key={activeTarget.id}
+                      settings={composerSettings}
                       isRunning={isRunning}
-                      hasHistory={hasSessionHistory}
-                      onOpenHistory={() => setIsSessionHistoryOpen(true)}
+                      messages={sessionState.messages}
+                      onSettingsChange={handleComposerSettingsChange}
+                      onNewSession={() => resetSession(activeTarget.id)}
                       onSendPrompt={handleSendPrompt}
                       onInterrupt={() => interruptSession(activeTarget.id)}
                     />
                   </div>
                 </div>
 
-                {activeLayer === 'files' ? historyDrawer : null}
-                <SessionHistoryDrawer
-                  open={isSessionHistoryOpen}
-                  onClose={() => setIsSessionHistoryOpen(false)}
-                  messages={sessionState.messages}
-                />
               </>
             )}
           </ChangesPane>

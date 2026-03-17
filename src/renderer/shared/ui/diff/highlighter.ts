@@ -27,6 +27,20 @@ export type DiffFileTokens = {
   newTokens: DiffHighlightTokens;
 };
 
+function splitContentLines(content: string | null | undefined) {
+  if (content == null || content.length === 0) {
+    return [] as string[];
+  }
+
+  const lines = content.split(/\r?\n/);
+
+  if (lines.at(-1) === '') {
+    lines.pop();
+  }
+
+  return lines;
+}
+
 function buildFallbackContentLines(
   file: DiffFile,
   side: 'old' | 'new',
@@ -68,7 +82,7 @@ async function loadContentSource(
         maxBytes,
       });
 
-      return content?.split(/\r?\n/) ?? [];
+      return splitContentLines(content);
     }
     case 'working-tree': {
       const content = await window.electronAPI.getWorkingTreeFileText({
@@ -77,7 +91,7 @@ async function loadContentSource(
         maxBytes,
       });
 
-      return content?.split(/\r?\n/) ?? [];
+      return splitContentLines(content);
     }
   }
 }
@@ -165,6 +179,8 @@ export async function highlightDiffFileContents(
     resolvedContents.newContents.length > 0
       ? resolvedContents.newContents
       : buildFallbackContentLines(file, 'new', filters.newLineFilter);
+  const highlightAllOldLines = resolvedContents.oldContents.length > 0;
+  const highlightAllNewLines = resolvedContents.newContents.length > 0;
 
   const [oldTokens, newTokens] = await Promise.all([
     requestHighlight({
@@ -172,8 +188,8 @@ export async function highlightDiffFileContents(
       extension,
       contentLines: oldContentLines,
       tabSize,
-      lines: filters.oldLineFilter,
       addModeClass: true,
+      ...(highlightAllOldLines ? {} : { lines: filters.oldLineFilter }),
     }).catch((error: unknown) => {
       console.error(`Failed to load old-side syntax tokens for ${preferredPath}:`, error);
       return {};
@@ -183,8 +199,8 @@ export async function highlightDiffFileContents(
       extension,
       contentLines: newContentLines,
       tabSize,
-      lines: filters.newLineFilter,
       addModeClass: true,
+      ...(highlightAllNewLines ? {} : { lines: filters.newLineFilter }),
     }).catch((error: unknown) => {
       console.error(`Failed to load new-side syntax tokens for ${preferredPath}:`, error);
       return {};

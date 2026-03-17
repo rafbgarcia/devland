@@ -11,12 +11,12 @@ import {
 import {
   BotIcon,
   CheckIcon,
+  ChevronDownIcon,
   CircleAlertIcon,
   GlobeIcon,
   HammerIcon,
   ImageIcon,
   LoaderCircleIcon,
-  PlusIcon,
   SearchIcon,
   SquarePenIcon,
   TerminalIcon,
@@ -33,19 +33,10 @@ import {
   type SessionTimelineRow,
   type SessionTimelineToolEntry,
 } from '@/renderer/code-screen/session-timeline';
-import { Badge } from '@/shadcn/components/ui/badge';
 import { Button } from '@/shadcn/components/ui/button';
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from '@/shadcn/components/ui/empty';
 import { cn } from '@/shadcn/lib/utils';
 
-const MAX_VISIBLE_TOOL_ENTRIES = 6;
+const MAX_COLLAPSED_TOOL_ENTRIES = 3;
 const AUTO_SCROLL_THRESHOLD_PX = 48;
 const ALWAYS_UNVIRTUALIZED_TAIL_ROWS = 6;
 
@@ -85,18 +76,6 @@ function toolEntryIcon(entry: SessionTimelineToolEntry) {
   return entry.status === 'completed' ? CheckIcon : ZapIcon;
 }
 
-function toolEntryIconClassName(entry: SessionTimelineToolEntry): string {
-  if (entry.tone === 'error') {
-    return 'text-destructive';
-  }
-
-  if (entry.status === 'running') {
-    return 'text-primary';
-  }
-
-  return 'text-muted-foreground';
-}
-
 const AssistantMarkdown = memo(function AssistantMarkdown({
   text,
   isStreaming = false,
@@ -105,8 +84,8 @@ const AssistantMarkdown = memo(function AssistantMarkdown({
   isStreaming?: boolean;
 }) {
   return (
-    <div className="min-w-0 px-1">
-      <div className="prose prose-sm max-w-none text-foreground prose-headings:font-medium prose-headings:text-foreground prose-p:text-foreground prose-p:leading-7 prose-a:text-primary prose-a:no-underline hover:prose-a:underline prose-strong:text-foreground prose-code:rounded-md prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:font-medium prose-code:text-foreground prose-code:before:content-none prose-code:after:content-none prose-pre:overflow-x-auto prose-pre:rounded-2xl prose-pre:border prose-pre:border-border/70 prose-pre:bg-card prose-pre:px-4 prose-pre:py-3 prose-pre:text-foreground dark:prose-invert">
+    <div className="min-w-0">
+      <div className="prose prose-sm max-w-none text-foreground prose-headings:font-medium prose-headings:text-foreground prose-p:text-foreground prose-p:leading-7 prose-a:text-primary prose-a:no-underline hover:prose-a:underline prose-strong:text-foreground prose-code:rounded-md prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:font-medium prose-code:text-foreground prose-code:before:content-none prose-code:after:content-none prose-pre:overflow-x-auto prose-pre:rounded-xl prose-pre:border prose-pre:border-border/50 prose-pre:bg-card prose-pre:px-4 prose-pre:py-3 prose-pre:text-foreground dark:prose-invert">
         <ReactMarkdown
           components={{
             ul: ({ children, ...props }) => (
@@ -133,95 +112,115 @@ const AssistantMarkdown = memo(function AssistantMarkdown({
         </ReactMarkdown>
       </div>
       {isStreaming ? (
-        <div className="mt-2 flex items-center gap-2 px-1 text-[11px] text-muted-foreground">
+        <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <LoaderCircleIcon className="size-3 animate-spin" />
-          Streaming response
+          Typing...
         </div>
       ) : null}
     </div>
   );
 });
 
-const ToolEntryRow = memo(function ToolEntryRow({
+const ToolEntryInline = memo(function ToolEntryInline({
   entry,
 }: {
   entry: SessionTimelineToolEntry;
 }) {
   const EntryIcon = toolEntryIcon(entry);
+  const isRunning = entry.status === 'running';
+  const isError = entry.tone === 'error';
 
   return (
-    <div className="flex items-start gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-background/70">
-      <div
+    <div className="flex items-center gap-2 py-0.5">
+      <EntryIcon
         className={cn(
-          'flex size-7 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-background/70',
-          toolEntryIconClassName(entry),
+          'size-3 shrink-0',
+          isError
+            ? 'text-destructive'
+            : isRunning
+              ? 'text-primary animate-pulse'
+              : 'text-muted-foreground/60',
+        )}
+      />
+      <span
+        className={cn(
+          'truncate text-xs',
+          isError ? 'text-destructive' : 'text-muted-foreground/70',
         )}
       >
-        <EntryIcon className="size-3.5" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <p className="truncate text-sm font-medium text-foreground">{entry.label}</p>
-          {entry.status === 'running' ? <Badge variant="secondary">Running</Badge> : null}
-          {entry.tone === 'error' ? <Badge variant="destructive">Error</Badge> : null}
-        </div>
-        {entry.detail ? (
-          <p className="truncate text-xs text-muted-foreground" title={entry.detail}>
-            {entry.detail}
-          </p>
-        ) : null}
-      </div>
+        {entry.label}
+      </span>
+      {entry.detail ? (
+        <span className="truncate text-xs text-muted-foreground/40">{entry.detail}</span>
+      ) : null}
     </div>
   );
 });
 
 function ToolGroupRow({ entries }: { entries: SessionTimelineToolEntry[] }) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const hasOverflow = entries.length > MAX_VISIBLE_TOOL_ENTRIES;
+  const hasOverflow = entries.length > MAX_COLLAPSED_TOOL_ENTRIES;
   const visibleEntries =
-    hasOverflow && !isExpanded ? entries.slice(-MAX_VISIBLE_TOOL_ENTRIES) : entries;
-  const onlyToolEntries = entries.every((entry) => entry.tone === 'tool');
+    hasOverflow && !isExpanded ? entries.slice(-MAX_COLLAPSED_TOOL_ENTRIES) : entries;
 
   return (
-    <div className="px-1 pb-4">
-      <div className="overflow-hidden rounded-2xl border border-border/70 bg-card/75 shadow-sm">
-        <div className="flex items-center justify-between gap-3 border-b border-border/60 px-3 py-2.5">
-          <div className="flex items-center gap-2">
-            <Badge variant="outline">{onlyToolEntries ? 'Tool calls' : 'Progress'}</Badge>
-            <p className="text-xs text-muted-foreground">
-              {entries.length} {entries.length === 1 ? 'action' : 'actions'}
-            </p>
-          </div>
-          {hasOverflow ? (
-            <Button
-              type="button"
-              size="xs"
-              variant="ghost"
-              onClick={() => setIsExpanded((current) => !current)}
-            >
-              {isExpanded ? 'Show less' : `Show ${entries.length - visibleEntries.length} more`}
-            </Button>
-          ) : null}
-        </div>
-        <div className="flex flex-col gap-1 p-2">
-          {visibleEntries.map((entry) => (
-            <ToolEntryRow key={entry.id} entry={entry} />
-          ))}
-        </div>
+    <div className="py-1 pl-10">
+      <div className="flex flex-col">
+        {visibleEntries.map((entry) => (
+          <ToolEntryInline key={entry.id} entry={entry} />
+        ))}
       </div>
+      {hasOverflow ? (
+        <button
+          type="button"
+          onClick={() => setIsExpanded((current) => !current)}
+          className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground/50 transition-colors hover:text-muted-foreground"
+        >
+          <ChevronDownIcon
+            className={cn('size-3 transition-transform', isExpanded && 'rotate-180')}
+          />
+          {isExpanded ? 'Show less' : `${entries.length - MAX_COLLAPSED_TOOL_ENTRIES} more`}
+        </button>
+      ) : null}
     </div>
   );
 }
 
 const UserMessageRow = memo(function UserMessageRow({
   text,
+  attachments,
 }: {
   text: string;
+  attachments: CodexSessionState['messages'][number]['attachments'];
 }) {
   return (
-    <div className="flex justify-end px-1 pb-4">
-      <div className="max-w-[78%] rounded-[1.35rem] rounded-br-md border border-primary/15 bg-primary px-4 py-3 text-sm leading-7 text-primary-foreground shadow-sm">
-        <span className="whitespace-pre-wrap">{text}</span>
+    <div className="flex justify-end py-2">
+      <div className="flex max-w-[72%] flex-col gap-3 rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-sm leading-relaxed text-primary-foreground shadow-sm">
+        {attachments.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {attachments.map((attachment, index) => (
+              <div
+                key={`${attachment.name}:${attachment.sizeBytes}:${index}`}
+                className="overflow-hidden rounded-xl border border-primary-foreground/15 bg-primary-foreground/8"
+              >
+                {attachment.previewUrl ? (
+                  <img
+                    src={attachment.previewUrl}
+                    alt={attachment.name}
+                    className="size-20 object-cover"
+                  />
+                ) : (
+                  <div className="flex size-20 items-center justify-center px-2 text-center text-[11px] leading-tight text-primary-foreground/85">
+                    {attachment.name}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {text.trim().length > 0 ? (
+          <span className="whitespace-pre-wrap">{text}</span>
+        ) : null}
       </div>
     </div>
   );
@@ -229,65 +228,36 @@ const UserMessageRow = memo(function UserMessageRow({
 
 const AssistantMessageRow = memo(function AssistantMessageRow({
   text,
-  diff,
   isStreaming = false,
 }: {
   text: string;
-  diff?: NonNullable<CodexSessionState['messages'][number]['diff']> | null;
   isStreaming?: boolean;
 }) {
-  const totalAdditions = diff?.files.reduce((sum, file) => sum + file.additions, 0) ?? 0;
-  const totalDeletions = diff?.files.reduce((sum, file) => sum + file.deletions, 0) ?? 0;
-  const visibleFiles = diff?.files.slice(0, 4) ?? [];
-
   return (
-    <div className="min-w-0 pb-4">
-      <AssistantMarkdown text={text.trim().length > 0 ? text : '(empty response)'} isStreaming={isStreaming} />
-      {diff && diff.files.length > 0 ? (
-        <div className="mt-3 px-1">
-          <div className="rounded-2xl border border-border/70 bg-card/75 p-3 shadow-sm">
-            <div className="flex items-center gap-2">
-              <Badge variant="outline">Turn diff</Badge>
-              <p className="text-xs text-muted-foreground">
-                {diff.files.length} {diff.files.length === 1 ? 'file' : 'files'}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                +{totalAdditions} / -{totalDeletions}
-              </p>
-            </div>
-            <div className="mt-3 flex flex-col gap-2">
-              {visibleFiles.map((file) => (
-                <div
-                  key={`${file.status}:${file.path}`}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/70 px-3 py-2 text-xs"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate font-medium text-foreground">{file.path}</p>
-                    <p className="text-muted-foreground">{file.status}</p>
-                  </div>
-                  <p className="shrink-0 text-muted-foreground">
-                    +{file.additions} / -{file.deletions}
-                  </p>
-                </div>
-              ))}
-              {diff.files.length > visibleFiles.length ? (
-                <p className="text-xs text-muted-foreground">
-                  +{diff.files.length - visibleFiles.length} more files in this turn
-                </p>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      ) : null}
+    <div className="flex gap-3 py-2">
+      <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted/60 text-muted-foreground">
+        <BotIcon className="size-3.5" />
+      </div>
+      <div className="min-w-0 flex-1 pt-0.5">
+        <AssistantMarkdown
+          text={text.trim().length > 0 ? text : '(empty response)'}
+          isStreaming={isStreaming}
+        />
+      </div>
     </div>
   );
 });
 
 const WorkingRow = memo(function WorkingRow() {
   return (
-    <div className="flex items-center gap-2 px-2 pb-4 text-sm text-muted-foreground">
-      <LoaderCircleIcon className="size-3.5 animate-spin" />
-      Codex is working
+    <div className="flex items-center gap-3 py-2">
+      <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted/60 text-muted-foreground">
+        <BotIcon className="size-3.5" />
+      </div>
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <LoaderCircleIcon className="size-3 animate-spin" />
+        Working...
+      </div>
     </div>
   );
 });
@@ -301,15 +271,13 @@ function TimelineRowView({ row }: { row: SessionTimelineRow }) {
     return <WorkingRow />;
   }
 
-  if (row.kind === 'streaming-message') {
-    return <AssistantMessageRow text={row.text} diff={null} isStreaming />;
-  }
-
   if (row.message.role === 'user') {
-    return <UserMessageRow text={row.message.text} />;
+    return <UserMessageRow text={row.message.text} attachments={row.message.attachments} />;
   }
 
-  return <AssistantMessageRow text={row.message.text} diff={row.message.diff} />;
+  return (
+    <AssistantMessageRow text={row.message.text} isStreaming={row.isStreaming} />
+  );
 }
 
 export const SessionTranscript = memo(function SessionTranscript({
@@ -329,10 +297,10 @@ export const SessionTranscript = memo(function SessionTranscript({
   const rows = useMemo(
     () => deriveSessionTimelineRows(sessionState),
     [
-      sessionState.currentTurnActivities,
+      sessionState.currentTurnEntries,
       sessionState.messages,
+      sessionState.transcriptEntries,
       sessionState.status,
-      sessionState.streamingAssistantText,
     ],
   );
   const hasConversation = rows.length > 0;
@@ -411,30 +379,30 @@ export const SessionTranscript = memo(function SessionTranscript({
   }, [
     rowVirtualizer,
     rows.length,
-    sessionState.currentTurnActivities.length,
-    sessionState.streamingAssistantText,
+    sessionState.currentTurnEntries.length,
   ]);
 
   if (!hasConversation) {
     return (
-      <div className="flex h-full items-center justify-center px-6">
-        <Empty className="border-border bg-card/30">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <BotIcon />
-            </EmptyMedia>
-            <EmptyTitle>Codex is ready for {targetLabel}</EmptyTitle>
-            <EmptyDescription>
-              Use the input below to inspect, edit, or compare code in this target.
-            </EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent>
-            <Button type="button" variant="outline" onClick={onCreateSession}>
-              <PlusIcon data-icon="inline-start" />
-              New session on current branch
-            </Button>
-          </EmptyContent>
-        </Empty>
+      <div className="flex h-full flex-col items-center justify-center gap-3 px-6">
+        <div className="flex size-10 items-center justify-center rounded-full bg-muted/50 text-muted-foreground">
+          <BotIcon className="size-5" />
+        </div>
+        <div className="text-center">
+          <p className="text-sm font-medium text-foreground">Ready for {targetLabel}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Send a message to start working on this target.
+          </p>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="mt-1"
+          onClick={onCreateSession}
+        >
+          New session
+        </Button>
       </div>
     );
   }
@@ -443,9 +411,9 @@ export const SessionTranscript = memo(function SessionTranscript({
     <div
       ref={scrollRef}
       onScroll={handleScroll}
-      className="min-h-0 flex-1 overflow-y-auto px-4 py-4"
+      className="h-full overflow-y-auto overscroll-contain px-5 py-4"
     >
-      <div ref={timelineRootRef} className="mx-auto w-full max-w-3xl min-w-0">
+      <div ref={timelineRootRef} className="mx-auto w-full min-w-0 pb-4">
         {virtualizedRowCount > 0 ? (
           <div className="relative" style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
             {virtualRows.map((virtualRow: VirtualItem) => {

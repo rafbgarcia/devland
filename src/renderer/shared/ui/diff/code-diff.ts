@@ -1,12 +1,3 @@
-type DiffLineType = 'addition' | 'deletion' | 'context';
-
-export type ParsedDiffLine = {
-  type: DiffLineType;
-  content: string;
-  oldLineNumber: number | null;
-  newLineNumber: number | null;
-};
-
 const HUNK_HEADER_RE = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
 const DIFF_HEADER_RE = /^diff --git (?:"(.+)"|(\S+)) (?:"(.+)"|(\S+))$/;
 
@@ -38,64 +29,6 @@ function shouldSkipDiffMetadataLine(line: string) {
   );
 }
 
-export function parseDiff(raw: string): ParsedDiffLine[] {
-  const lines = raw.split('\n');
-  const result: ParsedDiffLine[] = [];
-  let oldLine = 0;
-  let newLine = 0;
-
-  for (const line of lines) {
-    const hunkMatch = line.match(HUNK_HEADER_RE);
-
-    if (hunkMatch) {
-      oldLine = parseInt(hunkMatch[1]!, 10);
-      newLine = parseInt(hunkMatch[2]!, 10);
-      continue;
-    }
-
-    if (shouldSkipDiffMetadataLine(line)) {
-      continue;
-    }
-
-    if (line.startsWith('+')) {
-      result.push({
-        type: 'addition',
-        content: line.slice(1),
-        oldLineNumber: null,
-        newLineNumber: newLine,
-      });
-      newLine++;
-      continue;
-    }
-
-    if (line.startsWith('-')) {
-      result.push({
-        type: 'deletion',
-        content: line.slice(1),
-        oldLineNumber: oldLine,
-        newLineNumber: null,
-      });
-      oldLine++;
-      continue;
-    }
-
-    if (oldLine > 0 || newLine > 0) {
-      result.push({
-        type: 'context',
-        content: line.startsWith(' ') ? line.slice(1) : line,
-        oldLineNumber: oldLine,
-        newLineNumber: newLine,
-      });
-      oldLine++;
-      newLine++;
-    }
-  }
-
-  return result;
-}
-
-export { type DiffLineType };
-
 export type DiffFileStatus = 'added' | 'deleted' | 'renamed' | 'modified';
 
 export type DiffFile = {
@@ -104,7 +37,6 @@ export type DiffFile = {
   additions: number;
   deletions: number;
   rawDiff: string;
-  renderLineCount: number;
 };
 
 export function parseDiffFiles(rawDiff: string): DiffFile[] {
@@ -124,7 +56,6 @@ export function parseDiffFiles(rawDiff: string): DiffFile[] {
 
     let additions = 0;
     let deletions = 0;
-    let renderLineCount = 0;
     let oldLine = 0;
     let newLine = 0;
 
@@ -143,20 +74,17 @@ export function parseDiffFiles(rawDiff: string): DiffFile[] {
 
       if (line.startsWith('+')) {
         additions++;
-        renderLineCount++;
         newLine++;
         continue;
       }
 
       if (line.startsWith('-')) {
         deletions++;
-        renderLineCount++;
         oldLine++;
         continue;
       }
 
       if (oldLine > 0 || newLine > 0) {
-        renderLineCount++;
         oldLine++;
         newLine++;
       }
@@ -168,7 +96,6 @@ export function parseDiffFiles(rawDiff: string): DiffFile[] {
       additions,
       deletions,
       rawDiff: section,
-      renderLineCount,
     });
   }
 

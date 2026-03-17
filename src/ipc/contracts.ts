@@ -1,5 +1,10 @@
 import { z } from 'zod';
 
+import type {
+  CodexComposerSettings,
+  CodexImageAttachmentInput,
+} from '@/lib/codex-chat';
+
 export const GET_APP_BOOTSTRAP_CHANNEL = 'app:get-app-bootstrap';
 export const PICK_REPO_DIRECTORY_CHANNEL = 'app:pick-repo-directory';
 export const GET_PROJECT_ISSUES_CHANNEL = 'app:get-project-issues';
@@ -536,6 +541,8 @@ export interface ElectronApi {
     sessionId: string;
     cwd: string;
     prompt: string;
+    settings: CodexComposerSettings;
+    attachments: CodexImageAttachmentInput[];
     resumeThreadId?: string | null;
     transcriptBootstrap?: string | null;
   }) => Promise<void>;

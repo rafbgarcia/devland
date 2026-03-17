@@ -2,6 +2,7 @@ import type {
   CodexChatMessage,
   CodexSessionActivity,
   CodexSessionState,
+  CodexTranscriptEntry,
 } from '@/renderer/code-screen/codex-session-state';
 
 export type SessionTimelineToolEntry = {
@@ -23,11 +24,7 @@ export type SessionTimelineRow =
       id: string;
       kind: 'message';
       message: CodexChatMessage;
-    }
-  | {
-      id: string;
-      kind: 'streaming-message';
-      text: string;
+      isStreaming: boolean;
     }
   | {
       id: string;
@@ -100,42 +97,39 @@ export function compactSessionActivities(
 
 export function deriveSessionTimelineRows(sessionState: CodexSessionState): SessionTimelineRow[] {
   const rows: SessionTimelineRow[] = [];
+  const appendTranscriptRows = (
+    entries: ReadonlyArray<CodexTranscriptEntry>,
+    isStreaming: boolean,
+  ) => {
+    for (const entry of entries) {
+      if (entry.kind === 'work') {
+        const toolEntries = compactSessionActivities(entry.activities);
 
-  for (const message of sessionState.messages) {
-    if (message.role === 'assistant') {
-      const toolEntries = compactSessionActivities(message.activities);
-      if (toolEntries.length > 0) {
-        rows.push({
-          id: `${message.id}:work`,
-          kind: 'work',
-          entries: toolEntries,
-        });
+        if (toolEntries.length > 0) {
+          rows.push({
+            id: entry.id,
+            kind: 'work',
+            entries: toolEntries,
+          });
+        }
+
+        continue;
       }
-    }
 
-    rows.push({
-      id: message.id,
-      kind: 'message',
-      message,
-    });
-  }
+      rows.push({
+        id: entry.id,
+        kind: 'message',
+        message: entry.message,
+        isStreaming,
+      });
+    }
+  };
+
+  appendTranscriptRows(sessionState.transcriptEntries, false);
 
   if (sessionState.status === 'running') {
-    const currentToolEntries = compactSessionActivities(sessionState.currentTurnActivities);
-    if (currentToolEntries.length > 0) {
-      rows.push({
-        id: 'current-turn:work',
-        kind: 'work',
-        entries: currentToolEntries,
-      });
-    }
-
-    if (sessionState.streamingAssistantText.trim().length > 0) {
-      rows.push({
-        id: 'current-turn:message',
-        kind: 'streaming-message',
-        text: sessionState.streamingAssistantText,
-      });
+    if (sessionState.currentTurnEntries.length > 0) {
+      appendTranscriptRows(sessionState.currentTurnEntries, true);
     } else {
       rows.push({
         id: 'current-turn:working',
@@ -202,12 +196,6 @@ export function estimateSessionTimelineRowHeight(
 
   if (row.kind === 'working') {
     return 42;
-  }
-
-  if (row.kind === 'streaming-message') {
-    const charsPerLine = estimateCharsPerLineForAssistant(viewportWidthPx);
-    const estimatedLines = estimateWrappedLineCount(row.text, charsPerLine);
-    return ASSISTANT_BASE_HEIGHT_PX + estimatedLines * 24;
   }
 
   if (row.message.role === 'user') {

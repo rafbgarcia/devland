@@ -9,7 +9,13 @@ import type {
   CodexSessionStatus,
   CodexUserInputQuestion,
 } from '@/ipc/contracts';
+import type {
+  CodexComposerSettings,
+  CodexImageAttachmentInput,
+  CodexRuntimeMode,
+} from '@/lib/codex-chat';
 import {
+  type CodexActivityItemType,
   formatCodexActivityLabel,
   isToolLifecycleItemType,
   toCodexActivityItemType,
@@ -49,6 +55,7 @@ type PendingUserInputRequest = {
 type SessionContext = {
   sessionId: string;
   cwd: string;
+  runtimeMode: CodexRuntimeMode;
   child: ChildProcessWithoutNullStreams;
   output: readline.Interface;
   nextRequestId: number;
@@ -98,6 +105,83 @@ export const buildCodexInitializeParams = () => ({
     experimentalApi: true,
   },
 });
+
+export const shouldEmitCodexActivity = (itemType: CodexActivityItemType): boolean =>
+  itemType !== 'reasoning';
+
+export const mapCodexRuntimeMode = (runtimeMode: CodexRuntimeMode) => {
+  if (runtimeMode === 'full-access') {
+    return {
+      approvalPolicy: 'never' as const,
+      sandbox: 'danger-full-access' as const,
+    };
+  }
+
+  return {
+    approvalPolicy: 'on-request' as const,
+    sandbox: 'workspace-write' as const,
+  };
+};
+
+export const buildCodexThreadOpenParams = ({
+  cwd,
+  settings,
+}: {
+  cwd: string;
+  settings: CodexComposerSettings;
+}) => ({
+  cwd,
+  model: settings.model,
+  ...(settings.fastMode ? { serviceTier: 'fast' as const } : {}),
+  ...mapCodexRuntimeMode(settings.runtimeMode),
+  experimentalRawEvents: false,
+  persistExtendedHistory: true,
+});
+
+export const buildCodexTurnStartParams = ({
+  threadId,
+  prompt,
+  settings,
+  attachments,
+}: {
+  threadId: string;
+  prompt: string;
+  settings: CodexComposerSettings;
+  attachments: readonly CodexImageAttachmentInput[];
+}) => {
+  const input: Array<
+    | { type: 'text'; text: string; text_elements: [] }
+    | { type: 'image'; url: string }
+  > = [];
+  const trimmedPrompt = prompt.trim();
+
+  if (trimmedPrompt.length > 0) {
+    input.push({
+      type: 'text',
+      text: prompt,
+      text_elements: [],
+    });
+  }
+
+  for (const attachment of attachments) {
+    input.push({
+      type: 'image',
+      url: attachment.dataUrl,
+    });
+  }
+
+  if (input.length === 0) {
+    throw new Error('Codex turn input requires prompt text or at least one image attachment.');
+  }
+
+  return {
+    threadId,
+    input,
+    model: settings.model,
+    effort: settings.reasoningEffort,
+    ...(settings.fastMode ? { serviceTier: 'fast' as const } : {}),
+  };
+};
 
 const asObject = (value: unknown): Record<string, unknown> | undefined =>
   value && typeof value === 'object' ? (value as Record<string, unknown>) : undefined;
@@ -175,11 +259,18 @@ export class CodexAppServerManager extends EventEmitter<{
     sessionId: string,
     cwd: string,
     prompt: string,
+    settings: CodexComposerSettings,
+    attachments: readonly CodexImageAttachmentInput[],
     resumeThreadId: string | null = null,
     transcriptBootstrap: string | null = null,
   ): Promise<void> {
     try {
-      const { context, didResumeFallback } = await this.ensureSession(sessionId, cwd, resumeThreadId);
+      const { context, didResumeFallback } = await this.ensureSession(
+        sessionId,
+        cwd,
+        settings,
+        resumeThreadId,
+      );
       const turnStartPrompt =
         didResumeFallback && transcriptBootstrap && transcriptBootstrap.trim().length > 0
           ? transcriptBootstrap
@@ -204,10 +295,20 @@ export class CodexAppServerManager extends EventEmitter<{
         });
       }
 
-      const response = await this.sendRequest(context, 'turn/start', {
-        threadId: context.threadId,
-        input: [{ type: 'text', text: turnStartPrompt, text_elements: [] }],
-      });
+      if (!context.threadId) {
+        throw new Error('Codex session is missing a thread id.');
+      }
+
+      const response = await this.sendRequest(
+        context,
+        'turn/start',
+        buildCodexTurnStartParams({
+          threadId: context.threadId,
+          prompt: turnStartPrompt,
+          settings,
+          attachments,
+        }),
+      );
       const turnId = asString(asObject(asObject(response)?.turn)?.id);
       context.status = 'running';
       context.activeTurnId = turnId ?? null;
@@ -321,11 +422,17 @@ export class CodexAppServerManager extends EventEmitter<{
   private async ensureSession(
     sessionId: string,
     cwd: string,
+    settings: CodexComposerSettings,
     resumeThreadId: string | null = null,
   ): Promise<EnsureSessionResult> {
     const existing = this.sessions.get(sessionId);
 
-    if (existing && existing.status !== 'closed' && existing.cwd === cwd) {
+    if (
+      existing &&
+      existing.status !== 'closed' &&
+      existing.cwd === cwd &&
+      existing.runtimeMode === settings.runtimeMode
+    ) {
       return {
         context: existing,
         didResumeFallback: false,
@@ -349,6 +456,7 @@ export class CodexAppServerManager extends EventEmitter<{
     const context: SessionContext = {
       sessionId,
       cwd,
+      runtimeMode: settings.runtimeMode,
       child,
       output,
       nextRequestId: 1,
@@ -370,13 +478,7 @@ export class CodexAppServerManager extends EventEmitter<{
       await this.sendRequest(context, 'initialize', buildCodexInitializeParams());
       this.writeMessage(context, { method: 'initialized' });
 
-      const threadParams = {
-        cwd,
-        approvalPolicy: 'on-request',
-        sandbox: 'workspace-write',
-        experimentalRawEvents: false,
-        persistExtendedHistory: true,
-      };
+      const threadParams = buildCodexThreadOpenParams({ cwd, settings });
       let threadResponse: unknown;
       let didResumeFallback = false;
 
@@ -685,6 +787,10 @@ export class CodexAppServerManager extends EventEmitter<{
           return;
         }
 
+        if (!shouldEmitCodexActivity(itemType)) {
+          return;
+        }
+
         this.emit('event', {
           type: 'activity',
           sessionId: context.sessionId,
@@ -703,6 +809,11 @@ export class CodexAppServerManager extends EventEmitter<{
         const rawType = asString(item?.type) ?? asString(item?.kind) ?? 'item';
         const itemType = toCodexActivityItemType(rawType);
         const detail = extractActivityDetail(item);
+
+        if (!shouldEmitCodexActivity(itemType)) {
+          return;
+        }
+
         this.emit('event', {
           type: 'activity',
           sessionId: context.sessionId,

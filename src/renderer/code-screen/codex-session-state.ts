@@ -4,6 +4,7 @@ import type {
   CodexTurnDiff,
   CodexUserInputQuestion,
 } from '@/ipc/contracts';
+import type { CodexChatImageAttachment } from '@/lib/codex-chat';
 import { isToolLifecycleItemType } from '@/lib/codex-session-items';
 
 const MAX_PERSISTED_SESSION_MESSAGES = 60;
@@ -13,12 +14,26 @@ export type CodexChatMessage = {
   id: string;
   role: 'user' | 'assistant';
   text: string;
+  attachments: CodexChatImageAttachment[];
   createdAt: string;
   completedAt: string | null;
   turnId: string | null;
+  itemId: string | null;
   diff: CodexTurnDiff | null;
   activities: CodexSessionActivity[];
 };
+
+export type CodexTranscriptEntry =
+  | {
+      id: string;
+      kind: 'message';
+      message: CodexChatMessage;
+    }
+  | {
+      id: string;
+      kind: 'work';
+      activities: CodexSessionActivity[];
+    };
 
 export type CodexSessionActivity = {
   id: string;
@@ -49,9 +64,9 @@ export type CodexSessionState = {
   threadId: string | null;
   turnId: string | null;
   currentTurnStartedAt: string | null;
+  transcriptEntries: CodexTranscriptEntry[];
   messages: CodexChatMessage[];
-  streamingAssistantText: string;
-  currentTurnActivities: CodexSessionActivity[];
+  currentTurnEntries: CodexTranscriptEntry[];
   pendingApprovals: PendingApproval[];
   pendingUserInputs: PendingUserInput[];
   error: string | null;
@@ -59,6 +74,7 @@ export type CodexSessionState = {
 
 export type CodexSessionSnapshot = {
   threadId: string | null;
+  transcriptEntries?: CodexTranscriptEntry[];
   messages: CodexChatMessage[];
   updatedAt: string;
 };
@@ -68,9 +84,9 @@ export const DEFAULT_SESSION_STATE: CodexSessionState = {
   threadId: null,
   turnId: null,
   currentTurnStartedAt: null,
+  transcriptEntries: [],
   messages: [],
-  streamingAssistantText: '',
-  currentTurnActivities: [],
+  currentTurnEntries: [],
   pendingApprovals: [],
   pendingUserInputs: [],
   error: null,
@@ -83,11 +99,332 @@ function shouldTrackActivity(event: Extract<CodexSessionEvent, { type: 'activity
 
   return (
     isToolLifecycleItemType(event.itemType) ||
-    event.itemType === 'reasoning' ||
     event.itemType === 'plan' ||
     event.itemType === 'context_compaction' ||
     event.tone === 'tool'
   );
+}
+
+function createMessageEntry(message: CodexChatMessage): CodexTranscriptEntry {
+  return {
+    id: message.id,
+    kind: 'message',
+    message,
+  };
+}
+
+function createWorkEntry(
+  sessionId: string,
+  entries: CodexTranscriptEntry[],
+  activity: CodexSessionActivity,
+): CodexTranscriptEntry {
+  return {
+    id: `${sessionId}:work:${entries.length}`,
+    kind: 'work',
+    activities: [activity],
+  };
+}
+
+function collectTranscriptMessages(entries: CodexTranscriptEntry[]): CodexChatMessage[] {
+  return entries.flatMap((entry) => (entry.kind === 'message' ? [entry.message] : []));
+}
+
+function countTranscriptActivities(entries: CodexTranscriptEntry[]): number {
+  return entries.reduce(
+    (count, entry) => count + (entry.kind === 'work' ? entry.activities.length : 0),
+    0,
+  );
+}
+
+function updateLatestUserMessageTurnId(
+  messages: CodexChatMessage[],
+  turnId: string | null,
+): CodexChatMessage[] {
+  if (!turnId) {
+    return messages;
+  }
+
+  const nextMessages = [...messages];
+
+  for (let index = nextMessages.length - 1; index >= 0; index -= 1) {
+    const message = nextMessages[index];
+
+    if (!message || message.role !== 'user' || message.turnId !== null) {
+      continue;
+    }
+
+    nextMessages[index] = {
+      ...message,
+      turnId,
+    };
+    break;
+  }
+
+  return nextMessages;
+}
+
+function updateLatestUserTranscriptEntryTurnId(
+  entries: CodexTranscriptEntry[],
+  turnId: string | null,
+): CodexTranscriptEntry[] {
+  if (!turnId) {
+    return entries;
+  }
+
+  const nextEntries = [...entries];
+
+  for (let index = nextEntries.length - 1; index >= 0; index -= 1) {
+    const entry = nextEntries[index];
+
+    if (!entry || entry.kind !== 'message') {
+      continue;
+    }
+
+    if (entry.message.role !== 'user' || entry.message.turnId !== null) {
+      continue;
+    }
+
+    nextEntries[index] = {
+      ...entry,
+      message: {
+        ...entry.message,
+        turnId,
+      },
+    };
+    break;
+  }
+
+  return nextEntries;
+}
+
+function appendAssistantDeltaEntry(
+  entries: CodexTranscriptEntry[],
+  input: {
+    sessionId: string;
+    turnId: string | null;
+    itemId: string | null;
+    text: string;
+  },
+): CodexTranscriptEntry[] {
+  const nextEntries = [...entries];
+  const targetItemId = input.itemId?.trim() ? input.itemId : null;
+
+  if (targetItemId) {
+    const existingIndex = nextEntries.findIndex(
+      (entry) =>
+        entry.kind === 'message' &&
+        entry.message.role === 'assistant' &&
+        entry.message.itemId === targetItemId,
+    );
+
+    if (existingIndex !== -1) {
+      const existingEntry = nextEntries[existingIndex];
+
+      if (existingEntry?.kind === 'message') {
+        nextEntries[existingIndex] = {
+          ...existingEntry,
+          message: {
+            ...existingEntry.message,
+            text: `${existingEntry.message.text}${input.text}`,
+          },
+        };
+      }
+
+      return nextEntries;
+    }
+  }
+
+  const lastEntry = nextEntries.at(-1);
+  if (
+    targetItemId === null &&
+    lastEntry?.kind === 'message' &&
+    lastEntry.message.role === 'assistant' &&
+    lastEntry.message.itemId === null
+  ) {
+    nextEntries[nextEntries.length - 1] = {
+      ...lastEntry,
+      message: {
+        ...lastEntry.message,
+        text: `${lastEntry.message.text}${input.text}`,
+      },
+    };
+    return nextEntries;
+  }
+
+  nextEntries.push(
+    createMessageEntry({
+      id: `${input.sessionId}:assistant:${targetItemId ?? nextEntries.length}`,
+      role: 'assistant',
+      text: input.text,
+      attachments: [],
+      createdAt: new Date().toISOString(),
+      completedAt: null,
+      turnId: input.turnId,
+      itemId: targetItemId,
+      diff: null,
+      activities: [],
+    }),
+  );
+
+  return nextEntries;
+}
+
+function appendActivityEntry(
+  entries: CodexTranscriptEntry[],
+  input: {
+    sessionId: string;
+    activity: CodexSessionActivity;
+  },
+): CodexTranscriptEntry[] {
+  const nextEntries = [...entries];
+  const lastEntry = nextEntries.at(-1);
+
+  if (lastEntry?.kind === 'work') {
+    nextEntries[nextEntries.length - 1] = {
+      ...lastEntry,
+      activities: [...lastEntry.activities, input.activity],
+    };
+    return nextEntries;
+  }
+
+  nextEntries.push(createWorkEntry(input.sessionId, nextEntries, input.activity));
+  return nextEntries;
+}
+
+function finalizeTurnEntries(
+  entries: CodexTranscriptEntry[],
+  input: {
+    sessionId: string;
+    turnId: string | null;
+    completedAt: string;
+    diff: CodexTurnDiff | null;
+  },
+): CodexTranscriptEntry[] {
+  let nextEntries = entries.map((entry) => {
+    if (entry.kind !== 'message' || entry.message.role !== 'assistant') {
+      return entry;
+    }
+
+    return {
+      ...entry,
+      message: {
+        ...entry.message,
+        completedAt: input.completedAt,
+        turnId: input.turnId,
+      },
+    };
+  });
+
+  let lastAssistantIndex = -1;
+  for (let index = nextEntries.length - 1; index >= 0; index -= 1) {
+    const entry = nextEntries[index];
+    if (entry?.kind === 'message' && entry.message.role === 'assistant') {
+      lastAssistantIndex = index;
+      break;
+    }
+  }
+
+  if (lastAssistantIndex === -1 && input.diff) {
+    nextEntries = [
+      ...nextEntries,
+      createMessageEntry({
+        id: `${input.sessionId}:assistant:turn:${input.turnId ?? nextEntries.length}`,
+        role: 'assistant',
+        text: '',
+        attachments: [],
+        createdAt: input.completedAt,
+        completedAt: input.completedAt,
+        turnId: input.turnId,
+        itemId: null,
+        diff: input.diff,
+        activities: [],
+      }),
+    ];
+    return nextEntries;
+  }
+
+  if (lastAssistantIndex !== -1) {
+    const entry = nextEntries[lastAssistantIndex];
+    if (entry?.kind === 'message') {
+      nextEntries[lastAssistantIndex] = {
+        ...entry,
+        message: {
+          ...entry.message,
+          diff: input.diff,
+        },
+      };
+    }
+  }
+
+  return nextEntries;
+}
+
+function truncateDiff(diff: CodexTurnDiff): CodexTurnDiff {
+  return {
+    ...diff,
+    patch:
+      diff.patch.length <= MAX_PERSISTED_DIFF_PATCH_CHARS
+        ? diff.patch
+        : `${diff.patch.slice(0, MAX_PERSISTED_DIFF_PATCH_CHARS)}\n\n[diff truncated in persisted session history]`,
+  };
+}
+
+function sanitizeMessageForSnapshot(message: CodexChatMessage): CodexChatMessage {
+  return {
+    ...message,
+    attachments: (message.attachments ?? []).map((attachment) => ({
+      ...attachment,
+      previewUrl: null,
+    })),
+    diff: message.diff === null ? null : truncateDiff(message.diff),
+  };
+}
+
+function sanitizeTranscriptEntryForSnapshot(entry: CodexTranscriptEntry): CodexTranscriptEntry {
+  if (entry.kind === 'work') {
+    return entry;
+  }
+
+  return {
+    ...entry,
+    message: sanitizeMessageForSnapshot(entry.message),
+  };
+}
+
+function deriveTranscriptEntriesFromMessages(messages: CodexChatMessage[]): CodexTranscriptEntry[] {
+  const entries: CodexTranscriptEntry[] = [];
+
+  for (const message of messages) {
+    if (message.role === 'assistant' && message.activities.length > 0) {
+      entries.push({
+        id: `${message.id}:work`,
+        kind: 'work',
+        activities: message.activities,
+      });
+    }
+
+    entries.push(createMessageEntry(message));
+  }
+
+  return entries;
+}
+
+function normalizeMessage(message: CodexChatMessage): CodexChatMessage {
+  return {
+    ...message,
+    attachments: message.attachments ?? [],
+  };
+}
+
+function normalizeTranscriptEntry(entry: CodexTranscriptEntry): CodexTranscriptEntry {
+  if (entry.kind === 'work') {
+    return entry;
+  }
+
+  return {
+    ...entry,
+    message: normalizeMessage(entry.message),
+  };
 }
 
 export function applyCodexSessionEvent(
@@ -112,7 +449,12 @@ export function applyCodexSessionEvent(
     case 'assistant-delta':
       return {
         ...previous,
-        streamingAssistantText: `${previous.streamingAssistantText}${event.text}`,
+        currentTurnEntries: appendAssistantDeltaEntry(previous.currentTurnEntries, {
+          sessionId: event.sessionId,
+          turnId: previous.turnId,
+          itemId: event.itemId ?? null,
+          text: event.text,
+        }),
       };
     case 'activity':
       if (!shouldTrackActivity(event)) {
@@ -121,10 +463,10 @@ export function applyCodexSessionEvent(
 
       return {
         ...previous,
-        currentTurnActivities: [
-          ...previous.currentTurnActivities,
-          {
-            id: `${event.sessionId}:${previous.currentTurnActivities.length}`,
+        currentTurnEntries: appendActivityEntry(previous.currentTurnEntries, {
+          sessionId: event.sessionId,
+          activity: {
+            id: `${event.sessionId}:${countTranscriptActivities(previous.currentTurnEntries)}`,
             tone: event.tone,
             phase: event.phase,
             label: event.label,
@@ -132,7 +474,7 @@ export function applyCodexSessionEvent(
             itemId: event.itemId ?? null,
             itemType: event.itemType ?? null,
           },
-        ],
+        }),
       };
     case 'approval-requested':
       return {
@@ -175,9 +517,21 @@ export function applyCodexSessionEvent(
         ),
       };
     case 'turn-completed': {
-      const hasText = previous.streamingAssistantText.trim().length > 0;
-      const hasActivities = previous.currentTurnActivities.length > 0;
-      const shouldAddMessage = hasText || hasActivities;
+      const completedAt = event.completedAt ?? new Date().toISOString();
+      const completedEntries = finalizeTurnEntries(previous.currentTurnEntries, {
+        sessionId: event.sessionId,
+        turnId: event.turnId ?? null,
+        completedAt,
+        diff: event.diff ?? null,
+      });
+      const transcriptEntries = updateLatestUserTranscriptEntryTurnId(
+        [...previous.transcriptEntries, ...completedEntries],
+        event.turnId ?? null,
+      );
+      const messages = updateLatestUserMessageTurnId(
+        [...previous.messages, ...collectTranscriptMessages(completedEntries)],
+        event.turnId ?? null,
+      );
 
       return {
         ...previous,
@@ -185,26 +539,9 @@ export function applyCodexSessionEvent(
         currentTurnStartedAt: null,
         status: event.status === 'failed' ? 'error' : 'ready',
         error: event.status === 'failed' ? event.error ?? previous.error : null,
-        messages: shouldAddMessage
-          ? [
-              ...previous.messages,
-              {
-                id: `${event.sessionId}:assistant:${previous.messages.length}`,
-                role: 'assistant',
-                text: previous.streamingAssistantText,
-                createdAt:
-                  previous.currentTurnStartedAt ??
-                  event.completedAt ??
-                  new Date().toISOString(),
-                completedAt: event.completedAt ?? new Date().toISOString(),
-                turnId: event.turnId ?? null,
-                diff: event.diff ?? null,
-                activities: previous.currentTurnActivities,
-              },
-            ]
-          : previous.messages,
-        streamingAssistantText: '',
-        currentTurnActivities: [],
+        transcriptEntries,
+        messages,
+        currentTurnEntries: [],
       };
     }
   }
@@ -217,22 +554,14 @@ export function toCodexSessionSnapshot(state: CodexSessionState): CodexSessionSn
 
   const messages = state.messages
     .slice(-MAX_PERSISTED_SESSION_MESSAGES)
-    .map((message) => ({
-      ...message,
-      diff:
-        message.diff === null
-          ? null
-          : {
-              ...message.diff,
-              patch:
-                message.diff.patch.length <= MAX_PERSISTED_DIFF_PATCH_CHARS
-                  ? message.diff.patch
-                  : `${message.diff.patch.slice(0, MAX_PERSISTED_DIFF_PATCH_CHARS)}\n\n[diff truncated in persisted session history]`,
-            },
-    }));
+    .map(sanitizeMessageForSnapshot);
+  const transcriptEntries = state.transcriptEntries
+    .slice(-(MAX_PERSISTED_SESSION_MESSAGES * 3))
+    .map(sanitizeTranscriptEntryForSnapshot);
 
   return {
     threadId: state.threadId,
+    transcriptEntries,
     messages,
     updatedAt: new Date().toISOString(),
   };
@@ -243,9 +572,19 @@ export function hydrateCodexSessionState(snapshot: CodexSessionSnapshot | null):
     return DEFAULT_SESSION_STATE;
   }
 
+  const transcriptEntries =
+    snapshot.transcriptEntries && snapshot.transcriptEntries.length > 0
+      ? snapshot.transcriptEntries.map(normalizeTranscriptEntry)
+      : deriveTranscriptEntriesFromMessages(snapshot.messages.map(normalizeMessage));
+  const messages = snapshot.messages.map(normalizeMessage);
+
   return {
     ...DEFAULT_SESSION_STATE,
     threadId: snapshot.threadId,
-    messages: snapshot.messages,
+    transcriptEntries,
+    messages:
+      snapshot.transcriptEntries && snapshot.transcriptEntries.length > 0
+        ? collectTranscriptMessages(transcriptEntries)
+        : messages,
   };
 }

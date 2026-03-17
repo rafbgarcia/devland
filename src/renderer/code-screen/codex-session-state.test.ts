@@ -22,7 +22,7 @@ describe('applyCodexSessionEvent', () => {
 
     const state = applyCodexSessionEvent(DEFAULT_SESSION_STATE, event);
 
-    assert.equal(state.currentTurnActivities.length, 0);
+    assert.equal(state.currentTurnEntries.length, 0);
   });
 
   it('keeps tool lifecycle activities', () => {
@@ -38,21 +38,72 @@ describe('applyCodexSessionEvent', () => {
     };
 
     const state = applyCodexSessionEvent(DEFAULT_SESSION_STATE, event);
+    const workEntry = state.currentTurnEntries[0];
 
-    assert.equal(state.currentTurnActivities.length, 1);
-    assert.equal(state.currentTurnActivities[0]?.label, 'Run command');
+    assert.equal(state.currentTurnEntries.length, 1);
+    assert.equal(workEntry?.kind, 'work');
+    assert.equal(workEntry?.kind === 'work' ? workEntry.activities[0]?.label : null, 'Run command');
   });
 
-  it('records reasoning activity as assistant progress without text', () => {
+  it('preserves assistant messages and tool work in turn order', () => {
+    const startingState = {
+      ...DEFAULT_SESSION_STATE,
+      messages: [
+        {
+          id: 'user-1',
+          role: 'user' as const,
+          text: 'Fix the app',
+          attachments: [],
+          createdAt: '2026-03-16T12:00:00.000Z',
+          completedAt: null,
+          turnId: null,
+          itemId: null,
+          diff: null,
+          activities: [],
+        },
+      ],
+      transcriptEntries: [
+        {
+          id: 'user-1',
+          kind: 'message' as const,
+          message: {
+            id: 'user-1',
+            role: 'user' as const,
+            text: 'Fix the app',
+            attachments: [],
+            createdAt: '2026-03-16T12:00:00.000Z',
+            completedAt: null,
+            turnId: null,
+            itemId: null,
+            diff: null,
+            activities: [],
+          },
+        },
+      ],
+      turnId: 'turn-1',
+      status: 'running' as const,
+    };
+    const firstDeltaEvent: CodexSessionEvent = {
+      type: 'assistant-delta',
+      sessionId: 'session-1',
+      itemId: 'assistant-item-1',
+      text: 'Checking the workspace.',
+    };
     const lifecycleEvent: CodexSessionEvent = {
       type: 'activity',
       sessionId: 'session-1',
-      tone: 'info',
+      tone: 'tool',
       phase: 'completed',
-      label: 'Reasoning',
-      detail: null,
-      itemId: 'item-1',
-      itemType: 'reasoning',
+      label: 'Run command',
+      detail: 'git status',
+      itemId: 'tool-item-1',
+      itemType: 'command_execution',
+    };
+    const secondDeltaEvent: CodexSessionEvent = {
+      type: 'assistant-delta',
+      sessionId: 'session-1',
+      itemId: 'assistant-item-2',
+      text: 'Applied the fix.',
     };
     const completedEvent: CodexSessionEvent = {
       type: 'turn-completed',
@@ -62,10 +113,20 @@ describe('applyCodexSessionEvent', () => {
       error: null,
     };
 
-    const withIgnoredActivity = applyCodexSessionEvent(DEFAULT_SESSION_STATE, lifecycleEvent);
-    const completedState = applyCodexSessionEvent(withIgnoredActivity, completedEvent);
+    const withFirstMessage = applyCodexSessionEvent(startingState, firstDeltaEvent);
+    const withActivity = applyCodexSessionEvent(withFirstMessage, lifecycleEvent);
+    const withSecondMessage = applyCodexSessionEvent(withActivity, secondDeltaEvent);
+    const completedState = applyCodexSessionEvent(withSecondMessage, completedEvent);
 
-    assert.equal(completedState.messages.length, 1);
-    assert.equal(completedState.messages[0]?.activities[0]?.label, 'Reasoning');
+    assert.equal(completedState.messages.length, 3);
+    assert.equal(completedState.messages[0]?.turnId, 'turn-1');
+    assert.equal(completedState.messages[1]?.text, 'Checking the workspace.');
+    assert.equal(completedState.messages[2]?.text, 'Applied the fix.');
+    assert.deepEqual(
+      completedState.transcriptEntries.map((entry) =>
+        entry.kind === 'message' ? `${entry.kind}:${entry.message.role}` : entry.kind,
+      ),
+      ['message:user', 'message:assistant', 'work', 'message:assistant'],
+    );
   });
 });

@@ -1,4 +1,5 @@
 export * from '@/lib/diff/comment-anchors';
+export * from '@/lib/diff/change-groups';
 export * from '@/lib/diff/content-sources';
 export * from '@/lib/diff/highlighter-types';
 export * from '@/lib/diff/patch-formatter';

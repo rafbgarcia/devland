@@ -1,3 +1,4 @@
+import { summarizeCodexUserMessage, type CodexChatImageAttachment } from '@/lib/codex-chat';
 import type { CodexChatMessage } from '@/renderer/code-screen/codex-session-state';
 
 const BOOTSTRAP_PREAMBLE =
@@ -12,13 +13,10 @@ function messageRoleLabel(message: CodexChatMessage): 'USER' | 'ASSISTANT' {
 }
 
 function buildMessageBlock(message: CodexChatMessage): string {
-  const text = message.text.trim();
-
-  if (text.length > 0) {
-    return `${messageRoleLabel(message)}:\n${text}`;
-  }
-
-  return `${messageRoleLabel(message)}:\n(empty message)`;
+  return `${messageRoleLabel(message)}:\n${summarizeCodexUserMessage({
+    text: message.text,
+    attachments: message.attachments,
+  })}`;
 }
 
 function finalizeWithPrompt(
@@ -33,12 +31,17 @@ function finalizeWithPrompt(
 
 export function buildSessionHistoryBootstrap(
   previousMessages: CodexChatMessage[],
-  latestPrompt: string,
+  latestMessage: {
+    text: string;
+    attachments: readonly CodexChatImageAttachment[];
+  },
   maxChars: number,
 ): string | null {
   if (previousMessages.length === 0) {
     return null;
   }
+
+  const latestPrompt = summarizeCodexUserMessage(latestMessage);
 
   const budget = Number.isFinite(maxChars) ? Math.max(1, Math.floor(maxChars)) : 1;
   const newestFirstBlocks = previousMessages.toReversed().map(buildMessageBlock);

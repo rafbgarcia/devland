@@ -1,0 +1,7 @@
+- Terminal & Browser
+- Prompt request
+- Open files with CMD + P (use diff viewer): readonly; comments for Codex session;
+- Index repos under `github.com/` for auto complete
+- Shortcuts: CMD+D duplicate current session on new tab, CMD+T create new worktree (configure worktree setup script, maybe `.devland/setup`)
+- One-click setup repo: e.g. `.devland/setup`
+- Plugin system

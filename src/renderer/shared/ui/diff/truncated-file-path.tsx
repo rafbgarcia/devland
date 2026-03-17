@@ -115,7 +115,7 @@ export class TruncatedFilePath extends Component<TruncatedFilePathProps, FilePat
           {this.state.directoryText.length > 0 ? (
             <span className="text-muted-foreground">{this.state.directoryText}</span>
           ) : null}
-          <span className="font-bold">{this.state.fileText}</span>
+          <span className="text-white">{this.state.fileText}</span>
         </span>
       </div>
     );

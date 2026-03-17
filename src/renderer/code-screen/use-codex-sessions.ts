@@ -6,8 +6,13 @@ import type {
   CodexApprovalDecision,
   CodexSessionEvent,
 } from '@/ipc/contracts';
+import type {
+  CodexChatImageAttachment,
+  CodexPromptSubmission,
+} from '@/lib/codex-chat';
 import {
   applyCodexSessionEvent,
+  DEFAULT_SESSION_STATE,
   hydrateCodexSessionState,
   toCodexSessionSnapshot,
   type CodexSessionSnapshot,
@@ -119,30 +124,61 @@ const updateSessionEventAtom = atom(
 
 const registerUserPromptAtom = atom(
   null,
-  (get, set, input: { sessionId: string; prompt: string }) => {
+  (get, set, input: { sessionId: string; prompt: string; attachments: CodexChatImageAttachment[] }) => {
     const previous = getSessionState(get, input.sessionId);
+    const messageId = `${input.sessionId}:user:${previous.messages.length}`;
+    const createdAt = new Date().toISOString();
 
     writeSessionState(get, set, input.sessionId, {
       ...previous,
       status: previous.status === 'closed' ? 'connecting' : previous.status,
+      transcriptEntries: [
+        ...previous.transcriptEntries,
+        {
+          id: messageId,
+          kind: 'message',
+          message: {
+            id: messageId,
+            role: 'user',
+            text: input.prompt,
+            attachments: input.attachments,
+            createdAt,
+            completedAt: null,
+            turnId: null,
+            itemId: null,
+            diff: null,
+            activities: [],
+          },
+        },
+      ],
       messages: [
         ...previous.messages,
         {
-          id: `${input.sessionId}:user:${previous.messages.length}`,
+          id: messageId,
           role: 'user',
           text: input.prompt,
-          createdAt: new Date().toISOString(),
+          attachments: input.attachments,
+          createdAt,
           completedAt: null,
           turnId: null,
+          itemId: null,
           diff: null,
           activities: [],
         },
       ],
-      streamingAssistantText: '',
       error: null,
     });
   },
 );
+
+const resetSessionStateAtom = atom(null, (get, set, sessionId: string) => {
+  const previous = getSessionState(get, sessionId);
+
+  writeSessionState(get, set, sessionId, {
+    ...DEFAULT_SESSION_STATE,
+    messages: previous.messages,
+  });
+});
 
 const removeSessionStateAtom = atom(null, (get, set, sessionId: string) => {
   const currentStates = get(sessionStatesAtom);
@@ -201,21 +237,47 @@ export function useCodexSessionActions() {
   const registerUserPrompt = useSetAtom(registerUserPromptAtom);
   const registerSessionFailure = useSetAtom(registerSessionFailureAtom);
   const removeSessionState = useSetAtom(removeSessionStateAtom);
+  const resetSessionState = useSetAtom(resetSessionStateAtom);
 
-  const sendPrompt = async (sessionId: string, cwd: string, prompt: string) => {
+  const sendPrompt = async (sessionId: string, cwd: string, submission: CodexPromptSubmission) => {
     const previous = appJotaiStore.get(getSessionStateAtom(sessionId));
     const transcriptBootstrap =
       previous.threadId && previous.messages.length > 0
-        ? buildSessionHistoryBootstrap(previous.messages, prompt, 120_000)
+        ? buildSessionHistoryBootstrap(
+            previous.messages,
+            {
+              text: submission.prompt,
+              attachments: submission.attachments.map((attachment) => ({
+                type: attachment.type,
+                name: attachment.name,
+                mimeType: attachment.mimeType,
+                sizeBytes: attachment.sizeBytes,
+                previewUrl: null,
+              })),
+            },
+            120_000,
+          )
         : null;
 
-    registerUserPrompt({ sessionId, prompt });
+    registerUserPrompt({
+      sessionId,
+      prompt: submission.prompt,
+      attachments: submission.attachments.map((attachment) => ({
+        type: attachment.type,
+        name: attachment.name,
+        mimeType: attachment.mimeType,
+        sizeBytes: attachment.sizeBytes,
+        previewUrl: attachment.dataUrl,
+      })),
+    });
 
     try {
       await window.electronAPI.sendCodexSessionPrompt({
         sessionId,
         cwd,
-        prompt,
+        prompt: submission.prompt,
+        settings: submission.settings,
+        attachments: submission.attachments,
         resumeThreadId: previous.threadId,
         transcriptBootstrap,
       });
@@ -236,6 +298,11 @@ export function useCodexSessionActions() {
   const stopSession = async (sessionId: string) => {
     await window.electronAPI.stopCodexSession(sessionId);
     removeSessionState(sessionId);
+  };
+
+  const resetSession = async (sessionId: string) => {
+    await window.electronAPI.stopCodexSession(sessionId);
+    resetSessionState(sessionId);
   };
 
   const respondToApproval = async (
@@ -266,6 +333,7 @@ export function useCodexSessionActions() {
     sendPrompt,
     interruptSession,
     stopSession,
+    resetSession,
     respondToApproval,
     respondToUserInput,
   };

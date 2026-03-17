@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import type { GitStatusFile, PrCommit } from '@/ipc/contracts';
-import { parseUnifiedDiffDocument, type DiffCommentAnchor } from '@/lib/diff';
+import {
+  getDiffChangeGroupSelectableLineNumbers,
+  parseUnifiedDiffDocument,
+  type DiffCommentAnchor,
+  type DiffSelectionSide,
+} from '@/lib/diff';
 import { ChangesSidebar } from '@/renderer/code-screen/changes-sidebar';
-import { CodeChangesHistoryDrawer } from '@/renderer/code-screen/changes-history-drawer';
 import { SelectedFileDiffView } from '@/renderer/code-screen/selected-file-diff-view';
 import {
   useGitBranchHistory,
@@ -21,8 +25,18 @@ type CodeChangesSelection =
 type CodeChangesRenderProps = {
   sidebar: ReactNode;
   viewport: ReactNode;
-  historyDrawer: ReactNode;
 };
+
+function toWorkingTreeSidebarFiles(files: GitStatusFile[]) {
+  return [...files]
+    .sort((left, right) => left.path.localeCompare(right.path))
+    .map((file) => ({
+      path: file.path,
+      status: file.status,
+      additions: 0,
+      deletions: 0,
+    }));
+}
 
 function ActiveDiffViewport({
   rawDiff,
@@ -55,6 +69,7 @@ function ActiveDiffViewport({
   onToggleRowSelection: (
     path: string,
     row: Parameters<ReturnType<typeof useWorkingTreeCommitSelection>['toggleRowSelection']>[1],
+    side?: DiffSelectionSide,
   ) => void;
   onToggleHunkSelection: (path: string, hunkStartLineNumber: number) => void;
   onSubmitComment?: ((anchor: DiffCommentAnchor, body: string) => Promise<void>) | undefined;
@@ -100,6 +115,7 @@ export function ChangesPane({
   branchName,
   headRevision,
   workingTreeFiles,
+  workingTreeStatusRefreshVersion,
   isViewportActive,
   children,
   onFileSelect,
@@ -110,12 +126,12 @@ export function ChangesPane({
   branchName: string;
   headRevision: string | null;
   workingTreeFiles: GitStatusFile[];
+  workingTreeStatusRefreshVersion: number;
   isViewportActive: boolean;
   children: (props: CodeChangesRenderProps) => ReactNode;
   onFileSelect?: () => void;
   onSubmitDiffComment?: ((anchor: DiffCommentAnchor, body: string) => Promise<void>) | undefined;
 }) {
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [selection, setSelection] = useState<CodeChangesSelection>({ type: 'working-tree' });
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const { preferences } = useUserPreferences();
@@ -128,6 +144,7 @@ export function ChangesPane({
   const workingTreeState = useGitWorkingTreeDiff({
     repoPath,
     files: workingTreeFiles,
+    refreshVersion: workingTreeStatusRefreshVersion,
   });
   const commitDiffState = useGitCommitDiff({
     repoPath,
@@ -135,7 +152,6 @@ export function ChangesPane({
   });
 
   useEffect(() => {
-    setIsHistoryOpen(false);
     setSelection({ type: 'working-tree' });
     setSelectedFilePath(null);
   }, [baseBranchName, branchName, repoPath]);
@@ -177,9 +193,21 @@ export function ChangesPane({
     () => (activeDiffState.status === 'ready' ? parseUnifiedDiffDocument(activeDiffState.data).files : []),
     [activeDiffState],
   );
+  const workingTreeSidebarFiles = useMemo(
+    () => toWorkingTreeSidebarFiles(workingTreeFiles),
+    [workingTreeFiles],
+  );
+  const activeSidebarFiles = selection.type === 'working-tree'
+    ? workingTreeSidebarFiles
+    : activeDiffFiles.map((file) => ({
+        path: file.displayPath,
+        status: file.status,
+        additions: file.additions,
+        deletions: file.deletions,
+      }));
 
   useEffect(() => {
-    if (activeDiffFiles.length === 0) {
+    if (activeSidebarFiles.length === 0) {
       if (selectedFilePath !== null) {
         setSelectedFilePath(null);
       }
@@ -188,13 +216,13 @@ export function ChangesPane({
 
     if (
       selectedFilePath !== null &&
-      activeDiffFiles.some((file) => file.displayPath === selectedFilePath)
+      activeSidebarFiles.some((file) => file.path === selectedFilePath)
     ) {
       return;
     }
 
-    setSelectedFilePath(activeDiffFiles[0]?.displayPath ?? null);
-  }, [activeDiffFiles, selectedFilePath]);
+    setSelectedFilePath(activeSidebarFiles[0]?.path ?? null);
+  }, [activeSidebarFiles, selectedFilePath]);
 
   const workingTreeCommitSelection = useWorkingTreeCommitSelection({
     repoPath,
@@ -210,18 +238,13 @@ export function ChangesPane({
       return 'none' as const;
     }
 
-    const hunk = file.hunks.find(
-      (candidate) => candidate.originalStartLineNumber === hunkStartLineNumber,
-    );
     const hunkSelection = workingTreeCommitSelection.selectionByPath[path];
 
-    if (!hunk || !hunkSelection || hunkSelection.kind !== 'lines') {
+    if (!hunkSelection || hunkSelection.kind !== 'lines') {
       return workingTreeCommitSelection.getFileSelectionType(path);
     }
 
-    const selectableLines = hunk.lines
-      .filter((line) => line.isSelectable)
-      .map((line) => line.originalDiffLineNumber);
+    const selectableLines = getDiffChangeGroupSelectableLineNumbers(file, hunkStartLineNumber);
     const selectedCount = selectableLines.filter((lineNumber) =>
       hunkSelection.selection.isSelected(lineNumber),
     ).length;
@@ -243,20 +266,16 @@ export function ChangesPane({
       workingTreeCommitSelection.getFileSelectionType(path) === 'none',
     );
   }, [workingTreeCommitSelection]);
-  const handleOpenHistory = useCallback(() => {
-    setIsHistoryOpen(true);
-  }, []);
-  const handleCloseHistory = useCallback(() => {
-    setIsHistoryOpen(false);
-  }, []);
   const handleToggleRowSelection = useCallback((
     path: string,
     row: Parameters<typeof workingTreeCommitSelection.toggleRowSelection>[1],
+    side: DiffSelectionSide = 'all',
   ) => {
     workingTreeCommitSelection.toggleRowSelection(
       path,
       row,
-      workingTreeCommitSelection.getRowSelectionType(path, row) === 'none',
+      workingTreeCommitSelection.getRowSelectionType(path, row, side) === 'none',
+      side,
     );
   }, [workingTreeCommitSelection]);
   const handleToggleHunkSelection = useCallback((
@@ -277,7 +296,6 @@ export function ChangesPane({
 
   const handleSelectHistoryCommit = useCallback((commit: PrCommit) => {
     setSelection({ type: 'commit', commit });
-    setIsHistoryOpen(false);
     setSelectedFilePath(null);
   }, []);
 
@@ -285,8 +303,6 @@ export function ChangesPane({
     setSelectedFilePath(path);
     onFileSelect?.();
   }, [onFileSelect]);
-
-  const drawerCommits = useMemo(() => historyCommits, [historyCommits]);
 
   const handleCommitSelection = useCallback((
     draft: { summary: string; description: string },
@@ -296,7 +312,7 @@ export function ChangesPane({
       isWorkingTreeSelection
         ? {
             selectedFileCount: workingTreeCommitSelection.selectedFileCount,
-            totalFileCount: activeDiffFiles.length,
+            totalFileCount: workingTreeSidebarFiles.length,
             isSubmitting: workingTreeCommitSelection.isSubmitting,
             error: workingTreeCommitSelection.error,
             getFileSelectionType: workingTreeCommitSelection.getFileSelectionType,
@@ -305,10 +321,10 @@ export function ChangesPane({
           }
         : undefined,
     [
-      activeDiffFiles.length,
       handleCommitSelection,
       isWorkingTreeSelection,
       toggleWorkingTreeFileSelection,
+      workingTreeSidebarFiles.length,
       workingTreeCommitSelection.error,
       workingTreeCommitSelection.getFileSelectionType,
       workingTreeCommitSelection.isSubmitting,
@@ -318,20 +334,25 @@ export function ChangesPane({
 
   const sidebar = (
     <ChangesSidebar
-      diffFiles={activeDiffFiles.map((file) => ({
-        path: file.displayPath,
-        status: file.status,
-        additions: file.additions,
-        deletions: file.deletions,
-      }))}
+      diffFiles={activeSidebarFiles}
       selectedPath={selectedFilePath}
       onSelectFile={handleFileSelect}
       selectedCommit={selectedCommit}
       isDiffLoading={activeDiffState.status === 'loading'}
-      onOpenHistory={handleOpenHistory}
       onRestoreBranchState={handleRestoreWorkingTree}
       emptyMessage={emptyMessage}
       workingTreeCommitState={workingTreeCommitState}
+      historyCommits={historyCommits}
+      historyIsLoading={historyIsLoading}
+      historyIsRefreshing={historyIsRefreshing}
+      historyError={historyError}
+      historySelectedCommitSha={historySelectedCommitSha}
+      onSelectHistoryCommit={(index) => {
+        const commit = historyCommits[index];
+        if (commit) {
+          handleSelectHistoryCommit(commit);
+        }
+      }}
     />
   );
 
@@ -353,26 +374,5 @@ export function ChangesPane({
     />
   ) : null;
 
-  const historyDrawer = (
-    <CodeChangesHistoryDrawer
-      open={isHistoryOpen}
-      commits={drawerCommits}
-      isLoading={historyIsLoading}
-      isRefreshing={historyIsRefreshing}
-      error={historyError}
-      selectedCommitSha={historySelectedCommitSha}
-      onClose={handleCloseHistory}
-      onSelectCommit={(index) => {
-        const commit = drawerCommits[index];
-
-        if (!commit) {
-          return;
-        }
-
-        handleSelectHistoryCommit(commit);
-      }}
-    />
-  );
-
-  return <>{children({ sidebar, viewport, historyDrawer })}</>;
+  return <>{children({ sidebar, viewport })}</>;
 }

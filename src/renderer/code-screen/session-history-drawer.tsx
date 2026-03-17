@@ -19,11 +19,13 @@ type SessionHistoryEntry = {
   id: string;
   createdAt: string;
   prompt: CodexChatMessage | null;
-  response: CodexChatMessage;
+  responses: CodexChatMessage[];
+  diff: CodexChatMessage['diff'];
 };
 
 function buildSessionHistoryEntries(messages: CodexChatMessage[]): SessionHistoryEntry[] {
   const entries: SessionHistoryEntry[] = [];
+  const indexByTurnKey = new Map<string, number>();
 
   for (let index = 0; index < messages.length; index += 1) {
     const message = messages[index];
@@ -32,14 +34,38 @@ function buildSessionHistoryEntries(messages: CodexChatMessage[]): SessionHistor
       continue;
     }
 
-    const prompt = index > 0 ? messages[index - 1] ?? null : null;
+    const prompt = messages.findLast(
+      (candidate, candidateIndex) =>
+        candidateIndex < index &&
+        candidate.role === 'user' &&
+        (message.turnId === null || candidate.turnId === message.turnId),
+    ) ?? null;
+    const turnKey = message.turnId ?? message.id;
+    const existingIndex = indexByTurnKey.get(turnKey);
 
-    entries.push({
-      id: message.id,
+    if (existingIndex !== undefined) {
+      const existingEntry = entries[existingIndex];
+
+      if (existingEntry) {
+        entries[existingIndex] = {
+          ...existingEntry,
+          responses: [...existingEntry.responses, message],
+          diff: message.diff ?? existingEntry.diff,
+        };
+      }
+
+      continue;
+    }
+
+    const nextEntry: SessionHistoryEntry = {
+      id: turnKey,
       createdAt: message.createdAt,
       prompt: prompt?.role === 'user' ? prompt : null,
-      response: message,
-    });
+      responses: [message],
+      diff: message.diff,
+    };
+    entries.push(nextEntry);
+    indexByTurnKey.set(turnKey, entries.length - 1);
   }
 
   return entries;
@@ -102,7 +128,8 @@ export function SessionHistoryDrawer({
             <div className="min-h-0 flex-1 overflow-y-auto p-2">
               <div className="flex flex-col gap-2">
                 {entries.toReversed().map((entry) => {
-                  const changedFileCount = entry.response.diff?.files.length ?? 0;
+                  const changedFileCount = entry.diff?.files.length ?? 0;
+                  const latestResponse = entry.responses.at(-1) ?? null;
 
                   return (
                     <button
@@ -128,7 +155,7 @@ export function SessionHistoryDrawer({
                         {entry.prompt?.text.trim() || 'Assistant turn'}
                       </p>
                       <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                        {entry.response.text.trim() || '(empty response)'}
+                        {latestResponse?.text.trim() || '(empty response)'}
                       </p>
                     </button>
                   );
@@ -155,7 +182,9 @@ export function SessionHistoryDrawer({
                   Response
                 </p>
                 <div className="rounded-2xl border border-border bg-card/60 px-4 py-3 text-sm whitespace-pre-wrap text-foreground">
-                  {selectedEntry.response.text.trim() || '(empty response)'}
+                  {selectedEntry.responses
+                    .map((response) => response.text.trim() || '(empty response)')
+                    .join('\n\n')}
                 </div>
               </div>
 
@@ -165,14 +194,14 @@ export function SessionHistoryDrawer({
                     Turn diff
                   </p>
                   <Badge variant="outline">
-                    {selectedEntry.response.diff?.files.length ?? 0} files
+                    {selectedEntry.diff?.files.length ?? 0} files
                   </Badge>
                 </div>
 
-                {selectedEntry.response.diff && selectedEntry.response.diff.files.length > 0 ? (
+                {selectedEntry.diff && selectedEntry.diff.files.length > 0 ? (
                   <>
                     <div className="flex flex-col gap-2">
-                      {selectedEntry.response.diff.files.map((file) => (
+                      {selectedEntry.diff.files.map((file) => (
                         <div
                           key={`${file.status}:${file.path}`}
                           className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card/60 px-3 py-2 text-xs"
@@ -193,7 +222,7 @@ export function SessionHistoryDrawer({
                         Patch
                       </div>
                       <pre className="overflow-x-auto px-4 py-3 font-mono text-[12px] leading-6 text-foreground">
-                        {selectedEntry.response.diff.patch}
+                        {selectedEntry.diff.patch}
                       </pre>
                     </div>
                   </>

@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react';
 
-import { GitCommitHorizontalIcon } from 'lucide-react';
+import { GitCommitHorizontalIcon, LoaderCircleIcon } from 'lucide-react';
 
-import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';
 import { Button } from '@/shadcn/components/ui/button';
-import { Textarea } from '@/shadcn/components/ui/textarea';
 
 export function CommitComposer({
   selectedFileCount,
@@ -21,6 +19,7 @@ export function CommitComposer({
 }) {
   const [summary, setSummary] = useState('');
   const [description, setDescription] = useState('');
+  const [showDescription, setShowDescription] = useState(false);
 
   useEffect(() => {
     if (selectedFileCount === 0) {
@@ -35,52 +34,75 @@ export function CommitComposer({
     if (didCommit) {
       setSummary('');
       setDescription('');
+      setShowDescription(false);
     }
   };
 
-  return (
-    <div className="border-t border-border bg-muted/20 p-3">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <div className="text-xs font-semibold text-foreground">
-          Commit {selectedFileCount} of {totalFileCount} {totalFileCount === 1 ? 'file' : 'files'}
-        </div>
-      </div>
+  const canCommit = !isSubmitting && selectedFileCount > 0 && summary.trim().length > 0;
 
+  return (
+    <div className="border-t border-border p-2.5">
       {error ? (
-        <Alert className="mb-3">
-          <AlertTitle>Commit failed</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
+        <div className="mb-2 rounded-md bg-destructive/10 px-2.5 py-1.5 text-xs text-destructive">
+          {error}
+        </div>
       ) : null}
 
-      <div className="flex flex-col gap-2">
-        <Textarea
-          value={summary}
-          onChange={(event) => setSummary(event.target.value)}
-          placeholder="Commit summary"
-          rows={2}
-          disabled={isSubmitting}
-        />
-        <Textarea
+      <input
+        type="text"
+        value={summary}
+        onChange={(event) => setSummary(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' && canCommit) {
+            void handleCommit();
+          }
+        }}
+        placeholder={
+          selectedFileCount > 0
+            ? `Summary (${selectedFileCount} of ${totalFileCount} files)`
+            : 'Select files to commit'
+        }
+        disabled={isSubmitting || selectedFileCount === 0}
+        className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground outline-none placeholder:text-muted-foreground/60 focus:border-ring focus:ring-1 focus:ring-ring/30 disabled:opacity-50"
+      />
+
+      {showDescription ? (
+        <textarea
           value={description}
           onChange={(event) => setDescription(event.target.value)}
           placeholder="Description (optional)"
-          rows={4}
+          rows={3}
           disabled={isSubmitting}
+          className="mt-1.5 w-full resize-none rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground outline-none placeholder:text-muted-foreground/60 focus:border-ring focus:ring-1 focus:ring-ring/30 disabled:opacity-50"
         />
-        <Button
+      ) : (
+        <button
           type="button"
-          onClick={() => void handleCommit()}
-          disabled={
-            isSubmitting ||
-            selectedFileCount === 0 ||
-            summary.trim().length === 0
-          }
+          onClick={() => setShowDescription(true)}
+          className="mt-1 text-[11px] text-muted-foreground hover:text-foreground"
         >
+          Add description
+        </button>
+      )}
+
+      <Button
+        type="button"
+        size="sm"
+        className="mt-2 w-full"
+        onClick={() => void handleCommit()}
+        disabled={!canCommit}
+      >
+        {isSubmitting ? (
+          <LoaderCircleIcon className="size-3.5 animate-spin" data-icon="inline-start" />
+        ) : (
           <GitCommitHorizontalIcon data-icon="inline-start" />
-          {isSubmitting ? 'Committing…' : 'Commit selected changes'}
-        </Button>
-      </div>
+        )}
+        {isSubmitting
+          ? 'Committing...'
+          : selectedFileCount > 0
+            ? `Commit ${selectedFileCount} file${selectedFileCount === 1 ? '' : 's'}`
+            : 'Commit'}
+      </Button>
     </div>
   );
 }

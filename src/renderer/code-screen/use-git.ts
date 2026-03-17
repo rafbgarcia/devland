@@ -30,6 +30,7 @@ function useCoalescedGitAsyncState<T>({
     data: null,
     error: null,
   });
+  const [refreshVersion, setRefreshVersion] = useState(0);
   const fetchIdRef = useRef(0);
   const runner = useMemo(() => createCoalescedTaskRunner(), [repoPath]);
 
@@ -46,6 +47,7 @@ function useCoalescedGitAsyncState<T>({
         }
 
         setState({ status: 'ready', data: value, error: null });
+        setRefreshVersion((current) => current + 1);
       } catch (error) {
         if (fetchIdRef.current !== fetchId) {
           return;
@@ -64,10 +66,11 @@ function useCoalescedGitAsyncState<T>({
 
   useEffect(() => {
     setState({ status: 'loading', data: null, error: null });
+    setRefreshVersion(0);
     void fetchValue();
   }, [fetchValue]);
 
-  return { ...state, refetch: fetchValue };
+  return { ...state, refetch: fetchValue, refreshVersion };
 }
 
 export function useGitBranches(repoPath: string) {

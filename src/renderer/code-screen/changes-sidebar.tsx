@@ -2,7 +2,6 @@ import { memo, useMemo } from 'react';
 
 import {
   GitCommitHorizontalIcon,
-  HistoryIcon,
   Undo2Icon,
 } from 'lucide-react';
 
@@ -12,6 +11,7 @@ import {
   FilesChangedList,
   type DiffListFile,
 } from '@/renderer/shared/ui/diff/code-changes-files-viewport';
+import { ChangesHistoryDropdown } from '@/renderer/code-screen/changes-history-dropdown';
 import { CommitComposer } from '@/renderer/code-screen/commit-composer';
 import { RelativeTime } from '@/renderer/shared/ui/relative-time';
 import {
@@ -81,17 +81,21 @@ export const ChangesSidebar = memo(function ChangesSidebar({
   onSelectFile,
   selectedCommit,
   isDiffLoading,
-  onOpenHistory,
   onRestoreBranchState,
   emptyMessage,
   workingTreeCommitState,
+  historyCommits,
+  historyIsLoading,
+  historyIsRefreshing,
+  historyError,
+  historySelectedCommitSha,
+  onSelectHistoryCommit,
 }: {
   diffFiles: DiffListFile[];
   selectedPath: string | null;
   onSelectFile: (path: string) => void;
   selectedCommit: PrCommit | null;
   isDiffLoading: boolean;
-  onOpenHistory: () => void;
   onRestoreBranchState: () => void;
   emptyMessage: string;
   workingTreeCommitState?: {
@@ -103,6 +107,12 @@ export const ChangesSidebar = memo(function ChangesSidebar({
     onToggleFileSelection: (path: string) => void;
     onCommit: (draft: { summary: string; description: string }) => Promise<boolean>;
   } | undefined;
+  historyCommits: PrCommit[];
+  historyIsLoading: boolean;
+  historyIsRefreshing: boolean;
+  historyError: string | null;
+  historySelectedCommitSha: string | null;
+  onSelectHistoryCommit: (index: number) => void;
 }) {
   const selectedFiles = useMemo(
     () => selectedPath === null ? new Set<string>() : new Set([selectedPath]),
@@ -134,21 +144,15 @@ export const ChangesSidebar = memo(function ChangesSidebar({
         />
       ) : undefined}
       actions={(
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              size="icon"
-              type="button"
-              variant="ghost"
-              className="size-7"
-              aria-label="Open history"
-              onClick={onOpenHistory}
-            >
-              <HistoryIcon />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Open history</TooltipContent>
-        </Tooltip>
+        <ChangesHistoryDropdown
+          commits={historyCommits}
+          isLoading={historyIsLoading}
+          isRefreshing={historyIsRefreshing}
+          error={historyError}
+          selectedCommitSha={historySelectedCommitSha}
+          onSelectCommit={onSelectHistoryCommit}
+          onRestoreWorkingTree={onRestoreBranchState}
+        />
       )}
     />
   );
