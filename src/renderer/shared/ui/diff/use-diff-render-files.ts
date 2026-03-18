@@ -6,7 +6,6 @@ import {
   createWorkingTreeContentPair,
   projectDiffRows,
   type DiffContentPair,
-  type DiffDisplayMode,
   type DiffFile,
   type DiffRow,
 } from '@/lib/diff';
@@ -167,12 +166,10 @@ function getRowCacheKey(file: DiffFile) {
 export function useDiffRenderFiles({
   rawDiff,
   context,
-  displayMode: _displayMode,
   highlightPaths,
 }: {
   rawDiff: AsyncState<string>;
   context: DiffRenderContext | null;
-  displayMode: DiffDisplayMode;
   highlightPaths?: readonly string[] | undefined;
 }) {
   const [syntaxTokensByPath, setSyntaxTokensByPath] = useState<Record<string, DiffFileTokens | null>>({});
@@ -180,7 +177,6 @@ export function useDiffRenderFiles({
   const syntaxCacheRef = useRef<Map<string, SyntaxCacheEntry>>(new Map());
   const contentCacheRef = useRef<Map<string, ContentCacheEntry>>(new Map());
   const rowCacheRef = useRef<Map<string, RowCacheEntry>>(new Map());
-  void _displayMode;
   const highlightPathsKey = highlightPaths === undefined
     ? null
     : highlightPaths

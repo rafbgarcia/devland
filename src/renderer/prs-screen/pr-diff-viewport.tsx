@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react';
+import { useMemo } from 'react';
 
 import {
   ChevronLeftIcon,
@@ -6,7 +6,6 @@ import {
 } from 'lucide-react';
 
 import type { PrCommit } from '@/ipc/contracts';
-import type { DiffDisplayMode } from '@/lib/diff';
 import { CodeChangesCommitsList } from '@/renderer/shared/ui/diff/code-changes-commits-list';
 import {
   FilesChangedList,
@@ -110,8 +109,6 @@ export function PrDiffViewport({
   selectedFilePath,
   selectedFile,
   onSelectFile,
-  diffDisplayToolbar,
-  displayMode,
 }: {
   commits: PrCommit[];
   selection: DiffSelection;
@@ -124,8 +121,6 @@ export function PrDiffViewport({
   selectedFilePath: string | null;
   selectedFile: DiffRenderFile | null;
   onSelectFile: (path: string) => void;
-  diffDisplayToolbar: ReactNode;
-  displayMode: DiffDisplayMode;
 }) {
   const selectedFiles = useMemo(
     () => selectedFilePath === null ? new Set<string>() : new Set([selectedFilePath]),
@@ -153,11 +148,9 @@ export function PrDiffViewport({
       <SingleFileDiffView
         rawDiff={rawDiff}
         selectedFile={selectedFile}
-        displayMode={displayMode}
         emptyMessage="No file changes in this commit."
         topContent={(
           <>
-            {diffDisplayToolbar}
             <CommitCarousel
               commits={commits}
               selection={selection}

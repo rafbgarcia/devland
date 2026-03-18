@@ -3,8 +3,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { LayersIcon } from 'lucide-react';
 
 import type { PrDiffMetaResult } from '@/ipc/contracts';
-import { useUserPreferences } from '@/renderer/shared/hooks/use-user-preferences';
-import { DiffDisplayModeToolbar } from '@/renderer/shared/ui/diff/diff-display-mode-toolbar';
 import type { AsyncState } from '@/renderer/shared/ui/diff/diff-types';
 import { getParsedDiffFiles } from '@/renderer/shared/ui/diff/parsed-diff-files';
 import { useDiffRenderFiles } from '@/renderer/shared/ui/diff/use-diff-render-files';
@@ -58,7 +56,6 @@ export function PrCodeChanges({
     prNumber,
     metaState,
   });
-  const { preferences } = useUserPreferences();
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const highlightPaths = useMemo(
     () => selectedFilePath === null ? [] : [selectedFilePath],
@@ -96,7 +93,6 @@ export function PrCodeChanges({
             commitRevision: diffContext.commitRevision,
             parentRevision: diffContext.parentRevision,
           },
-    displayMode: preferences.diffDisplayMode,
     highlightPaths,
   });
   const selectedFile = useMemo(
@@ -234,8 +230,6 @@ export function PrCodeChanges({
         selectedFilePath={selectedFilePath}
         selectedFile={selectedFile}
         onSelectFile={setSelectedFilePath}
-        diffDisplayToolbar={<DiffDisplayModeToolbar className="border-b-0" />}
-        displayMode={preferences.diffDisplayMode}
       />
     </div>
   );

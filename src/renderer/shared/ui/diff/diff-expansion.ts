@@ -1,4 +1,4 @@
-import { getDiffRowsRenderLineCount, type DiffDisplayMode, type DiffFile, type DiffRow } from '@/lib/diff';
+import { getDiffRowsRenderLineCount, type DiffFile, type DiffRow } from '@/lib/diff';
 
 import type { DiffFileContents } from './highlighter';
 
@@ -371,17 +371,15 @@ type DiffRenderExpansionItems = DiffRenderExpansionItem[];
 export function getExpandedDiffRenderLineCount({
   file,
   rows,
-  displayMode,
   contents,
   expansionState = {},
 }: {
   file: DiffFile;
   rows: readonly DiffRow[];
-  displayMode: DiffDisplayMode;
   contents: DiffFileContents | null;
   expansionState?: DiffFileExpansionState | undefined;
 }) {
-  const baseCount = getDiffRowsRenderLineCount(rows, displayMode);
+  const baseCount = getDiffRowsRenderLineCount(rows);
   const gaps = getDiffExpansionGaps(file, rows, contents, expansionState);
   const hiddenHunkHeaderCount = gaps.filter(
     (gap) => gap.insertBeforeRowIndex !== null && gap.hiddenLineCount === 0,

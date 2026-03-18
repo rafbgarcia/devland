@@ -15,9 +15,7 @@ import {
 import { useWorkingTreeCommitSelection } from '@/renderer/code-screen/use-working-tree-commit-selection';
 import { getParsedDiffFiles } from '@/renderer/shared/ui/diff/parsed-diff-files';
 import { SingleFileDiffView } from '@/renderer/shared/ui/diff/single-file-diff-view';
-import { DiffDisplayModeToolbar } from '@/renderer/shared/ui/diff/diff-display-mode-toolbar';
 import { useDiffRenderFiles } from '@/renderer/shared/ui/diff/use-diff-render-files';
-import { useUserPreferences } from '@/renderer/shared/hooks/use-user-preferences';
 
 type CodeChangesSelection =
   | { type: 'working-tree' }
@@ -42,7 +40,6 @@ function toWorkingTreeSidebarFiles(files: GitStatusFile[]) {
 function ActiveDiffViewport({
   rawDiff,
   renderContext,
-  displayMode,
   selectedFilePath,
   emptyMessage,
   isWorkingTreeSelection,
@@ -59,7 +56,6 @@ function ActiveDiffViewport({
     | { kind: 'working-tree'; repoPath: string }
     | { kind: 'commit'; repoPath: string; commitRevision: string; parentRevision: string | null }
     | null;
-  displayMode: ReturnType<typeof useUserPreferences>['preferences']['diffDisplayMode'];
   selectedFilePath: string | null;
   emptyMessage: string;
   isWorkingTreeSelection: boolean;
@@ -82,7 +78,6 @@ function ActiveDiffViewport({
   const renderFiles = useDiffRenderFiles({
     rawDiff,
     context: renderContext,
-    displayMode,
     highlightPaths,
   });
   const selectedFile = useMemo(
@@ -97,8 +92,6 @@ function ActiveDiffViewport({
     <SingleFileDiffView
       rawDiff={rawDiff}
       selectedFile={selectedFile}
-      displayMode={displayMode}
-      topContent={<DiffDisplayModeToolbar />}
       emptyMessage={emptyMessage}
       getFileSelectionType={isWorkingTreeSelection ? getFileSelectionType : undefined}
       getRowSelectionType={isWorkingTreeSelection ? getRowSelectionType : undefined}
@@ -136,7 +129,6 @@ export function ChangesPane({
 }) {
   const [selection, setSelection] = useState<CodeChangesSelection>({ type: 'working-tree' });
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
-  const { preferences } = useUserPreferences();
 
   const { historyState } = useGitBranchHistory({
     repoPath,
@@ -362,7 +354,6 @@ export function ChangesPane({
     <ActiveDiffViewport
       rawDiff={activeDiffState}
       renderContext={renderContext}
-      displayMode={preferences.diffDisplayMode}
       selectedFilePath={selectedFilePath}
       emptyMessage={emptyMessage}
       isWorkingTreeSelection={isWorkingTreeSelection}

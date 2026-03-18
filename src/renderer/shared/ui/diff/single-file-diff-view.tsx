@@ -2,7 +2,6 @@ import { memo, useCallback, type ReactNode } from 'react';
 
 import type {
   DiffCommentAnchor,
-  DiffDisplayMode,
   DiffSelectionSide,
   DiffSelectionType,
 } from '@/lib/diff';
@@ -16,7 +15,6 @@ import { useDiffExpansionState } from './use-diff-expansion-state';
 export const SingleFileDiffView = memo(function SingleFileDiffView({
   rawDiff,
   selectedFile,
-  displayMode,
   topContent,
   emptyMessage,
   getFileSelectionType,
@@ -29,7 +27,6 @@ export const SingleFileDiffView = memo(function SingleFileDiffView({
 }: {
   rawDiff: AsyncState<string>;
   selectedFile: DiffRenderFile | null;
-  displayMode: DiffDisplayMode;
   topContent?: ReactNode;
   emptyMessage: string;
   getFileSelectionType?: ((path: string) => DiffSelectionType) | undefined;
@@ -80,7 +77,6 @@ export const SingleFileDiffView = memo(function SingleFileDiffView({
         <div className="flex-1 overflow-auto">
           <DiffFileSection
             file={selectedFile}
-            displayMode={displayMode}
             sectionRef={handleSectionRef}
             selectionType={getFileSelectionType?.(selectedFile.path)}
             getRowSelectionType={getRowSelectionType
