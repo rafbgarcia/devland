@@ -5,6 +5,7 @@ import type {
   CodexImageAttachmentInput,
 } from '@/lib/codex-chat';
 import {
+  BROWSER_VIEW_EVENT_CHANNEL,
   CODEX_SESSION_EVENT_CHANNEL,
   GET_APP_BOOTSTRAP_CHANNEL,
   GET_PROJECT_ISSUES_CHANNEL,
@@ -52,9 +53,19 @@ import {
   RESIZE_TERMINAL_SESSION_CHANNEL,
   CLOSE_TERMINAL_SESSION_CHANNEL,
   TERMINAL_SESSION_EVENT_CHANNEL,
+  SHOW_BROWSER_VIEW_CHANNEL,
+  HIDE_BROWSER_VIEW_CHANNEL,
+  UPDATE_BROWSER_VIEW_BOUNDS_CHANNEL,
+  NAVIGATE_BROWSER_VIEW_CHANNEL,
+  GO_BACK_BROWSER_VIEW_CHANNEL,
+  GO_FORWARD_BROWSER_VIEW_CHANNEL,
+  RELOAD_BROWSER_VIEW_CHANNEL,
+  OPEN_BROWSER_VIEW_DEVTOOLS_CHANNEL,
+  DISPOSE_BROWSER_VIEW_CHANNEL,
   type AppBootstrap,
   type CodexApprovalDecision,
 } from '../ipc/contracts';
+import { targetBrowserManager } from './browser/target-browser-manager';
 import { codexAppServerManager } from './codex-app-server';
 import { searchCodexPaths } from './codex-path-search';
 import { codexExecutable } from './codex-cli';
@@ -128,6 +139,10 @@ const pickRepoDirectory = async (
 export const registerAppIpcHandlers = (
   getMainWindow: () => BrowserWindow | null,
 ): void => {
+  targetBrowserManager.setMainWindowProvider(getMainWindow);
+  targetBrowserManager.on('event', (event) => {
+    getMainWindow()?.webContents.send(BROWSER_VIEW_EVENT_CHANNEL, event);
+  });
   codexAppServerManager.on('event', (event) => {
     getMainWindow()?.webContents.send(CODEX_SESSION_EVENT_CHANNEL, event);
   });
@@ -391,5 +406,41 @@ export const registerAppIpcHandlers = (
   ipcMain.handle(
     CLOSE_TERMINAL_SESSION_CHANNEL,
     (_event, sessionId: string) => terminalSessionManager.close(sessionId),
+  );
+  ipcMain.handle(
+    SHOW_BROWSER_VIEW_CHANNEL,
+    (_event, input) => targetBrowserManager.show(input),
+  );
+  ipcMain.handle(
+    HIDE_BROWSER_VIEW_CHANNEL,
+    (_event, targetId: string) => targetBrowserManager.hide(targetId),
+  );
+  ipcMain.handle(
+    UPDATE_BROWSER_VIEW_BOUNDS_CHANNEL,
+    (_event, input) => targetBrowserManager.updateBounds(input),
+  );
+  ipcMain.handle(
+    NAVIGATE_BROWSER_VIEW_CHANNEL,
+    (_event, input) => targetBrowserManager.navigate(input),
+  );
+  ipcMain.handle(
+    GO_BACK_BROWSER_VIEW_CHANNEL,
+    (_event, targetId: string) => targetBrowserManager.goBack(targetId),
+  );
+  ipcMain.handle(
+    GO_FORWARD_BROWSER_VIEW_CHANNEL,
+    (_event, targetId: string) => targetBrowserManager.goForward(targetId),
+  );
+  ipcMain.handle(
+    RELOAD_BROWSER_VIEW_CHANNEL,
+    (_event, targetId: string) => targetBrowserManager.reload(targetId),
+  );
+  ipcMain.handle(
+    OPEN_BROWSER_VIEW_DEVTOOLS_CHANNEL,
+    (_event, targetId: string) => targetBrowserManager.openDevTools(targetId),
+  );
+  ipcMain.handle(
+    DISPOSE_BROWSER_VIEW_CHANNEL,
+    (_event, targetId: string) => targetBrowserManager.disposeTarget(targetId),
   );
 };

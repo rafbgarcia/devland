@@ -12,6 +12,7 @@ import {
   BotIcon,
   FileCodeIcon,
   GitBranchPlusIcon,
+  GlobeIcon,
   LoaderCircleIcon,
   PlusIcon,
   TerminalIcon,
@@ -23,6 +24,8 @@ import {
   type CodexComposerSettings,
   type CodexPromptSubmission,
 } from '@/lib/codex-chat';
+import { BrowserPanel } from '@/renderer/code-screen/browser/browser-panel';
+import { clearBrowserTargetState } from '@/renderer/code-screen/browser/browser-target-state';
 import { ChangesPane } from '@/renderer/code-screen/changes-pane';
 import { ChatComposer } from '@/renderer/code-screen/chat-composer';
 import { SessionAlerts } from '@/renderer/code-screen/session-alerts';
@@ -52,7 +55,7 @@ const SIDEBAR_MIN_WIDTH = 200;
 const SIDEBAR_MAX_WIDTH = 500;
 const SIDEBAR_DEFAULT_WIDTH = 280;
 
-type ActiveLayer = 'files' | 'codex' | 'terminal';
+type ActiveLayer = 'files' | 'codex' | 'browser' | 'terminal';
 
 function ResizableHandle({
   onResize,
@@ -130,6 +133,19 @@ function LayerToggle({
       >
         <BotIcon className="size-3" />
         Codex
+      </button>
+      <button
+        type="button"
+        onClick={() => onChangeLayer('browser')}
+        className={cn(
+          'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+          activeLayer === 'browser'
+            ? 'bg-background text-foreground shadow-sm'
+            : 'text-muted-foreground hover:text-foreground',
+        )}
+      >
+        <GlobeIcon className="size-3" />
+        Browser
       </button>
       <button
         type="button"
@@ -333,6 +349,8 @@ export function CodeWorkspaceScreen({
 
     await stopSession(activeTarget.id);
     await window.electronAPI.closeTerminalSession(activeTarget.id);
+    await window.electronAPI.disposeBrowserView(activeTarget.id);
+    clearBrowserTargetState(activeTarget.id);
     removeTarget(activeTarget.id);
   };
 
@@ -469,6 +487,8 @@ export function CodeWorkspaceScreen({
                   <div className="relative min-h-0 flex-1 overflow-auto">
                     {activeLayer === 'files' ? (
                       viewport
+                    ) : activeLayer === 'browser' ? (
+                      <BrowserPanel key={activeTarget.id} targetId={activeTarget.id} />
                     ) : activeLayer === 'terminal' ? (
                       <SessionTerminal
                         key={activeTarget.id}
@@ -486,7 +506,11 @@ export function CodeWorkspaceScreen({
 
                   <div
                     className="shrink-0 border-t border-border/60 bg-background px-4 pb-3 pt-2.5"
-                    onFocus={() => setActiveLayer('codex')}
+                    onFocus={() => {
+                      if (activeLayer !== 'browser') {
+                        setActiveLayer('codex');
+                      }
+                    }}
                   >
                     <SessionAlerts
                       targetId={activeTarget.id}

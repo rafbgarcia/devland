@@ -47,6 +47,16 @@ export const WRITE_TERMINAL_SESSION_CHANNEL = 'app:write-terminal-session';
 export const RESIZE_TERMINAL_SESSION_CHANNEL = 'app:resize-terminal-session';
 export const CLOSE_TERMINAL_SESSION_CHANNEL = 'app:close-terminal-session';
 export const TERMINAL_SESSION_EVENT_CHANNEL = 'app:terminal-session-event';
+export const SHOW_BROWSER_VIEW_CHANNEL = 'app:show-browser-view';
+export const HIDE_BROWSER_VIEW_CHANNEL = 'app:hide-browser-view';
+export const UPDATE_BROWSER_VIEW_BOUNDS_CHANNEL = 'app:update-browser-view-bounds';
+export const NAVIGATE_BROWSER_VIEW_CHANNEL = 'app:navigate-browser-view';
+export const GO_BACK_BROWSER_VIEW_CHANNEL = 'app:go-back-browser-view';
+export const GO_FORWARD_BROWSER_VIEW_CHANNEL = 'app:go-forward-browser-view';
+export const RELOAD_BROWSER_VIEW_CHANNEL = 'app:reload-browser-view';
+export const OPEN_BROWSER_VIEW_DEVTOOLS_CHANNEL = 'app:open-browser-view-devtools';
+export const DISPOSE_BROWSER_VIEW_CHANNEL = 'app:dispose-browser-view';
+export const BROWSER_VIEW_EVENT_CHANNEL = 'app:browser-view-event';
 export const GET_PR_DIFF_META_CHANNEL = 'app:get-pr-diff-meta';
 export const GET_COMMIT_DIFF_CHANNEL = 'app:get-commit-diff';
 export const GET_PR_DIFF_CHANNEL = 'app:get-pr-diff';
@@ -540,6 +550,34 @@ export const TerminalSessionEventSchema = z.discriminatedUnion('type', [
 ]);
 export type TerminalSessionEvent = z.infer<typeof TerminalSessionEventSchema>;
 
+export const BrowserViewBoundsSchema = z.object({
+  x: z.number().finite(),
+  y: z.number().finite(),
+  width: z.number().finite().nonnegative(),
+  height: z.number().finite().nonnegative(),
+});
+export type BrowserViewBounds = z.infer<typeof BrowserViewBoundsSchema>;
+
+export const BrowserViewSnapshotSchema = z.object({
+  targetId: z.string().min(1),
+  currentUrl: z.string().min(1),
+  pageTitle: z.string(),
+  canGoBack: z.boolean(),
+  canGoForward: z.boolean(),
+  isLoading: z.boolean(),
+  isVisible: z.boolean(),
+  lastLoadError: z.string().nullable(),
+});
+export type BrowserViewSnapshot = z.infer<typeof BrowserViewSnapshotSchema>;
+
+export const BrowserViewEventSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('snapshot'),
+    snapshot: BrowserViewSnapshotSchema,
+  }),
+]);
+export type BrowserViewEvent = z.infer<typeof BrowserViewEventSchema>;
+
 export const PrCommitSchema = z.object({
   sha: z.string().min(1),
   shortSha: z.string().min(1),
@@ -706,7 +744,26 @@ export interface ElectronApi {
   writeTerminalSession: (input: WriteTerminalSessionInput) => Promise<void>;
   resizeTerminalSession: (input: ResizeTerminalSessionInput) => Promise<void>;
   closeTerminalSession: (sessionId: string) => Promise<void>;
+  showBrowserView: (input: {
+    targetId: string;
+    bounds: BrowserViewBounds;
+  }) => Promise<BrowserViewSnapshot>;
+  hideBrowserView: (targetId: string) => Promise<void>;
+  updateBrowserViewBounds: (input: {
+    targetId: string;
+    bounds: BrowserViewBounds;
+  }) => Promise<void>;
+  navigateBrowserView: (input: {
+    targetId: string;
+    url: string;
+  }) => Promise<BrowserViewSnapshot>;
+  goBackBrowserView: (targetId: string) => Promise<BrowserViewSnapshot>;
+  goForwardBrowserView: (targetId: string) => Promise<BrowserViewSnapshot>;
+  reloadBrowserView: (targetId: string) => Promise<BrowserViewSnapshot>;
+  openBrowserViewDevTools: (targetId: string) => Promise<void>;
+  disposeBrowserView: (targetId: string) => Promise<void>;
   onGitStateChanged: (listener: (event: GitStateChangedEvent) => void) => () => void;
   onCodexSessionEvent: (listener: (event: CodexSessionEvent) => void) => () => void;
   onTerminalSessionEvent: (listener: (event: TerminalSessionEvent) => void) => () => void;
+  onBrowserViewEvent: (listener: (event: BrowserViewEvent) => void) => () => void;
 }

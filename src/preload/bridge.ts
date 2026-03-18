@@ -53,6 +53,17 @@ import {
   CLOSE_TERMINAL_SESSION_CHANNEL,
   TERMINAL_SESSION_EVENT_CHANNEL,
   TerminalSessionEventSchema,
+  BROWSER_VIEW_EVENT_CHANNEL,
+  BrowserViewEventSchema,
+  SHOW_BROWSER_VIEW_CHANNEL,
+  HIDE_BROWSER_VIEW_CHANNEL,
+  UPDATE_BROWSER_VIEW_BOUNDS_CHANNEL,
+  NAVIGATE_BROWSER_VIEW_CHANNEL,
+  GO_BACK_BROWSER_VIEW_CHANNEL,
+  GO_FORWARD_BROWSER_VIEW_CHANNEL,
+  RELOAD_BROWSER_VIEW_CHANNEL,
+  OPEN_BROWSER_VIEW_DEVTOOLS_CHANNEL,
+  DISPOSE_BROWSER_VIEW_CHANNEL,
   type ElectronApi,
 } from '@/ipc/contracts';
 
@@ -175,6 +186,24 @@ export const electronApi: ElectronApi = {
     ipcRenderer.invoke(RESIZE_TERMINAL_SESSION_CHANNEL, input),
   closeTerminalSession: (sessionId) =>
     ipcRenderer.invoke(CLOSE_TERMINAL_SESSION_CHANNEL, sessionId),
+  showBrowserView: (input) =>
+    ipcRenderer.invoke(SHOW_BROWSER_VIEW_CHANNEL, input),
+  hideBrowserView: (targetId) =>
+    ipcRenderer.invoke(HIDE_BROWSER_VIEW_CHANNEL, targetId),
+  updateBrowserViewBounds: (input) =>
+    ipcRenderer.invoke(UPDATE_BROWSER_VIEW_BOUNDS_CHANNEL, input),
+  navigateBrowserView: (input) =>
+    ipcRenderer.invoke(NAVIGATE_BROWSER_VIEW_CHANNEL, input),
+  goBackBrowserView: (targetId) =>
+    ipcRenderer.invoke(GO_BACK_BROWSER_VIEW_CHANNEL, targetId),
+  goForwardBrowserView: (targetId) =>
+    ipcRenderer.invoke(GO_FORWARD_BROWSER_VIEW_CHANNEL, targetId),
+  reloadBrowserView: (targetId) =>
+    ipcRenderer.invoke(RELOAD_BROWSER_VIEW_CHANNEL, targetId),
+  openBrowserViewDevTools: (targetId) =>
+    ipcRenderer.invoke(OPEN_BROWSER_VIEW_DEVTOOLS_CHANNEL, targetId),
+  disposeBrowserView: (targetId) =>
+    ipcRenderer.invoke(DISPOSE_BROWSER_VIEW_CHANNEL, targetId),
   onGitStateChanged: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, event: unknown) => {
       const parsedEvent = GitStateChangedEventSchema.safeParse(event);
@@ -224,6 +253,23 @@ export const electronApi: ElectronApi = {
 
     return () => {
       ipcRenderer.removeListener(TERMINAL_SESSION_EVENT_CHANNEL, handler);
+    };
+  },
+  onBrowserViewEvent: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, event: unknown) => {
+      const parsedEvent = BrowserViewEventSchema.safeParse(event);
+
+      if (!parsedEvent.success) {
+        return;
+      }
+
+      listener(parsedEvent.data);
+    };
+
+    ipcRenderer.on(BROWSER_VIEW_EVENT_CHANNEL, handler);
+
+    return () => {
+      ipcRenderer.removeListener(BROWSER_VIEW_EVENT_CHANNEL, handler);
     };
   },
   onAppShortcutCommand: (listener) => {
