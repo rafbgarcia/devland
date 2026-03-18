@@ -233,8 +233,56 @@ describe('deriveSessionTimelineRows', () => {
 
     assert.equal(rows.length, 3);
     assert.equal(rows[0]?.kind, 'message');
-    assert.equal(rows[0]?.kind === 'message' ? rows[0].isStreaming : false, true);
+    assert.equal(rows[0]?.kind === 'message' ? rows[0].isStreaming : false, false);
     assert.equal(rows[1]?.kind, 'work');
     assert.equal(rows[2]?.kind, 'message');
+    assert.equal(rows[2]?.kind === 'message' ? rows[2].isStreaming : false, true);
+  });
+
+  it('does not mark transcript assistant messages as streaming while a new turn runs', () => {
+    const rows = deriveSessionTimelineRows({
+      ...DEFAULT_SESSION_STATE,
+      status: 'running',
+      transcriptEntries: [
+        {
+          id: 'assistant-history',
+          kind: 'message',
+          message: {
+            id: 'assistant-history',
+            role: 'assistant',
+            text: 'Previous answer',
+            attachments: [],
+            createdAt: '2026-03-16T11:59:00.000Z',
+            completedAt: '2026-03-16T11:59:01.000Z',
+            turnId: 'turn-1',
+            itemId: 'assistant-item-history',
+            diff: null,
+            activities: [],
+          },
+        },
+      ],
+      currentTurnEntries: [
+        {
+          id: 'assistant-current',
+          kind: 'message',
+          message: {
+            id: 'assistant-current',
+            role: 'assistant',
+            text: 'Current answer',
+            attachments: [],
+            createdAt: '2026-03-16T12:00:00.000Z',
+            completedAt: null,
+            turnId: 'turn-2',
+            itemId: 'assistant-item-current',
+            diff: null,
+            activities: [],
+          },
+        },
+      ],
+    });
+
+    assert.equal(rows.length, 2);
+    assert.equal(rows[0]?.kind === 'message' ? rows[0].isStreaming : false, false);
+    assert.equal(rows[1]?.kind === 'message' ? rows[1].isStreaming : false, true);
   });
 });

@@ -97,9 +97,16 @@ export function compactSessionActivities(
 
 export function deriveSessionTimelineRows(sessionState: CodexSessionState): SessionTimelineRow[] {
   const rows: SessionTimelineRow[] = [];
+  const activeStreamingMessageId =
+    sessionState.status === 'running'
+      ? [...sessionState.currentTurnEntries]
+          .reverse()
+          .find(
+            (entry) => entry.kind === 'message' && entry.message.role === 'assistant',
+          )?.id ?? null
+      : null;
   const appendTranscriptRows = (
     entries: ReadonlyArray<CodexTranscriptEntry>,
-    isStreaming: boolean,
   ) => {
     for (const entry of entries) {
       if (entry.kind === 'work') {
@@ -120,16 +127,17 @@ export function deriveSessionTimelineRows(sessionState: CodexSessionState): Sess
         id: entry.id,
         kind: 'message',
         message: entry.message,
-        isStreaming,
+        isStreaming:
+          entry.message.role === 'assistant' && entry.id === activeStreamingMessageId,
       });
     }
   };
 
-  appendTranscriptRows(sessionState.transcriptEntries, false);
+  appendTranscriptRows(sessionState.transcriptEntries);
 
   if (sessionState.status === 'running') {
     if (sessionState.currentTurnEntries.length > 0) {
-      appendTranscriptRows(sessionState.currentTurnEntries, true);
+      appendTranscriptRows(sessionState.currentTurnEntries);
     } else {
       rows.push({
         id: 'current-turn:working',
