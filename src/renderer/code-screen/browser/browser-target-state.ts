@@ -3,15 +3,15 @@ import { useEffect, useMemo, useState } from 'react';
 import type { BrowserViewSnapshot } from '@/ipc/contracts';
 
 const STORAGE_KEY = 'devland:browser-target-state';
-const BLANK_PAGE_URL = 'about:blank';
+export const BLANK_PAGE_URL = 'about:blank';
 
-type PersistedBrowserTargetState = {
+export type PersistedBrowserTargetState = {
   lastUrl: string | null;
 };
 
-type PersistedBrowserStateRecord = Record<string, PersistedBrowserTargetState>;
+export type PersistedBrowserStateRecord = Record<string, PersistedBrowserTargetState>;
 
-const createDefaultSnapshot = (targetId: string): BrowserViewSnapshot => ({
+export const createDefaultBrowserSnapshot = (targetId: string): BrowserViewSnapshot => ({
   targetId,
   currentUrl: BLANK_PAGE_URL,
   pageTitle: '',
@@ -22,6 +22,55 @@ const createDefaultSnapshot = (targetId: string): BrowserViewSnapshot => ({
   lastLoadError: null,
 });
 
+export const sanitizeStoredBrowserState = (
+  value: unknown,
+): PersistedBrowserStateRecord => {
+  if (typeof value !== 'object' || value === null) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([targetId, candidate]) => {
+      if (typeof candidate !== 'object' || candidate === null) {
+        return [];
+      }
+
+      const lastUrl =
+        typeof (candidate as PersistedBrowserTargetState).lastUrl === 'string'
+          ? (candidate as PersistedBrowserTargetState).lastUrl
+          : null;
+
+      return [[targetId, { lastUrl }]];
+    }),
+  );
+};
+
+export const getRememberedBrowserUrl = (
+  state: PersistedBrowserStateRecord,
+  targetId: string,
+): string => state[targetId]?.lastUrl ?? '';
+
+export const setRememberedBrowserUrl = (
+  state: PersistedBrowserStateRecord,
+  targetId: string,
+  nextUrl: string | null,
+): PersistedBrowserStateRecord => {
+  const trimmed = nextUrl?.trim() ?? '';
+
+  if (trimmed.length === 0) {
+    return Object.fromEntries(
+      Object.entries(state).filter(([currentTargetId]) => currentTargetId !== targetId),
+    );
+  }
+
+  return {
+    ...state,
+    [targetId]: {
+      lastUrl: trimmed,
+    },
+  };
+};
+
 const readStoredBrowserState = (): PersistedBrowserStateRecord => {
   if (typeof window === 'undefined') {
     return {};
@@ -30,24 +79,7 @@ const readStoredBrowserState = (): PersistedBrowserStateRecord => {
   try {
     const parsed = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? '{}');
 
-    if (typeof parsed !== 'object' || parsed === null) {
-      return {};
-    }
-
-    return Object.fromEntries(
-      Object.entries(parsed).flatMap(([targetId, value]) => {
-        if (typeof value !== 'object' || value === null) {
-          return [];
-        }
-
-        const lastUrl =
-          typeof (value as PersistedBrowserTargetState).lastUrl === 'string'
-            ? (value as PersistedBrowserTargetState).lastUrl
-            : null;
-
-        return [[targetId, { lastUrl }]];
-      }),
-    );
+    return sanitizeStoredBrowserState(parsed);
   } catch {
     return {};
   }
@@ -68,25 +100,23 @@ export const clearBrowserTargetState = (targetId: string): void => {
     return;
   }
 
-  const next = Object.fromEntries(
-    Object.entries(current).filter(([currentTargetId]) => currentTargetId !== targetId),
-  );
+  const next = setRememberedBrowserUrl(current, targetId, null);
   writeStoredBrowserState(next);
 };
 
 export function useBrowserTargetState(targetId: string) {
   const [snapshot, setSnapshot] = useState<BrowserViewSnapshot>(() =>
-    createDefaultSnapshot(targetId),
+    createDefaultBrowserSnapshot(targetId),
   );
   const [rememberedUrl, setRememberedUrlState] = useState<string>(() => {
     const current = readStoredBrowserState();
 
-    return current[targetId]?.lastUrl ?? '';
+    return getRememberedBrowserUrl(current, targetId);
   });
 
   useEffect(() => {
-    setSnapshot(createDefaultSnapshot(targetId));
-    setRememberedUrlState(readStoredBrowserState()[targetId]?.lastUrl ?? '');
+    setSnapshot(createDefaultBrowserSnapshot(targetId));
+    setRememberedUrlState(getRememberedBrowserUrl(readStoredBrowserState(), targetId));
   }, [targetId]);
 
   useEffect(() => window.electronAPI.onBrowserViewEvent((event) => {
@@ -100,36 +130,31 @@ export function useBrowserTargetState(targetId: string) {
       return;
     }
 
-    const current = readStoredBrowserState();
-    const next = {
-      ...current,
-      [targetId]: {
-        lastUrl: event.snapshot.currentUrl,
-      },
-    };
+    const next = setRememberedBrowserUrl(
+      readStoredBrowserState(),
+      targetId,
+      event.snapshot.currentUrl,
+    );
 
     writeStoredBrowserState(next);
     setRememberedUrlState(event.snapshot.currentUrl);
   }), [targetId]);
 
   const setRememberedUrl = (nextUrl: string | null): void => {
-    const current = readStoredBrowserState();
-    const trimmed = nextUrl?.trim() ?? '';
-    const resolvedUrl = trimmed.length > 0 ? trimmed : null;
+    const nextState = setRememberedBrowserUrl(
+      readStoredBrowserState(),
+      targetId,
+      nextUrl,
+    );
 
-    if (resolvedUrl === null) {
+    if (!(targetId in nextState)) {
       clearBrowserTargetState(targetId);
       setRememberedUrlState('');
       return;
     }
 
-    writeStoredBrowserState({
-      ...current,
-      [targetId]: {
-        lastUrl: resolvedUrl,
-      },
-    });
-    setRememberedUrlState(resolvedUrl);
+    writeStoredBrowserState(nextState);
+    setRememberedUrlState(getRememberedBrowserUrl(nextState, targetId));
   };
 
   return useMemo(

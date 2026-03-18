@@ -15,8 +15,16 @@ import {
   type FormEvent,
 } from 'react';
 
+import {
+  getBrowserAddressValue,
+  shouldRestoreRememberedBrowserUrl,
+  shouldShowBrowserViewport,
+} from '@/renderer/code-screen/browser/browser-panel-state';
 import { normalizeBrowserUrlInput } from '@/renderer/code-screen/browser/browser-url';
-import { useBrowserTargetState } from '@/renderer/code-screen/browser/browser-target-state';
+import {
+  BLANK_PAGE_URL,
+  useBrowserTargetState,
+} from '@/renderer/code-screen/browser/browser-target-state';
 import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';
 import { Button } from '@/shadcn/components/ui/button';
 import {
@@ -34,8 +42,6 @@ import {
   InputGroupInput,
 } from '@/shadcn/components/ui/input-group';
 import { cn } from '@/shadcn/lib/utils';
-
-const BLANK_PAGE_URL = 'about:blank';
 
 function BrowserViewportHost({
   className,
@@ -132,17 +138,25 @@ export function BrowserPanel({
   const [addressValue, setAddressValue] = useState('');
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const shouldShowBrowser =
-    snapshot.currentUrl !== BLANK_PAGE_URL || rememberedUrl.trim().length > 0;
+  const shouldShowBrowser = shouldShowBrowserViewport({
+    currentUrl: snapshot.currentUrl,
+    rememberedUrl,
+  });
 
   useEffect(() => {
     setAddressValue(
-      snapshot.currentUrl !== BLANK_PAGE_URL ? snapshot.currentUrl : rememberedUrl,
+      getBrowserAddressValue({
+        currentUrl: snapshot.currentUrl,
+        rememberedUrl,
+      }),
     );
   }, [rememberedUrl, snapshot.currentUrl]);
 
   useEffect(() => {
-    if (snapshot.currentUrl !== BLANK_PAGE_URL || rememberedUrl.trim().length === 0) {
+    if (!shouldRestoreRememberedBrowserUrl({
+      currentUrl: snapshot.currentUrl,
+      rememberedUrl,
+    })) {
       return;
     }
 
