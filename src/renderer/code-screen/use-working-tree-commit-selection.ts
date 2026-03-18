@@ -10,6 +10,7 @@ import {
   type DiffFile,
   type DiffRow,
 } from '@/lib/diff';
+import { commitWorkingTreeSelectionAndRefresh } from '@/renderer/code-screen/working-tree-commit';
 
 type WholeFileSelection = {
   kind: 'whole-file';
@@ -331,7 +332,7 @@ export function useWorkingTreeCommitSelection({
     setError(null);
 
     try {
-      await window.electronAPI.commitWorkingTreeSelection({
+      await commitWorkingTreeSelectionAndRefresh({
         repoPath,
         summary,
         description: draft.description.trim(),
