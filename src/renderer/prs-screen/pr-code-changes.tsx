@@ -1,9 +1,12 @@
+import { useEffect, useMemo, useState } from 'react';
+
 import { LayersIcon } from 'lucide-react';
 
 import type { PrDiffMetaResult } from '@/ipc/contracts';
 import { useUserPreferences } from '@/renderer/shared/hooks/use-user-preferences';
 import { DiffDisplayModeToolbar } from '@/renderer/shared/ui/diff/diff-display-mode-toolbar';
 import type { AsyncState } from '@/renderer/shared/ui/diff/diff-types';
+import { getParsedDiffFiles } from '@/renderer/shared/ui/diff/parsed-diff-files';
 import { useDiffRenderFiles } from '@/renderer/shared/ui/diff/use-diff-render-files';
 import {
   Alert,
@@ -56,6 +59,25 @@ export function PrCodeChanges({
     metaState,
   });
   const { preferences } = useUserPreferences();
+  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
+  const highlightPaths = useMemo(
+    () => selectedFilePath === null ? [] : [selectedFilePath],
+    [selectedFilePath],
+  );
+  const sidebarFiles = useMemo(
+    () =>
+      rawDiff.status !== 'ready'
+        ? []
+        : [...getParsedDiffFiles(rawDiff.data)]
+            .sort((left, right) => left.displayPath.localeCompare(right.displayPath))
+            .map((file) => ({
+              path: file.displayPath,
+              status: file.status,
+              additions: file.additions,
+              deletions: file.deletions,
+            })),
+    [rawDiff],
+  );
   const renderFiles = useDiffRenderFiles({
     rawDiff,
     context:
@@ -75,7 +97,33 @@ export function PrCodeChanges({
             parentRevision: diffContext.parentRevision,
           },
     displayMode: preferences.diffDisplayMode,
+    highlightPaths,
   });
+  const selectedFile = useMemo(
+    () =>
+      selectedFilePath === null
+        ? null
+        : (renderFiles.find((file) => file.path === selectedFilePath) ?? null),
+    [renderFiles, selectedFilePath],
+  );
+
+  useEffect(() => {
+    if (sidebarFiles.length === 0) {
+      if (selectedFilePath !== null) {
+        setSelectedFilePath(null);
+      }
+      return;
+    }
+
+    if (
+      selectedFilePath !== null &&
+      sidebarFiles.some((file) => file.path === selectedFilePath)
+    ) {
+      return;
+    }
+
+    setSelectedFilePath(sidebarFiles[0]?.path ?? null);
+  }, [selectedFilePath, sidebarFiles]);
 
   if (metaState.status === 'idle' || metaState.status === 'loading') {
     return (
@@ -182,7 +230,10 @@ export function PrCodeChanges({
         baseBranch={baseBranch}
         headBranch={headBranch}
         rawDiff={rawDiff}
-        diffFiles={renderFiles}
+        diffFiles={sidebarFiles}
+        selectedFilePath={selectedFilePath}
+        selectedFile={selectedFile}
+        onSelectFile={setSelectedFilePath}
         diffDisplayToolbar={<DiffDisplayModeToolbar className="border-b-0" />}
         displayMode={preferences.diffDisplayMode}
       />

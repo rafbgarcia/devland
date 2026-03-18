@@ -1,4 +1,4 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, type ReactNode } from 'react';
 
 import type {
   DiffCommentAnchor,
@@ -6,17 +6,18 @@ import type {
   DiffSelectionSide,
   DiffSelectionType,
 } from '@/lib/diff';
-import { DiffDisplayModeToolbar } from '@/renderer/shared/ui/diff/diff-display-mode-toolbar';
-import { DiffFileSection } from '@/renderer/shared/ui/diff/diff-renderer';
 import type { AsyncState } from '@/renderer/shared/ui/diff/diff-types';
-import { useDiffExpansionState } from '@/renderer/shared/ui/diff/use-diff-expansion-state';
 import type { DiffRenderFile } from '@/renderer/shared/ui/diff/use-diff-render-files';
 import { Spinner } from '@/shadcn/components/ui/spinner';
 
-export const SelectedFileDiffView = memo(function SelectedFileDiffView({
+import { DiffFileSection } from './diff-renderer';
+import { useDiffExpansionState } from './use-diff-expansion-state';
+
+export const SingleFileDiffView = memo(function SingleFileDiffView({
   rawDiff,
   selectedFile,
   displayMode,
+  topContent,
   emptyMessage,
   getFileSelectionType,
   getRowSelectionType,
@@ -29,6 +30,7 @@ export const SelectedFileDiffView = memo(function SelectedFileDiffView({
   rawDiff: AsyncState<string>;
   selectedFile: DiffRenderFile | null;
   displayMode: DiffDisplayMode;
+  topContent?: ReactNode;
   emptyMessage: string;
   getFileSelectionType?: ((path: string) => DiffSelectionType) | undefined;
   getRowSelectionType?: ((
@@ -51,7 +53,7 @@ export const SelectedFileDiffView = memo(function SelectedFileDiffView({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <DiffDisplayModeToolbar />
+      {topContent}
 
       {rawDiff.status === 'loading' ? (
         <div className="flex flex-1 items-center justify-center">

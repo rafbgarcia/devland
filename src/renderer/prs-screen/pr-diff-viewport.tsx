@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 
 import {
   ChevronLeftIcon,
@@ -9,9 +9,10 @@ import type { PrCommit } from '@/ipc/contracts';
 import type { DiffDisplayMode } from '@/lib/diff';
 import { CodeChangesCommitsList } from '@/renderer/shared/ui/diff/code-changes-commits-list';
 import {
-  CodeChangesFilesViewport,
   FilesChangedList,
-} from '@/renderer/shared/ui/diff/code-changes-files-viewport';
+  type DiffListFile,
+} from '@/renderer/shared/ui/diff/files-changed-list';
+import { SingleFileDiffView } from '@/renderer/shared/ui/diff/single-file-diff-view';
 import type { AsyncState, DiffSelection } from '@/renderer/shared/ui/diff/diff-types';
 import { type DiffRenderFile } from '@/renderer/shared/ui/diff/use-diff-render-files';
 import { cn } from '@/shadcn/lib/utils';
@@ -106,6 +107,9 @@ export function PrDiffViewport({
   headBranch,
   rawDiff,
   diffFiles,
+  selectedFilePath,
+  selectedFile,
+  onSelectFile,
   diffDisplayToolbar,
   displayMode,
 }: {
@@ -116,20 +120,24 @@ export function PrDiffViewport({
   baseBranch: string;
   headBranch: string;
   rawDiff: AsyncState<string>;
-  diffFiles: DiffRenderFile[];
+  diffFiles: DiffListFile[];
+  selectedFilePath: string | null;
+  selectedFile: DiffRenderFile | null;
+  onSelectFile: (path: string) => void;
   diffDisplayToolbar: ReactNode;
   displayMode: DiffDisplayMode;
 }) {
+  const selectedFiles = useMemo(
+    () => selectedFilePath === null ? new Set<string>() : new Set([selectedFilePath]),
+    [selectedFilePath],
+  );
+
   return (
-    <CodeChangesFilesViewport
-      rawDiff={rawDiff}
-      diffFiles={diffFiles}
-      displayMode={displayMode}
-      emptyMessage="No file changes in this commit."
-      sidebar={({ diffFiles: sidebarDiffFiles, visibleFiles, onSelectFile }) => (
+    <div className="flex min-h-0 flex-1">
+      <div className="flex w-72 shrink-0 flex-col overflow-hidden border-r border-border">
         <FilesChangedList
-          files={sidebarDiffFiles}
-          visibleFiles={visibleFiles}
+          files={diffFiles}
+          visibleFiles={selectedFiles}
           onSelectFile={onSelectFile}
           topContent={(
             <CodeChangesCommitsList
@@ -140,19 +148,26 @@ export function PrDiffViewport({
             />
           )}
         />
-      )}
-      mainTop={(
-        <>
-          {diffDisplayToolbar}
-          <CommitCarousel
-            commits={commits}
-            selection={selection}
-            onSelectCommit={onSelectCommit}
-            baseBranch={baseBranch}
-            headBranch={headBranch}
-          />
-        </>
-      )}
-    />
+      </div>
+
+      <SingleFileDiffView
+        rawDiff={rawDiff}
+        selectedFile={selectedFile}
+        displayMode={displayMode}
+        emptyMessage="No file changes in this commit."
+        topContent={(
+          <>
+            {diffDisplayToolbar}
+            <CommitCarousel
+              commits={commits}
+              selection={selection}
+              onSelectCommit={onSelectCommit}
+              baseBranch={baseBranch}
+              headBranch={headBranch}
+            />
+          </>
+        )}
+      />
+    </div>
   );
 }

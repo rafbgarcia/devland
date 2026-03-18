@@ -4,7 +4,6 @@ import {
   createCommitContentPair,
   createComparisonContentPair,
   createWorkingTreeContentPair,
-  parseUnifiedDiffDocument,
   projectDiffRows,
   type DiffContentPair,
   type DiffDisplayMode,
@@ -21,20 +20,13 @@ import { incrementDevPerformanceCounter } from '@/renderer/shared/lib/dev-perfor
 import { getFromLruCache, setLruCacheValue } from '@/renderer/shared/lib/lru';
 
 import type { AsyncState } from './diff-types';
+import { getParsedDiffFiles } from './parsed-diff-files';
 
 const SYNTAX_CACHE_LIMIT = 40;
-const PARSED_DIFF_CACHE_LIMIT = 12;
 
 type SyntaxCacheEntry = Promise<DiffFileTokens> | DiffFileTokens;
 type ContentCacheEntry = Promise<DiffFileContents> | DiffFileContents;
-type ParsedDiffEntry = Array<{
-  path: string;
-  status: DiffFile['status'];
-  additions: number;
-  deletions: number;
-  diff: DiffFile;
-  rows: DiffRow[];
-}>;
+type RowCacheEntry = DiffRow[];
 
 export type DiffRenderContext =
   | { kind: 'working-tree'; repoPath: string }
@@ -168,10 +160,14 @@ function hashString(value: string) {
   return (hash >>> 0).toString(16);
 }
 
+function getRowCacheKey(file: DiffFile) {
+  return `${file.displayPath}|${file.status}|${file.kind}|${hashString(file.rawText)}`;
+}
+
 export function useDiffRenderFiles({
   rawDiff,
   context,
-  displayMode,
+  displayMode: _displayMode,
   highlightPaths,
 }: {
   rawDiff: AsyncState<string>;
@@ -183,7 +179,8 @@ export function useDiffRenderFiles({
   const [contentsByPath, setContentsByPath] = useState<Record<string, DiffFileContents | null>>({});
   const syntaxCacheRef = useRef<Map<string, SyntaxCacheEntry>>(new Map());
   const contentCacheRef = useRef<Map<string, ContentCacheEntry>>(new Map());
-  const parsedDiffCacheRef = useRef<Map<string, ParsedDiffEntry>>(new Map());
+  const rowCacheRef = useRef<Map<string, RowCacheEntry>>(new Map());
+  void _displayMode;
   const highlightPathsKey = highlightPaths === undefined
     ? null
     : highlightPaths
@@ -200,56 +197,53 @@ export function useDiffRenderFiles({
 
     return new Set(highlightPathsKey.split('\0'));
   }, [highlightPathsKey]);
-  const rawDiffCacheKey = useMemo(() => {
-    if (rawDiff.status !== 'ready') {
-      return null;
+  const parsedFiles = useMemo(
+    () => (rawDiff.status === 'ready' && context !== null ? getParsedDiffFiles(rawDiff.data) : []),
+    [context, rawDiff],
+  );
+  const visibleParsedFiles = useMemo(() => {
+    if (highlightPathSet === null) {
+      return parsedFiles;
     }
 
-    return `${rawDiff.data.length}:${hashString(rawDiff.data)}`;
-  }, [rawDiff]);
+    if (highlightPathSet.size === 0) {
+      return [] as DiffFile[];
+    }
+
+    return parsedFiles.filter((file) => highlightPathSet.has(file.displayPath));
+  }, [highlightPathSet, parsedFiles]);
 
   const baseFiles = useMemo(() => {
-    if (rawDiff.status !== 'ready' || context === null) {
+    if (context === null || visibleParsedFiles.length === 0) {
       return [] as DiffRenderFile[];
     }
 
     incrementDevPerformanceCounter('diffRenderBuilds');
 
-    let parsedDiff = rawDiffCacheKey === null
-      ? undefined
-      : getFromLruCache(parsedDiffCacheRef.current, rawDiffCacheKey);
+    return visibleParsedFiles.map((file) => {
+      const rowCacheKey = getRowCacheKey(file);
+      const cachedRows = getFromLruCache(rowCacheRef.current, rowCacheKey);
+      const rows = cachedRows ?? projectDiffRows(file);
 
-    if (parsedDiff === undefined) {
-      parsedDiff = parseUnifiedDiffDocument(rawDiff.data).files.map((file) => ({
+      if (cachedRows === undefined) {
+        setLruCacheValue(rowCacheRef.current, rowCacheKey, rows, SYNTAX_CACHE_LIMIT);
+      }
+
+      const contentPair = createContentPair(context, file);
+
+      return {
         path: file.displayPath,
         status: file.status,
         additions: file.additions,
         deletions: file.deletions,
         diff: file,
-        rows: projectDiffRows(file),
-      }));
-
-      if (rawDiffCacheKey !== null) {
-        setLruCacheValue(parsedDiffCacheRef.current, rawDiffCacheKey, parsedDiff, PARSED_DIFF_CACHE_LIMIT);
-      }
-    }
-
-    return parsedDiff.map((file) => {
-      const contentPair = createContentPair(context, file.diff);
-
-      return {
-        path: file.path,
-        status: file.status,
-        additions: file.additions,
-        deletions: file.deletions,
-        diff: file.diff,
-        rows: file.rows,
+        rows,
         contentPair,
         contents: null,
         syntaxTokens: null,
       } satisfies DiffRenderFile;
     });
-  }, [context, displayMode, rawDiff, rawDiffCacheKey]);
+  }, [context, visibleParsedFiles]);
 
   useEffect(() => {
     if (rawDiff.status !== 'ready' || context === null || baseFiles.length === 0) {

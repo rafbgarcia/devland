@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { PrDiffMetaResult } from '@/ipc/contracts';
-import { parseDiffFiles, type DiffFile } from '@/renderer/shared/ui/diff/code-diff';
 import { getFromLruCache, setLruCacheValue } from '@/renderer/shared/lib/lru';
 import type { AsyncState, DiffSelection } from '@/renderer/shared/ui/diff/diff-types';
 
@@ -137,11 +136,6 @@ export function usePrDiffData({
     };
   }, [metaState, repoPath, selection]);
 
-  const diffFiles = useMemo<DiffFile[]>(
-    () => (rawDiff.status === 'ready' ? parseDiffFiles(rawDiff.data) : []),
-    [rawDiff],
-  );
-
   const handleSelectCommit = useCallback((index: number) => {
     setSelection({ type: 'commit', index });
   }, []);
@@ -179,7 +173,6 @@ export function usePrDiffData({
   return {
     selection,
     rawDiff,
-    diffFiles,
     diffContext,
     handleSelectCommit,
     handleSelectAll,

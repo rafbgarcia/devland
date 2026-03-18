@@ -3,18 +3,19 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import type { GitStatusFile, PrCommit } from '@/ipc/contracts';
 import {
   getDiffChangeGroupSelectableLineNumbers,
-  parseUnifiedDiffDocument,
   type DiffCommentAnchor,
   type DiffSelectionSide,
 } from '@/lib/diff';
 import { ChangesSidebar } from '@/renderer/code-screen/changes-sidebar';
-import { SelectedFileDiffView } from '@/renderer/code-screen/selected-file-diff-view';
 import {
   useGitBranchHistory,
   useGitCommitDiff,
   useGitWorkingTreeDiff,
 } from '@/renderer/code-screen/use-git-code-changes';
 import { useWorkingTreeCommitSelection } from '@/renderer/code-screen/use-working-tree-commit-selection';
+import { getParsedDiffFiles } from '@/renderer/shared/ui/diff/parsed-diff-files';
+import { SingleFileDiffView } from '@/renderer/shared/ui/diff/single-file-diff-view';
+import { DiffDisplayModeToolbar } from '@/renderer/shared/ui/diff/diff-display-mode-toolbar';
 import { useDiffRenderFiles } from '@/renderer/shared/ui/diff/use-diff-render-files';
 import { useUserPreferences } from '@/renderer/shared/hooks/use-user-preferences';
 
@@ -93,10 +94,11 @@ function ActiveDiffViewport({
   );
 
   return (
-    <SelectedFileDiffView
+    <SingleFileDiffView
       rawDiff={rawDiff}
       selectedFile={selectedFile}
       displayMode={displayMode}
+      topContent={<DiffDisplayModeToolbar />}
       emptyMessage={emptyMessage}
       getFileSelectionType={isWorkingTreeSelection ? getFileSelectionType : undefined}
       getRowSelectionType={isWorkingTreeSelection ? getRowSelectionType : undefined}
@@ -190,7 +192,7 @@ export function ChangesPane({
     } as const;
   }, [commitDiffState.parentRevision, repoPath, selectedCommit, selection.type]);
   const activeDiffFiles = useMemo(
-    () => (activeDiffState.status === 'ready' ? parseUnifiedDiffDocument(activeDiffState.data).files : []),
+    () => (activeDiffState.status === 'ready' ? getParsedDiffFiles(activeDiffState.data) : []),
     [activeDiffState],
   );
   const workingTreeSidebarFiles = useMemo(

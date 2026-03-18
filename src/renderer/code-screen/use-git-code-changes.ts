@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { GitBranchHistory, GitStatusFile } from '@/ipc/contracts';
-import { parseDiffFiles, type DiffFile } from '@/renderer/shared/ui/diff/code-diff';
 import { getFromLruCache, setLruCacheValue } from '@/renderer/shared/lib/lru';
 import type { AsyncState } from '@/renderer/shared/ui/diff/diff-types';
 
@@ -200,14 +199,8 @@ export function useGitWorkingTreeDiff({
       });
   }, [files.length, refreshVersion, repoPath, snapshotKey]);
 
-  const diffFiles = useMemo<DiffFile[]>(
-    () => (rawDiff.status === 'ready' ? parseDiffFiles(rawDiff.data) : []),
-    [rawDiff],
-  );
-
   return {
     rawDiff,
-    diffFiles,
   };
 }
 

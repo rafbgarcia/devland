@@ -10,7 +10,7 @@ import type { DiffSelectionType } from '@/lib/diff';
 import {
   FilesChangedList,
   type DiffListFile,
-} from '@/renderer/shared/ui/diff/code-changes-files-viewport';
+} from '@/renderer/shared/ui/diff/files-changed-list';
 import { ChangesHistoryDropdown } from '@/renderer/code-screen/changes-history-dropdown';
 import { CommitComposer } from '@/renderer/code-screen/commit-composer';
 import { RelativeTime } from '@/renderer/shared/ui/relative-time';
