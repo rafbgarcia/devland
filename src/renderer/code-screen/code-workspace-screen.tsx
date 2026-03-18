@@ -40,6 +40,7 @@ import {
   requestGitStatusRefresh,
   subscribeToGitStatusRefresh,
 } from '@/renderer/shared/lib/git-status-refresh';
+import { useRepos } from '@/renderer/projects-shell/use-repos';
 import { Button } from '@/shadcn/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/shadcn/components/ui/tabs';
 import { cn } from '@/shadcn/lib/utils';
@@ -146,6 +147,8 @@ export function CodeWorkspaceScreen({
     Record<string, CodexComposerSettings>
   >({});
   const sidebarWidthAtDragStart = useRef(SIDEBAR_DEFAULT_WIDTH);
+  const repos = useRepos();
+  const storedRepoPaths = useMemo(() => repos.map((repo) => repo.path), [repos]);
 
   const {
     targets,
@@ -473,6 +476,8 @@ export function CodeWorkspaceScreen({
 
                     <ChatComposer
                       key={activeTarget.id}
+                      activeRepoPath={activeTarget.cwd}
+                      storedRepoPaths={storedRepoPaths}
                       settings={composerSettings}
                       isRunning={isRunning}
                       messages={sessionState.messages}

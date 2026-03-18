@@ -34,6 +34,7 @@ export const GENERATE_PR_REVIEW_CHANNEL = 'app:generate-pr-review';
 export const SYNC_REPO_REVIEW_REFS_CHANNEL = 'app:sync-repo-review-refs';
 export const CREATE_GITHUB_PR_REVIEW_THREAD_CHANNEL = 'app:create-github-pr-review-thread';
 export const SEND_CODEX_SESSION_PROMPT_CHANNEL = 'app:send-codex-session-prompt';
+export const SEARCH_CODEX_PATHS_CHANNEL = 'app:search-codex-paths';
 export const INTERRUPT_CODEX_SESSION_CHANNEL = 'app:interrupt-codex-session';
 export const STOP_CODEX_SESSION_CHANNEL = 'app:stop-codex-session';
 export const RESPOND_TO_CODEX_APPROVAL_CHANNEL = 'app:respond-to-codex-approval';
@@ -79,6 +80,34 @@ export const RepoSchema = z.object({
   path: z.string().min(1),
 });
 export type Repo = z.infer<typeof RepoSchema>;
+
+export const CODEX_PATH_SEARCH_SCOPES = ['current', 'global'] as const;
+export const CodexPathSearchScopeSchema = z.enum(CODEX_PATH_SEARCH_SCOPES);
+export type CodexPathSearchScope = z.infer<typeof CodexPathSearchScopeSchema>;
+
+export const CodexPathSearchInputSchema = z.object({
+  cwd: z.string().min(1),
+  scope: CodexPathSearchScopeSchema,
+  query: z.string().max(256),
+  limit: z.number().int().min(1).max(200),
+  storedRepoPaths: z.array(z.string().min(1)),
+});
+export type CodexPathSearchInput = z.infer<typeof CodexPathSearchInputSchema>;
+
+export const CodexPathSearchResultItemSchema = z.object({
+  scope: CodexPathSearchScopeSchema,
+  repoPath: z.string().min(1),
+  repoLabel: z.string().min(1),
+  relativePath: z.string().min(1),
+  absolutePath: z.string().min(1),
+});
+export type CodexPathSearchResultItem = z.infer<typeof CodexPathSearchResultItemSchema>;
+
+export const CodexPathSearchResultSchema = z.object({
+  items: z.array(CodexPathSearchResultItemSchema),
+  truncated: z.boolean(),
+});
+export type CodexPathSearchResult = z.infer<typeof CodexPathSearchResultSchema>;
 
 export const GhUserSchema = z.object({
   login: z.string().min(1),
@@ -546,6 +575,7 @@ export interface ElectronApi {
     resumeThreadId?: string | null;
     transcriptBootstrap?: string | null;
   }) => Promise<void>;
+  searchCodexPaths: (input: CodexPathSearchInput) => Promise<CodexPathSearchResult>;
   interruptCodexSession: (sessionId: string) => Promise<void>;
   stopCodexSession: (sessionId: string) => Promise<void>;
   respondToCodexApproval: (input: {

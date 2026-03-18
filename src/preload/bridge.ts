@@ -43,6 +43,7 @@ import {
   RESPOND_TO_CODEX_APPROVAL_CHANNEL,
   RESPOND_TO_CODEX_USER_INPUT_CHANNEL,
   SEND_CODEX_SESSION_PROMPT_CHANNEL,
+  SEARCH_CODEX_PATHS_CHANNEL,
   STOP_CODEX_SESSION_CHANNEL,
   type ElectronApi,
 } from '@/ipc/contracts';
@@ -144,6 +145,8 @@ export const electronApi: ElectronApi = {
     ipcRenderer.invoke(GET_COMMIT_PARENT_CHANNEL, repoPath, commitSha),
   sendCodexSessionPrompt: (input) =>
     ipcRenderer.invoke(SEND_CODEX_SESSION_PROMPT_CHANNEL, input),
+  searchCodexPaths: (input) =>
+    ipcRenderer.invoke(SEARCH_CODEX_PATHS_CHANNEL, input),
   interruptCodexSession: (sessionId) =>
     ipcRenderer.invoke(INTERRUPT_CODEX_SESSION_CHANNEL, sessionId),
   stopCodexSession: (sessionId) =>

@@ -39,6 +39,7 @@ import {
   GET_COMMIT_PARENT_CHANNEL,
   START_GIT_STATE_WATCH_CHANNEL,
   STOP_GIT_STATE_WATCH_CHANNEL,
+  SEARCH_CODEX_PATHS_CHANNEL,
   INTERRUPT_CODEX_SESSION_CHANNEL,
   RESPOND_TO_CODEX_APPROVAL_CHANNEL,
   RESPOND_TO_CODEX_USER_INPUT_CHANNEL,
@@ -48,6 +49,7 @@ import {
   type CodexApprovalDecision,
 } from '../ipc/contracts';
 import { codexAppServerManager } from './codex-app-server';
+import { searchCodexPaths } from './codex-path-search';
 import { codexExecutable } from './codex-cli';
 import { generatePrReview } from './codex-use-cases/pr-review';
 import { ghExecutable } from './gh-cli';
@@ -306,6 +308,10 @@ export const registerAppIpcHandlers = (
         input.resumeThreadId ?? null,
         input.transcriptBootstrap ?? null,
       ),
+  );
+  ipcMain.handle(
+    SEARCH_CODEX_PATHS_CHANNEL,
+    (_event, input) => searchCodexPaths(input),
   );
   ipcMain.handle(
     INTERRUPT_CODEX_SESSION_CHANNEL,
