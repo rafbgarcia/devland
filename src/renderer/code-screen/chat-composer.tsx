@@ -44,6 +44,10 @@ import {
   replaceTextRange,
   type ComposerTagTrigger,
 } from '@/renderer/code-screen/chat-composer-tags';
+import {
+  createComposerImageAttachment,
+  type ComposerImageAttachment,
+} from '@/renderer/code-screen/chat-composer-attachments';
 import { SessionHistoryDropdown } from '@/renderer/code-screen/session-history-dropdown';
 import { VscodeEntryIcon } from '@/renderer/shared/ui/vscode-entry-icon';
 import {
@@ -58,15 +62,6 @@ import {
   DropdownMenuTrigger,
 } from '@/shadcn/components/ui/dropdown-menu';
 import { cn } from '@/shadcn/lib/utils';
-
-type ComposerImageAttachment = {
-  id: string;
-  file: File;
-  name: string;
-  mimeType: string;
-  sizeBytes: number;
-  previewUrl: string;
-};
 
 const TAG_SEARCH_DEBOUNCE_MS = 120;
 const TAG_SEARCH_LIMIT = 40;
@@ -168,30 +163,6 @@ function PathSuggestionMenu({
       </div>
     </div>
   );
-}
-
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.addEventListener('load', () => {
-      if (typeof reader.result === 'string') {
-        resolve(reader.result);
-        return;
-      }
-
-      reject(new Error('Could not read image data.'));
-    });
-    reader.addEventListener('error', () => {
-      reject(reader.error ?? new Error('Failed to read image.'));
-    });
-    reader.readAsDataURL(file);
-  });
-}
-
-function revokeComposerAttachmentPreviews(attachments: readonly ComposerImageAttachment[]) {
-  for (const attachment of attachments) {
-    URL.revokeObjectURL(attachment.previewUrl);
-  }
 }
 
 function SettingsDropdown({
@@ -433,15 +404,8 @@ export const ChatComposer = memo(function ChatComposer({
     attachmentsRef.current = attachments;
   }, [attachments]);
 
-  useEffect(
-    () => () => {
-      revokeComposerAttachmentPreviews(attachmentsRef.current);
-    },
-    [],
-  );
-
-  const appendAttachments = (files: readonly File[]) => {
-    const nextAttachments: ComposerImageAttachment[] = [];
+  const appendAttachments = async (files: readonly File[]) => {
+    const acceptedFiles: File[] = [];
     let nextImageCount = attachmentsRef.current.length;
     let error: string | null = null;
 
@@ -461,19 +425,23 @@ export const ChatComposer = memo(function ChatComposer({
         break;
       }
 
-      nextAttachments.push({
-        id: crypto.randomUUID(),
-        file,
-        name: file.name || 'image',
-        mimeType: file.type,
-        sizeBytes: file.size,
-        previewUrl: URL.createObjectURL(file),
-      });
+      acceptedFiles.push(file);
       nextImageCount += 1;
     }
 
-    if (nextAttachments.length > 0) {
-      setAttachments((current) => [...current, ...nextAttachments]);
+    if (acceptedFiles.length > 0) {
+      try {
+        const nextAttachments = await Promise.all(
+          acceptedFiles.map((file) => createComposerImageAttachment(file)),
+        );
+
+        setAttachments((current) => [...current, ...nextAttachments]);
+      } catch (readError) {
+        setComposerNotice('Failed to read image.');
+        console.error('Failed to prepare composer attachments:', readError);
+        return;
+      }
+
       setComposerNotice(null);
     } else if (error) {
       setComposerNotice(error);
@@ -484,7 +452,7 @@ export const ChatComposer = memo(function ChatComposer({
     const files = Array.from(event.target.files ?? []);
 
     if (files.length > 0) {
-      appendAttachments(files);
+      void appendAttachments(files);
     }
 
     event.target.value = '';
@@ -520,7 +488,7 @@ export const ChatComposer = memo(function ChatComposer({
           name: attachment.name,
           mimeType: attachment.mimeType,
           sizeBytes: attachment.sizeBytes,
-          dataUrl: await readFileAsDataUrl(attachment.file),
+          dataUrl: attachment.dataUrl,
         })),
       );
 
@@ -529,7 +497,6 @@ export const ChatComposer = memo(function ChatComposer({
         settings,
         attachments: nextAttachments,
       });
-      revokeComposerAttachmentPreviews(pendingAttachments);
     } catch (error) {
       setPrompt(pendingPrompt);
       setAttachments(pendingAttachments);
@@ -608,7 +575,7 @@ export const ChatComposer = memo(function ChatComposer({
     }
 
     event.preventDefault();
-    appendAttachments(imageFiles);
+    void appendAttachments(imageFiles);
   };
 
   const handleDragEnter = (event: DragEvent<HTMLFormElement>) => {
@@ -658,20 +625,12 @@ export const ChatComposer = memo(function ChatComposer({
     event.preventDefault();
     dragDepthRef.current = 0;
     setIsDragOver(false);
-    appendAttachments(Array.from(event.dataTransfer.files));
+    void appendAttachments(Array.from(event.dataTransfer.files));
     textareaRef.current?.focus();
   };
 
   const handleRemoveAttachment = (attachmentId: string) => {
-    setAttachments((current) => {
-      const attachment = current.find((candidate) => candidate.id === attachmentId);
-
-      if (attachment) {
-        URL.revokeObjectURL(attachment.previewUrl);
-      }
-
-      return current.filter((candidate) => candidate.id !== attachmentId);
-    });
+    setAttachments((current) => current.filter((candidate) => candidate.id !== attachmentId));
   };
 
   const handlePromptChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
@@ -770,7 +729,7 @@ export const ChatComposer = memo(function ChatComposer({
                     className="relative overflow-hidden rounded-xl border border-border/80 bg-background"
                   >
                     <img
-                      src={attachment.previewUrl}
+                      src={attachment.dataUrl}
                       alt={attachment.name}
                       className="size-16 object-cover"
                     />
@@ -840,12 +799,7 @@ export const ChatComposer = memo(function ChatComposer({
       </div>
 
       <div className="mt-1 px-0.5 text-[10px] text-muted-foreground/40">
-        {isRunning ? (
-          <span className="inline-flex items-center gap-1 text-muted-foreground/60">
-            <LoaderCircleIcon className="size-2.5 animate-spin" />
-            Working...
-          </span>
-        ) : composerNotice && (
+        {composerNotice && (
           <span className="text-destructive/80">{composerNotice}</span>
         )}
       </div>
