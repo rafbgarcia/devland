@@ -49,8 +49,6 @@ const LINE_NUMBER_CHECK_CLASS = 'flex w-5 shrink-0 items-center justify-center';
 const LINE_NUMBER_DUAL_VALUE_CLASS = 'flex-1 px-1.5 text-right tabular-nums';
 const LINE_NUMBER_CHANGED_HOVER_CLASS = 'hover:bg-primary/10 hover:text-primary/80';
 
-const CHANGE_GROUP_HANDLE_WIDTH_CLASS = 'w-3';
-
 type DiffCommentDraft = {
   side: DiffCommentSide;
   startRowIndex: number;
@@ -273,39 +271,8 @@ function InlineCommentComposer({
   );
 }
 
-function SelectionGutterCell({
-  selectionType,
-  onMouseDown,
-  onMouseEnter,
-  className,
-}: {
-  selectionType: DiffSelectionType;
-  onMouseDown?: (() => void) | undefined;
-  onMouseEnter?: (() => void) | undefined;
-  className?: string | undefined;
-}) {
-  return (
-    <div
-      className={cn(
-        SELECTION_GUTTER_CLASS,
-        selectionType === 'all' && 'bg-primary/12 text-primary',
-        selectionType === 'partial' && 'bg-primary/8 text-primary/60',
-        selectionType === 'none' && 'text-transparent hover:bg-muted/50 hover:text-muted-foreground/30',
-        className,
-      )}
-      onMouseDown={onMouseDown ? (e) => { e.preventDefault(); onMouseDown(); } : undefined}
-      onMouseEnter={onMouseEnter}
-    >
-      {selectionType !== 'none' ? (
-        <CheckIcon className="size-3" />
-      ) : null}
-    </div>
-  );
-}
-
 function HunkRow({
   content,
-  selectionType,
   onToggleSelection,
   expansionGap,
   onExpandGap,
@@ -328,9 +295,6 @@ function HunkRow({
       )}
       onClick={onToggleSelection}
     >
-      {selectionType !== undefined ? (
-        <SelectionGutterCell selectionType={selectionType} />
-      ) : null}
       <div className={cn(LINE_NUMBER_BOX_CLASS, LINE_NUMBER_BOX_DUAL_WIDTH_CLASS, 'flex shrink-0 items-stretch')}>
         {expansionGap ? (
           isCompactExpansion ? (
@@ -519,25 +483,23 @@ function ChangeGroupHandle({
   showHandle: boolean;
   onClick?: (() => void) | undefined;
 }) {
+  if (!showHandle) {
+    return null;
+  }
+
   return (
-    <div className={cn('relative shrink-0', CHANGE_GROUP_HANDLE_WIDTH_CLASS)}>
-      {showHandle ? (
-        <button
-          type="button"
-          onClick={onClick}
-          className={cn(
-            'absolute left-1 top-0 z-10 w-1.5 rounded-full',
-            selectionType === 'none' && 'bg-muted-foreground/25 hover:bg-muted-foreground/50',
-            selectionType === 'partial' && 'bg-primary/50 hover:bg-primary/70',
-            selectionType === 'all' && 'bg-primary hover:bg-primary/80',
-          )}
-          style={{ height: handleHeightPx }}
-          aria-label="Toggle change group selection"
-        />
-      ) : (
-        <span className="block h-full bg-transparent" />
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'absolute left-1 top-0 z-10 w-1.5 rounded-full',
+        selectionType === 'none' && 'bg-muted-foreground/25 hover:bg-muted-foreground/50',
+        selectionType === 'partial' && 'bg-primary/50 hover:bg-primary/70',
+        selectionType === 'all' && 'bg-primary hover:bg-primary/80',
       )}
-    </div>
+      style={{ height: handleHeightPx }}
+      aria-label="Toggle change group selection"
+    />
   );
 }
 
@@ -559,14 +521,14 @@ function ChangedRowFrame({
   }
 
   return (
-    <div className="relative flex overflow-visible">
+    <div className="relative overflow-visible">
       <ChangeGroupHandle
         selectionType={selectionType}
         handleHeightPx={handleHeightPx}
         showHandle={showHandle}
         onClick={onToggleSelection}
       />
-      <div className="min-w-0 flex-1">{children}</div>
+      {children}
     </div>
   );
 }
@@ -1258,13 +1220,11 @@ export function DiffFileSection({
         </div>
       ) : null}
       <div className="overflow-x-auto">
-        <div className="min-w-[720px]">
+        <div className="min-w-[720px] overflow-y-hidden">
           {renderItems.map((item, renderIndex) => {
-            const hasSelectionGutter = getRowSelectionType !== undefined;
-
             if (item.kind === 'expansion-control') {
               return onExpandGap ? (
-                <div key={item.key} className={hasSelectionGutter ? 'pl-3' : undefined}>
+                <div key={item.key}>
                   <ExpansionControlRow
                     gap={item.gap}
                     onExpand={(action) => onExpandGap(item.gap, action)}
@@ -1275,7 +1235,7 @@ export function DiffFileSection({
 
             if (item.kind === 'collapsed-hunk') {
               return (
-                <div key={item.key} className={hasSelectionGutter ? 'pl-3' : undefined}>
+                <div key={item.key}>
                   <HunkRow
                     content={item.row.content}
                     selectionType={getHunkSelectionType?.(item.row.originalStartLineNumber)}
@@ -1292,7 +1252,6 @@ export function DiffFileSection({
             }
 
             const { row, rowIndex } = item;
-            const isChangedRow = row.kind === 'added' || row.kind === 'deleted' || row.kind === 'modified';
             const showComposer =
               commentDraft !== null &&
               commentDraft.isSelecting === false &&
@@ -1312,7 +1271,7 @@ export function DiffFileSection({
                 : undefined;
 
             return (
-              <div key={item.key} className={hasSelectionGutter && !isChangedRow ? 'pl-3' : undefined}>
+              <div key={item.key}>
                 <DiffBodyRow
                   file={file}
                   row={row}
