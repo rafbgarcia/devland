@@ -114,7 +114,7 @@ const AssistantMarkdown = memo(function AssistantMarkdown({
       {isStreaming ? (
         <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <LoaderCircleIcon className="size-3 animate-spin" />
-          Typing...
+          Deving...
         </div>
       ) : null}
     </div>
@@ -256,7 +256,7 @@ const WorkingRow = memo(function WorkingRow() {
       </div>
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <LoaderCircleIcon className="size-3 animate-spin" />
-        Working...
+        Thinking...
       </div>
     </div>
   );

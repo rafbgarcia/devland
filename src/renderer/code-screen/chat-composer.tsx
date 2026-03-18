@@ -61,6 +61,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/shadcn/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogTitle,
+} from '@/shadcn/components/ui/dialog';
 import { cn } from '@/shadcn/lib/utils';
 
 const TAG_SEARCH_DEBOUNCE_MS = 120;
@@ -326,6 +332,7 @@ export const ChatComposer = memo(function ChatComposer({
 }) {
   const [prompt, setPrompt] = useState('');
   const [attachments, setAttachments] = useState<ComposerImageAttachment[]>([]);
+  const [openAttachmentId, setOpenAttachmentId] = useState<string | null>(null);
   const [composerNotice, setComposerNotice] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -344,6 +351,10 @@ export const ChatComposer = memo(function ChatComposer({
   const placeholder = `Message ${CODEX_INTERACTION_MODE_LABEL} (${codexReasoningEffortLabel(settings.reasoningEffort)}, ${codexFastModeLabel(settings.fastMode)}, ${codexRuntimeModeLabel(settings.runtimeMode)})`;
   const tagMenuQuery = tagTrigger?.query.trim() ?? '';
   const isTagMenuOpen = tagTrigger !== null && tagMenuQuery.length > 0;
+  const openAttachment =
+    openAttachmentId === null
+      ? null
+      : attachments.find((attachment) => attachment.id === openAttachmentId) ?? null;
 
   const setResolvedTagTrigger = (nextTrigger: ComposerTagTrigger | null) => {
     setTagTrigger((currentTrigger) =>
@@ -477,6 +488,7 @@ export const ChatComposer = memo(function ChatComposer({
     setIsSending(true);
     setPrompt('');
     setAttachments([]);
+    setOpenAttachmentId(null);
     setTagTrigger(null);
     setTagSuggestions([]);
     setComposerNotice(null);
@@ -630,6 +642,10 @@ export const ChatComposer = memo(function ChatComposer({
   };
 
   const handleRemoveAttachment = (attachmentId: string) => {
+    if (attachmentId === openAttachmentId) {
+      setOpenAttachmentId(null);
+    }
+
     setAttachments((current) => current.filter((candidate) => candidate.id !== attachmentId));
   };
 
@@ -728,11 +744,18 @@ export const ChatComposer = memo(function ChatComposer({
                     key={attachment.id}
                     className="relative overflow-hidden rounded-xl border border-border/80 bg-background"
                   >
-                    <img
-                      src={attachment.dataUrl}
-                      alt={attachment.name}
-                      className="size-16 object-cover"
-                    />
+                    <button
+                      type="button"
+                      onClick={() => setOpenAttachmentId(attachment.id)}
+                      className="block cursor-zoom-in"
+                      aria-label={`Open ${attachment.name}`}
+                    >
+                      <img
+                        src={attachment.dataUrl}
+                        alt={attachment.name}
+                        className="size-16 object-cover"
+                      />
+                    </button>
                     <button
                       type="button"
                       onClick={() => handleRemoveAttachment(attachment.id)}
@@ -803,6 +826,39 @@ export const ChatComposer = memo(function ChatComposer({
           <span className="text-destructive/80">{composerNotice}</span>
         )}
       </div>
+
+      <Dialog
+        open={openAttachment !== null}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            setOpenAttachmentId(null);
+          }
+        }}
+      >
+        <DialogContent
+          backdropClassName="cursor-zoom-out bg-black/72"
+          className="max-w-none w-auto border-0 bg-transparent p-0 shadow-none"
+        >
+          <DialogTitle className="sr-only">
+            {openAttachment ? `Preview ${openAttachment.name}` : 'Image preview'}
+          </DialogTitle>
+          {openAttachment ? (
+            <div className="relative">
+              <img
+                src={openAttachment.dataUrl}
+                alt={openAttachment.name}
+                className="max-h-[92vh] max-w-[92vw] rounded-xl object-contain"
+              />
+              <DialogClose
+                className="absolute right-3 top-3 flex size-9 items-center justify-center rounded-full bg-background/88 text-foreground shadow-sm backdrop-blur-sm transition-colors hover:bg-background"
+                aria-label={`Close ${openAttachment.name}`}
+              >
+                <XIcon className="size-4" />
+              </DialogClose>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 });
