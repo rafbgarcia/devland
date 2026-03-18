@@ -449,7 +449,7 @@ export function CodeWorkspaceScreen({
                 <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
                   <LayerToggle activeLayer={activeLayer} onChangeLayer={setActiveLayer} />
 
-                  <div className="relative min-h-0 flex-1 overflow-hidden">
+                  <div className="relative min-h-0 flex-1 overflow-auto">
                     {activeLayer === 'files' ? (
                       viewport
                     ) : (
