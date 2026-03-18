@@ -1,6 +1,7 @@
 import type {
   CodexSessionEvent,
   CodexSessionStatus,
+  CodexResumedThread,
   CodexTurnDiff,
   CodexUserInputQuestion,
 } from '@/ipc/contracts';
@@ -424,6 +425,29 @@ function normalizeTranscriptEntry(entry: CodexTranscriptEntry): CodexTranscriptE
   return {
     ...entry,
     message: normalizeMessage(entry.message),
+  };
+}
+
+export function hydrateResumedCodexThreadState(thread: CodexResumedThread): CodexSessionState {
+  const messages = thread.messages.map((message) => ({
+    id: message.id,
+    role: message.role,
+    text: message.text,
+    attachments: [],
+    createdAt: message.createdAt,
+    completedAt: message.completedAt,
+    turnId: message.turnId,
+    itemId: message.itemId,
+    diff: null,
+    activities: [],
+  }));
+
+  return {
+    ...DEFAULT_SESSION_STATE,
+    status: 'ready',
+    threadId: thread.threadId,
+    transcriptEntries: messages.map(createMessageEntry),
+    messages,
   };
 }
 

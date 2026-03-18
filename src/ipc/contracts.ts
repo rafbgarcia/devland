@@ -35,6 +35,7 @@ export const SYNC_REPO_REVIEW_REFS_CHANNEL = 'app:sync-repo-review-refs';
 export const CREATE_GITHUB_PR_REVIEW_THREAD_CHANNEL = 'app:create-github-pr-review-thread';
 export const SEND_CODEX_SESSION_PROMPT_CHANNEL = 'app:send-codex-session-prompt';
 export const LIST_CODEX_THREADS_CHANNEL = 'app:list-codex-threads';
+export const RESUME_CODEX_THREAD_CHANNEL = 'app:resume-codex-thread';
 export const SEARCH_CODEX_PATHS_CHANNEL = 'app:search-codex-paths';
 export const INTERRUPT_CODEX_SESSION_CHANNEL = 'app:interrupt-codex-session';
 export const STOP_CODEX_SESSION_CHANNEL = 'app:stop-codex-session';
@@ -125,6 +126,23 @@ export const ListCodexThreadsInputSchema = z.object({
   limit: z.number().int().positive().max(100).optional(),
 });
 export type ListCodexThreadsInput = z.infer<typeof ListCodexThreadsInputSchema>;
+
+export const CodexResumedThreadMessageSchema = z.object({
+  id: z.string().min(1),
+  role: z.enum(['user', 'assistant']),
+  text: z.string(),
+  createdAt: z.string().min(1),
+  completedAt: z.string().min(1).nullable(),
+  turnId: z.string().min(1).nullable(),
+  itemId: z.string().min(1).nullable(),
+});
+export type CodexResumedThreadMessage = z.infer<typeof CodexResumedThreadMessageSchema>;
+
+export const CodexResumedThreadSchema = z.object({
+  threadId: z.string().min(1),
+  messages: z.array(CodexResumedThreadMessageSchema),
+});
+export type CodexResumedThread = z.infer<typeof CodexResumedThreadSchema>;
 
 export const GhUserSchema = z.object({
   login: z.string().min(1),
@@ -593,6 +611,12 @@ export interface ElectronApi {
     transcriptBootstrap?: string | null;
   }) => Promise<void>;
   listCodexThreads: (input: ListCodexThreadsInput) => Promise<CodexThreadSummary[]>;
+  resumeCodexThread: (input: {
+    sessionId: string;
+    cwd: string;
+    threadId: string;
+    settings: CodexComposerSettings;
+  }) => Promise<CodexResumedThread>;
   searchCodexPaths: (input: CodexPathSearchInput) => Promise<CodexPathSearchResult>;
   interruptCodexSession: (sessionId: string) => Promise<void>;
   stopCodexSession: (sessionId: string) => Promise<void>;

@@ -4,15 +4,18 @@ import { atomWithStorage, selectAtom } from 'jotai/utils';
 
 import type {
   CodexApprovalDecision,
+  CodexResumedThread,
   CodexSessionEvent,
 } from '@/ipc/contracts';
 import type {
+  CodexComposerSettings,
   CodexChatImageAttachment,
   CodexPromptSubmission,
 } from '@/lib/codex-chat';
 import {
   applyCodexSessionEvent,
   DEFAULT_SESSION_STATE,
+  hydrateResumedCodexThreadState,
   hydrateCodexSessionState,
   toCodexSessionSnapshot,
   type CodexSessionSnapshot,
@@ -212,6 +215,13 @@ const registerSessionFailureAtom = atom(
   },
 );
 
+const restoreResumedThreadAtom = atom(
+  null,
+  (get, set, input: { sessionId: string; thread: CodexResumedThread }) => {
+    writeSessionState(get, set, input.sessionId, hydrateResumedCodexThreadState(input.thread));
+  },
+);
+
 let isSubscribed = false;
 
 const ensureSessionSubscription = () => {
@@ -238,6 +248,7 @@ export function useCodexSessionActions() {
   const registerSessionFailure = useSetAtom(registerSessionFailureAtom);
   const removeSessionState = useSetAtom(removeSessionStateAtom);
   const resetSessionState = useSetAtom(resetSessionStateAtom);
+  const restoreResumedThread = useSetAtom(restoreResumedThreadAtom);
 
   const sendPrompt = async (sessionId: string, cwd: string, submission: CodexPromptSubmission) => {
     const previous = appJotaiStore.get(getSessionStateAtom(sessionId));
@@ -305,6 +316,25 @@ export function useCodexSessionActions() {
     resetSessionState(sessionId);
   };
 
+  const resumeThread = async (
+    sessionId: string,
+    cwd: string,
+    settings: CodexComposerSettings,
+    threadId: string,
+  ) => {
+    const resumedThread = await window.electronAPI.resumeCodexThread({
+      sessionId,
+      cwd,
+      settings,
+      threadId,
+    });
+
+    restoreResumedThread({
+      sessionId,
+      thread: resumedThread,
+    });
+  };
+
   const respondToApproval = async (
     sessionId: string,
     requestId: string,
@@ -334,6 +364,7 @@ export function useCodexSessionActions() {
     interruptSession,
     stopSession,
     resetSession,
+    resumeThread,
     respondToApproval,
     respondToUserInput,
   };

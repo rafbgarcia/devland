@@ -316,6 +316,7 @@ export const ChatComposer = memo(function ChatComposer({
   isRunning,
   onSettingsChange,
   onNewSession,
+  onSelectThread,
   onSendPrompt,
   onInterrupt,
 }: {
@@ -326,6 +327,7 @@ export const ChatComposer = memo(function ChatComposer({
   isRunning: boolean;
   onSettingsChange: (settings: CodexComposerSettings) => void;
   onNewSession: () => void;
+  onSelectThread: (threadId: string) => Promise<void>;
   onSendPrompt: (submission: CodexPromptSubmission) => Promise<void>;
   onInterrupt: () => Promise<void>;
 }) {
@@ -700,7 +702,11 @@ export const ChatComposer = memo(function ChatComposer({
     <div className="w-full">
       <div className="flex items-end gap-2">
         <div className="flex shrink-0 items-center gap-0.5 pb-1">
-          <SessionHistoryDropdown cwd={activeRepoPath} currentThreadId={currentThreadId} />
+          <SessionHistoryDropdown
+            cwd={activeRepoPath}
+            currentThreadId={currentThreadId}
+            onSelectThread={onSelectThread}
+          />
           <SettingsDropdown settings={settings} onChange={onSettingsChange} />
           <button
             type="button"

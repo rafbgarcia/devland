@@ -166,6 +166,7 @@ export function CodeWorkspaceScreen({
     interruptSession,
     stopSession,
     resetSession,
+    resumeThread,
     respondToApproval,
     respondToUserInput,
   } = useCodexSessionActions();
@@ -483,6 +484,9 @@ export function CodeWorkspaceScreen({
                       isRunning={isRunning}
                       onSettingsChange={handleComposerSettingsChange}
                       onNewSession={() => resetSession(activeTarget.id)}
+                      onSelectThread={(threadId) =>
+                        resumeThread(activeTarget.id, activeTarget.cwd, composerSettings, threadId)
+                      }
                       onSendPrompt={handleSendPrompt}
                       onInterrupt={() => interruptSession(activeTarget.id)}
                     />

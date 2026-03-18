@@ -17,14 +17,17 @@ import { cn } from '@/shadcn/lib/utils';
 export function SessionHistoryDropdown({
   cwd,
   currentThreadId,
+  onSelectThread,
 }: {
   cwd: string;
   currentThreadId: string | null;
+  onSelectThread: (threadId: string) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const [entries, setEntries] = useState<CodexThreadSummary[]>([]);
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [pendingThreadId, setPendingThreadId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) {
@@ -101,6 +104,11 @@ export function SessionHistoryDropdown({
             {errorMessage ?? 'Failed to load Codex sessions.'}
           </div>
         ) : null}
+        {status === 'ready' && errorMessage ? (
+          <div className="px-3 py-2 text-xs text-destructive/80">
+            {errorMessage}
+          </div>
+        ) : null}
         {status === 'ready' && sortedEntries.length === 0 ? (
           <div className="px-3 py-3 text-xs text-muted-foreground">
             No Codex sessions for this repo yet.
@@ -114,16 +122,50 @@ export function SessionHistoryDropdown({
                 ? entry.preview.trim()
                 : '';
               const isCurrent = currentThreadId === entry.id;
+              const isPending = pendingThreadId === entry.id;
 
               return (
-                <div
+                <button
                   key={entry.id}
-                  className="rounded-xl border border-border/70 bg-background/70 px-3 py-2"
+                  type="button"
+                  onClick={() => {
+                    if (isCurrent || isPending) {
+                      return;
+                    }
+
+                    setPendingThreadId(entry.id);
+                    setErrorMessage(null);
+
+                    void onSelectThread(entry.id)
+                      .then(() => {
+                        setOpen(false);
+                      })
+                      .catch((error: unknown) => {
+                        console.error('Failed to resume Codex thread:', error);
+                        setErrorMessage(
+                          error instanceof Error
+                            ? error.message
+                            : 'Failed to resume Codex thread.',
+                        );
+                      })
+                      .finally(() => {
+                        setPendingThreadId((current) => (current === entry.id ? null : current));
+                      });
+                  }}
+                  className={cn(
+                    'w-full rounded-xl border px-3 py-2 text-left transition-colors',
+                    isCurrent
+                      ? 'border-primary/40 bg-primary/8'
+                      : 'border-border/70 bg-background/70 hover:bg-background',
+                  )}
                 >
                   <div className="flex items-center gap-2">
                     <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
                       {title}
                     </p>
+                    {isPending ? (
+                      <LoaderCircleIcon className="size-3 shrink-0 animate-spin text-muted-foreground" />
+                    ) : null}
                     {isCurrent ? (
                       <span className="shrink-0 rounded-full bg-primary/12 px-2 py-0.5 text-[10px] font-medium text-primary">
                         Current
@@ -138,7 +180,7 @@ export function SessionHistoryDropdown({
                       {preview}
                     </p>
                   ) : null}
-                </div>
+                </button>
               );
             })}
           </div>

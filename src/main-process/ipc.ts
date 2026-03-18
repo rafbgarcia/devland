@@ -40,6 +40,7 @@ import {
   START_GIT_STATE_WATCH_CHANNEL,
   STOP_GIT_STATE_WATCH_CHANNEL,
   LIST_CODEX_THREADS_CHANNEL,
+  RESUME_CODEX_THREAD_CHANNEL,
   SEARCH_CODEX_PATHS_CHANNEL,
   INTERRUPT_CODEX_SESSION_CHANNEL,
   RESPOND_TO_CODEX_APPROVAL_CHANNEL,
@@ -314,6 +315,21 @@ export const registerAppIpcHandlers = (
     LIST_CODEX_THREADS_CHANNEL,
     (_event, input: { cwd: string; limit?: number }) =>
       codexAppServerManager.listThreads(input.cwd, input.limit ?? 20),
+  );
+  ipcMain.handle(
+    RESUME_CODEX_THREAD_CHANNEL,
+    (_event, input: {
+      sessionId: string;
+      cwd: string;
+      threadId: string;
+      settings: CodexComposerSettings;
+    }) =>
+      codexAppServerManager.resumeThread(
+        input.sessionId,
+        input.cwd,
+        input.settings,
+        input.threadId,
+      ),
   );
   ipcMain.handle(
     SEARCH_CODEX_PATHS_CHANNEL,

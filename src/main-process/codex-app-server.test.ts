@@ -6,6 +6,7 @@ import {
   buildCodexInitializeParams,
   buildCodexTurnStartParams,
   mapCodexRuntimeMode,
+  parseCodexResumedThread,
   parseCodexThreadSummaries,
   shouldEmitCodexActivity,
 } from '@/main-process/codex-app-server';
@@ -172,6 +173,64 @@ describe('parseCodexThreadSummaries', () => {
           updatedAt: 1710000300,
         },
       ],
+    );
+  });
+});
+
+describe('parseCodexResumedThread', () => {
+  it('maps resumed thread turns into renderer message history', () => {
+    assert.deepEqual(
+      parseCodexResumedThread({
+        thread: {
+          id: 'thread-1',
+          createdAt: 1710000000,
+          updatedAt: 1710000300,
+          turns: [
+            {
+              id: 'turn-1',
+              status: 'completed',
+              items: [
+                {
+                  id: 'user-1',
+                  type: 'userMessage',
+                  content: [
+                    { type: 'text', text: 'Fix the history icon' },
+                    { type: 'localImage', path: '/tmp/screenshot.png' },
+                  ],
+                },
+                {
+                  id: 'assistant-1',
+                  type: 'agentMessage',
+                  text: 'I will investigate it.',
+                },
+              ],
+            },
+          ],
+        },
+      }),
+      {
+        threadId: 'thread-1',
+        messages: [
+          {
+            id: 'user-1',
+            role: 'user',
+            text: 'Fix the history icon\n\n[Attached image: screenshot.png]',
+            createdAt: '2024-03-09T16:00:00.000Z',
+            completedAt: '2024-03-09T16:00:00.000Z',
+            turnId: 'turn-1',
+            itemId: 'user-1',
+          },
+          {
+            id: 'assistant-1',
+            role: 'assistant',
+            text: 'I will investigate it.',
+            createdAt: '2024-03-09T16:00:01.000Z',
+            completedAt: '2024-03-09T16:00:01.000Z',
+            turnId: 'turn-1',
+            itemId: 'assistant-1',
+          },
+        ],
+      },
     );
   });
 });

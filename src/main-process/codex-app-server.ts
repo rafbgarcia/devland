@@ -5,6 +5,7 @@ import readline from 'node:readline';
 import type {
   CodexApprovalDecision,
   CodexApprovalKind,
+  CodexResumedThread,
   CodexSessionEvent,
   CodexSessionStatus,
   CodexThreadSummary,
@@ -79,6 +80,7 @@ type SessionContext = {
 type EnsureSessionResult = {
   context: SessionContext;
   didResumeFallback: boolean;
+  threadResponse: unknown;
 };
 
 type JsonRpcRequest = {
@@ -260,6 +262,38 @@ const randomId = (): string =>
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
+const isoTimestampFromUnixSeconds = (seconds: number): string =>
+  new Date(seconds * 1000).toISOString();
+
+const basenameOfPath = (value: string): string => {
+  const separatorIndex = Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\'));
+  return separatorIndex === -1 ? value : value.slice(separatorIndex + 1);
+};
+
+function userInputToText(value: Record<string, unknown>): string | null {
+  const type = asString(value.type);
+
+  switch (type) {
+    case 'text':
+      return asString(value.text) ?? null;
+    case 'image':
+      return '[Attached image]';
+    case 'localImage': {
+      const path = asString(value.path);
+      return path ? `[Attached image: ${basenameOfPath(path)}]` : '[Attached image]';
+    }
+    case 'skill':
+      return asString(value.name) ? `Skill: ${asString(value.name)}` : null;
+    case 'mention': {
+      const path = asString(value.path);
+      const name = asString(value.name);
+      return path ?? name ?? null;
+    }
+    default:
+      return null;
+  }
+}
+
 export function parseCodexThreadSummaries(result: unknown): CodexThreadSummary[] {
   const threads = asArray(asObject(result)?.data) ?? [];
 
@@ -285,6 +319,75 @@ export function parseCodexThreadSummaries(result: unknown): CodexThreadSummary[]
   });
 }
 
+export function parseCodexResumedThread(result: unknown): CodexResumedThread {
+  const thread = asObject(asObject(result)?.thread);
+  const threadId = asString(thread?.id);
+
+  if (!threadId) {
+    throw new Error('Codex did not return a thread id.');
+  }
+
+  const threadCreatedAt =
+    asNumber(thread?.createdAt) ??
+    asNumber(thread?.updatedAt) ??
+    Math.floor(Date.now() / 1000);
+  const turns = asArray(thread?.turns) ?? [];
+  const messages: CodexResumedThread['messages'] = [];
+  let messageOffset = 0;
+
+  for (const turnCandidate of turns) {
+    const turn = asObject(turnCandidate);
+    const turnId = asString(turn?.id) ?? null;
+    const turnStatus = asString(turn?.status);
+    const items = asArray(turn?.items) ?? [];
+
+    for (const itemCandidate of items) {
+      const item = asObject(itemCandidate);
+      const itemType = asString(item?.type);
+      const createdAt = isoTimestampFromUnixSeconds(threadCreatedAt + messageOffset);
+      messageOffset += 1;
+
+      if (itemType === 'userMessage') {
+        const content = asArray(item?.content) ?? [];
+        const text = content
+          .flatMap((contentItem) => {
+            const nextText = userInputToText(asObject(contentItem) ?? {});
+            return nextText ? [nextText] : [];
+          })
+          .join('\n\n');
+
+        messages.push({
+          id: asString(item?.id) ?? `${threadId}:user:${messages.length}`,
+          role: 'user',
+          text,
+          createdAt,
+          completedAt: createdAt,
+          turnId,
+          itemId: asString(item?.id) ?? null,
+        });
+        continue;
+      }
+
+      if (itemType === 'agentMessage') {
+        messages.push({
+          id: asString(item?.id) ?? `${threadId}:assistant:${messages.length}`,
+          role: 'assistant',
+          text: asString(item?.text) ?? '',
+          createdAt,
+          completedAt: turnStatus === 'inProgress' ? null : createdAt,
+          turnId,
+          itemId: asString(item?.id) ?? null,
+        });
+      }
+    }
+  }
+
+  return {
+    threadId,
+    messages,
+  };
+}
+
 export class CodexAppServerManager extends EventEmitter<{
   event: [CodexSessionEvent];
 }> {
@@ -304,6 +407,31 @@ export class CodexAppServerManager extends EventEmitter<{
 
       return parseCodexThreadSummaries(response);
     });
+  }
+
+  async resumeThread(
+    sessionId: string,
+    cwd: string,
+    settings: CodexComposerSettings,
+    threadId: string,
+  ): Promise<CodexResumedThread> {
+    if (this.sessions.has(sessionId)) {
+      this.stopSession(sessionId);
+    }
+
+    const { didResumeFallback, threadResponse } = await this.ensureSession(
+      sessionId,
+      cwd,
+      settings,
+      threadId,
+    );
+
+    if (didResumeFallback) {
+      this.stopSession(sessionId);
+      throw new Error('Codex could not resume the selected thread.');
+    }
+
+    return parseCodexResumedThread(threadResponse);
   }
 
   async sendPrompt(
@@ -487,6 +615,7 @@ export class CodexAppServerManager extends EventEmitter<{
       return {
         context: existing,
         didResumeFallback: false,
+        threadResponse: null,
       };
     }
 
@@ -562,6 +691,7 @@ export class CodexAppServerManager extends EventEmitter<{
       return {
         context,
         didResumeFallback,
+        threadResponse,
       };
     } catch (error) {
       this.emit('event', {
