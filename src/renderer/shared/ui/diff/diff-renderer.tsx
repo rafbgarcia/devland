@@ -418,14 +418,25 @@ function SelectionGutterCell({
 }
 
 function HunkRow({
+  displayMode: _displayMode,
   content,
   selectionType,
   onToggleSelection,
+  expansionGap,
+  onExpandGap,
 }: {
+  displayMode: DiffDisplayMode;
   content: string;
   selectionType?: DiffSelectionType | undefined;
   onToggleSelection?: (() => void) | undefined;
+  expansionGap?: DiffExpansionGap | undefined;
+  onExpandGap?: ((action: DiffExpansionAction) => void) | undefined;
 }) {
+  void _displayMode;
+  const isCompactExpansion =
+    expansionGap !== undefined &&
+    expansionGap.hiddenLineCount <= DEFAULT_DIFF_EXPANSION_STEP;
+
   return (
     <div
       className={cn(
@@ -437,6 +448,54 @@ function HunkRow({
       {selectionType !== undefined ? (
         <SelectionGutterCell selectionType={selectionType} />
       ) : null}
+      <div className={cn(LINE_NUMBER_BOX_CLASS, LINE_NUMBER_BOX_DUAL_WIDTH_CLASS, 'flex shrink-0 items-stretch')}>
+        {expansionGap ? (
+          isCompactExpansion ? (
+            <button
+              type="button"
+              className="flex flex-1 items-center justify-center hover:bg-muted/80 hover:text-foreground"
+              onClick={(event) => {
+                event.stopPropagation();
+                onExpandGap?.('all');
+              }}
+              aria-label="Expand all"
+            >
+              <ChevronsUpDownIcon className="size-3" />
+            </button>
+          ) : (
+            <div className="flex flex-1 flex-col">
+              {expansionGap.canExpandDown ? (
+                <button
+                  type="button"
+                  className="flex h-[22px] items-center justify-center hover:bg-muted/80 hover:text-foreground"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onExpandGap?.('down');
+                  }}
+                  aria-label="Expand upward"
+                >
+                  <ChevronUpIcon className="size-3" />
+                </button>
+              ) : null}
+              {expansionGap.canExpandUp ? (
+                <button
+                  type="button"
+                  className="flex h-[22px] items-center justify-center hover:bg-muted/80 hover:text-foreground"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onExpandGap?.('up');
+                  }}
+                  aria-label="Expand downward"
+                >
+                  <ChevronDownIcon className="size-3" />
+                </button>
+              ) : null}
+            </div>
+          )
+        ) : (
+          <span className="block w-full" />
+        )}
+      </div>
       <div className="px-4 py-1 font-mono text-[12px] text-muted-foreground">
         {content}
       </div>
@@ -514,13 +573,13 @@ function ExpansionControlRow({
     <div className="flex border-y border-border/50 bg-muted/45">
       <div className="flex shrink-0 flex-col">
         {isCompactExpansion ? (
-          <button
-            type="button"
-            className={cn(
-              LINE_NUMBER_BOX_CLASS,
-              LINE_NUMBER_BOX_WIDTH_CLASS,
-              'flex h-[22px] items-center justify-center hover:bg-muted/80 hover:text-foreground',
-            )}
+            <button
+              type="button"
+              className={cn(
+                LINE_NUMBER_BOX_CLASS,
+                LINE_NUMBER_BOX_DUAL_WIDTH_CLASS,
+                'flex h-[22px] items-center justify-center hover:bg-muted/80 hover:text-foreground',
+              )}
             onClick={() => onExpand('all')}
             aria-label="Expand all"
           >
@@ -529,31 +588,31 @@ function ExpansionControlRow({
         ) : (
           <>
             {gap.canExpandDown ? (
-              <button
-                type="button"
-                className={cn(
-                  LINE_NUMBER_BOX_CLASS,
-                  LINE_NUMBER_BOX_WIDTH_CLASS,
-                  'flex h-[22px] items-center justify-center hover:bg-muted/80 hover:text-foreground',
-                )}
+                <button
+                  type="button"
+                  className={cn(
+                    LINE_NUMBER_BOX_CLASS,
+                    LINE_NUMBER_BOX_DUAL_WIDTH_CLASS,
+                    'flex h-[22px] items-center justify-center hover:bg-muted/80 hover:text-foreground',
+                  )}
                 onClick={() => onExpand('down')}
-                aria-label="Expand down"
+                aria-label="Expand upward"
               >
-                <ChevronDownIcon className="size-3" />
+                <ChevronUpIcon className="size-3" />
               </button>
             ) : null}
             {gap.canExpandUp ? (
-              <button
-                type="button"
-                className={cn(
-                  LINE_NUMBER_BOX_CLASS,
-                  LINE_NUMBER_BOX_WIDTH_CLASS,
-                  'flex h-[22px] items-center justify-center hover:bg-muted/80 hover:text-foreground',
-                )}
+                <button
+                  type="button"
+                  className={cn(
+                    LINE_NUMBER_BOX_CLASS,
+                    LINE_NUMBER_BOX_DUAL_WIDTH_CLASS,
+                    'flex h-[22px] items-center justify-center hover:bg-muted/80 hover:text-foreground',
+                  )}
                 onClick={() => onExpand('up')}
-                aria-label="Expand up"
+                aria-label="Expand downward"
               >
-                <ChevronUpIcon className="size-3" />
+                <ChevronDownIcon className="size-3" />
               </button>
             ) : null}
           </>
@@ -1108,6 +1167,7 @@ function DiffBodyRow({
     case 'hunk':
       return (
         <HunkRow
+          displayMode={displayMode}
           content={row.content}
           selectionType={selectionType}
           onToggleSelection={
@@ -1115,6 +1175,8 @@ function DiffBodyRow({
               ? () => onToggleHunkSelection(row.originalStartLineNumber)
               : undefined
           }
+          expansionGap={undefined}
+          onExpandGap={undefined}
         />
       );
     case 'context':
@@ -1626,6 +1688,25 @@ export function DiffFileSection({
                   />
                 </div>
               ) : null;
+            }
+
+            if (item.kind === 'collapsed-hunk') {
+              return (
+                <div key={item.key} className={hasSelectionGutter ? 'pl-3' : undefined}>
+                  <HunkRow
+                    displayMode={displayMode}
+                    content={item.row.content}
+                    selectionType={getHunkSelectionType?.(item.row.originalStartLineNumber)}
+                    onToggleSelection={
+                      getHunkSelectionType !== undefined && onToggleHunkSelection
+                        ? () => onToggleHunkSelection(item.row.originalStartLineNumber)
+                        : undefined
+                    }
+                    expansionGap={item.gap}
+                    onExpandGap={onExpandGap ? (action) => onExpandGap(item.gap, action) : undefined}
+                  />
+                </div>
+              );
             }
 
             const { row, rowIndex } = item;

@@ -102,6 +102,8 @@ describe('diff-expansion', () => {
       items.map((item) =>
         item.kind === 'expansion-control'
           ? { kind: item.kind, hidden: item.gap.hiddenLineCount }
+          : item.kind === 'collapsed-hunk'
+          ? { kind: item.kind, hidden: item.gap.hiddenLineCount, row: item.row.kind }
           : item.isExpandedContext
           ? {
               kind: 'expanded-context',
@@ -111,16 +113,79 @@ describe('diff-expansion', () => {
           : { kind: 'row', row: item.row.kind },
       ),
       [
-        { kind: 'expansion-control', hidden: 2 },
-        { kind: 'row', row: 'hunk' },
+        { kind: 'collapsed-hunk', hidden: 2, row: 'hunk' },
         { kind: 'row', row: 'modified' },
         { kind: 'expanded-context', line: 4, content: 'four' },
         { kind: 'expanded-context', line: 5, content: 'five' },
         { kind: 'expanded-context', line: 6, content: 'six' },
-        { kind: 'row', row: 'hunk' },
         { kind: 'row', row: 'modified' },
         { kind: 'expansion-control', hidden: 2 },
       ],
+    );
+  });
+
+  it('hides a middle hunk header after the preceding gap is fully expanded', () => {
+    const diff = [
+      'diff --git a/example.ts b/example.ts',
+      'index 1111111..2222222 100644',
+      '--- a/example.ts',
+      '+++ b/example.ts',
+      '@@ -3,1 +3,1 @@',
+      '-three',
+      '+THREE',
+      '@@ -7,1 +7,1 @@',
+      '-seven',
+      '+SEVEN',
+      '',
+    ].join('\n');
+    const file = parseUnifiedDiffDocument(diff).files[0]!;
+    const rows = projectDiffRows(file);
+    const contents = createContents([
+      'one',
+      'two',
+      'three',
+      'four',
+      'five',
+      'six',
+      'seven',
+      'eight',
+      'nine',
+    ]);
+    const middleGap = getDiffExpansionGaps(file, rows, contents).find((gap) => gap.position === 'middle')!;
+    const expanded = expandDiffGap({}, middleGap, 'all');
+    const items = buildDiffRenderExpansionItems(file, rows, contents, expanded);
+
+    assert.deepEqual(
+      items
+        .flatMap((item) =>
+          (item.kind === 'row' || item.kind === 'collapsed-hunk') && item.row.kind === 'hunk'
+            ? [item.row.content]
+            : []),
+      ['@@ -3,1 +3,1 @@'],
+    );
+  });
+
+  it('hides the first hunk header after the top gap is fully expanded', () => {
+    const diff = [
+      'diff --git a/example.ts b/example.ts',
+      'index 1111111..2222222 100644',
+      '--- a/example.ts',
+      '+++ b/example.ts',
+      '@@ -3,1 +3,1 @@',
+      '-three',
+      '+THREE',
+      '',
+    ].join('\n');
+    const file = parseUnifiedDiffDocument(diff).files[0]!;
+    const rows = projectDiffRows(file);
+    const contents = createContents(['one', 'two', 'three', 'four']);
+    const topGap = getDiffExpansionGaps(file, rows, contents).find((gap) => gap.position === 'top')!;
+    const expanded = expandDiffGap({}, topGap, 'all');
+    const items = buildDiffRenderExpansionItems(file, rows, contents, expanded);
+
+    assert.equal(
+      items.some((item) => item.kind === 'row' && item.row.kind === 'hunk'),
+      false,
     );
   });
 

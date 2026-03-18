@@ -39,6 +39,13 @@ export type DiffRenderExpansionItem =
       isExpandedContext: boolean;
     }
   | {
+      kind: 'collapsed-hunk';
+      key: string;
+      gap: DiffExpansionGap;
+      rowIndex: number;
+      row: Extract<DiffRow, { kind: 'hunk' }>;
+    }
+  | {
       kind: 'expansion-control';
       key: string;
       gap: DiffExpansionGap;
@@ -274,7 +281,7 @@ export function buildDiffRenderExpansionItems(
 
   const items: DiffRenderExpansionItems = [];
 
-  const pushGapItems = (gap: DiffExpansionGap) => {
+  const pushGapItems = (gap: DiffExpansionGap, mergeWithFollowingHunk = false) => {
     if (lineSource === null) {
       return;
     }
@@ -290,7 +297,7 @@ export function buildDiffRenderExpansionItems(
       });
     }
 
-    if (gap.hiddenLineCount > 0) {
+    if (gap.hiddenLineCount > 0 && !mergeWithFollowingHunk) {
       items.push({
         kind: 'expansion-control',
         key: `${gap.id}:control`,
@@ -312,8 +319,31 @@ export function buildDiffRenderExpansionItems(
 
   rows.forEach((row, rowIndex) => {
     const beforeItems = gapsByRowIndex.get(rowIndex);
+    const mergedGap = row.kind === 'hunk'
+      ? beforeItems?.find((gap) => gap.hiddenLineCount > 0) ?? null
+      : null;
     if (beforeItems) {
-      beforeItems.forEach(pushGapItems);
+      beforeItems.forEach((gap) => pushGapItems(gap, gap === mergedGap));
+    }
+
+    if (row.kind === 'hunk' && mergedGap !== null) {
+      items.push({
+        kind: 'collapsed-hunk',
+        key: `${mergedGap.id}:hunk`,
+        gap: mergedGap,
+        rowIndex,
+        row,
+      });
+      return;
+    }
+
+    const shouldRenderRow =
+      row.kind !== 'hunk' ||
+      beforeItems === undefined ||
+      beforeItems.every((gap) => gap.hiddenLineCount > 0);
+
+    if (!shouldRenderRow) {
+      return;
     }
 
     items.push({
@@ -331,7 +361,7 @@ export function buildDiffRenderExpansionItems(
     });
   });
 
-  trailingGaps.forEach(pushGapItems);
+  trailingGaps.forEach((gap) => pushGapItems(gap));
 
   return items;
 }
@@ -353,13 +383,16 @@ export function getExpandedDiffRenderLineCount({
 }) {
   const baseCount = getDiffRowsRenderLineCount(rows, displayMode);
   const gaps = getDiffExpansionGaps(file, rows, contents, expansionState);
+  const hiddenHunkHeaderCount = gaps.filter(
+    (gap) => gap.insertBeforeRowIndex !== null && gap.hiddenLineCount === 0,
+  ).length;
 
   return gaps.reduce((count, gap) => {
     const visibleLineCount = gap.revealedStartCount + gap.revealedEndCount;
-    const controlLineCount = gap.hiddenLineCount > 0 ? 1 : 0;
+    const controlLineCount = gap.hiddenLineCount > 0 && gap.insertBeforeRowIndex === null ? 1 : 0;
 
     return count + visibleLineCount + controlLineCount;
-  }, baseCount);
+  }, baseCount - hiddenHunkHeaderCount);
 }
 
 export function expandDiffGap(
