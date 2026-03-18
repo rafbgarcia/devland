@@ -47,6 +47,11 @@ import {
   RESPOND_TO_CODEX_USER_INPUT_CHANNEL,
   SEND_CODEX_SESSION_PROMPT_CHANNEL,
   STOP_CODEX_SESSION_CHANNEL,
+  OPEN_TERMINAL_SESSION_CHANNEL,
+  WRITE_TERMINAL_SESSION_CHANNEL,
+  RESIZE_TERMINAL_SESSION_CHANNEL,
+  CLOSE_TERMINAL_SESSION_CHANNEL,
+  TERMINAL_SESSION_EVENT_CHANNEL,
   type AppBootstrap,
   type CodexApprovalDecision,
 } from '../ipc/contracts';
@@ -85,6 +90,7 @@ import {
   validateLocalGitRepository,
 } from './git';
 import { gitStateWatcher } from './git-state-watcher';
+import { terminalSessionManager } from './terminal-session-manager';
 
 const getAppBootstrap = async (): Promise<AppBootstrap> => {
   if (process.env.DEVLAND_TEST_MODE === '1') {
@@ -127,6 +133,9 @@ export const registerAppIpcHandlers = (
   });
   gitStateWatcher.on('changed', (event) => {
     getMainWindow()?.webContents.send(GIT_STATE_CHANGED_CHANNEL, event);
+  });
+  terminalSessionManager.on('event', (event) => {
+    getMainWindow()?.webContents.send(TERMINAL_SESSION_EVENT_CHANNEL, event);
   });
 
   ipcMain.handle(GET_APP_BOOTSTRAP_CHANNEL, () => getAppBootstrap());
@@ -366,5 +375,21 @@ export const registerAppIpcHandlers = (
         input.requestId,
         input.answers,
       ),
+  );
+  ipcMain.handle(
+    OPEN_TERMINAL_SESSION_CHANNEL,
+    (_event, input) => terminalSessionManager.open(input),
+  );
+  ipcMain.handle(
+    WRITE_TERMINAL_SESSION_CHANNEL,
+    (_event, input) => terminalSessionManager.write(input),
+  );
+  ipcMain.handle(
+    RESIZE_TERMINAL_SESSION_CHANNEL,
+    (_event, input) => terminalSessionManager.resize(input),
+  );
+  ipcMain.handle(
+    CLOSE_TERMINAL_SESSION_CHANNEL,
+    (_event, sessionId: string) => terminalSessionManager.close(sessionId),
   );
 };

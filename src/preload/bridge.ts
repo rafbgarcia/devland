@@ -47,6 +47,12 @@ import {
   SEND_CODEX_SESSION_PROMPT_CHANNEL,
   SEARCH_CODEX_PATHS_CHANNEL,
   STOP_CODEX_SESSION_CHANNEL,
+  OPEN_TERMINAL_SESSION_CHANNEL,
+  WRITE_TERMINAL_SESSION_CHANNEL,
+  RESIZE_TERMINAL_SESSION_CHANNEL,
+  CLOSE_TERMINAL_SESSION_CHANNEL,
+  TERMINAL_SESSION_EVENT_CHANNEL,
+  TerminalSessionEventSchema,
   type ElectronApi,
 } from '@/ipc/contracts';
 
@@ -161,6 +167,14 @@ export const electronApi: ElectronApi = {
     ipcRenderer.invoke(RESPOND_TO_CODEX_APPROVAL_CHANNEL, input),
   respondToCodexUserInput: (input) =>
     ipcRenderer.invoke(RESPOND_TO_CODEX_USER_INPUT_CHANNEL, input),
+  openTerminalSession: (input) =>
+    ipcRenderer.invoke(OPEN_TERMINAL_SESSION_CHANNEL, input),
+  writeTerminalSession: (input) =>
+    ipcRenderer.invoke(WRITE_TERMINAL_SESSION_CHANNEL, input),
+  resizeTerminalSession: (input) =>
+    ipcRenderer.invoke(RESIZE_TERMINAL_SESSION_CHANNEL, input),
+  closeTerminalSession: (sessionId) =>
+    ipcRenderer.invoke(CLOSE_TERMINAL_SESSION_CHANNEL, sessionId),
   onGitStateChanged: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, event: unknown) => {
       const parsedEvent = GitStateChangedEventSchema.safeParse(event);
@@ -193,6 +207,23 @@ export const electronApi: ElectronApi = {
 
     return () => {
       ipcRenderer.removeListener(CODEX_SESSION_EVENT_CHANNEL, handler);
+    };
+  },
+  onTerminalSessionEvent: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, event: unknown) => {
+      const parsedEvent = TerminalSessionEventSchema.safeParse(event);
+
+      if (!parsedEvent.success) {
+        return;
+      }
+
+      listener(parsedEvent.data);
+    };
+
+    ipcRenderer.on(TERMINAL_SESSION_EVENT_CHANNEL, handler);
+
+    return () => {
+      ipcRenderer.removeListener(TERMINAL_SESSION_EVENT_CHANNEL, handler);
     };
   },
   onAppShortcutCommand: (listener) => {

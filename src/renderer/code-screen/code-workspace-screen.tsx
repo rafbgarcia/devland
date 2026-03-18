@@ -14,6 +14,7 @@ import {
   GitBranchPlusIcon,
   LoaderCircleIcon,
   PlusIcon,
+  TerminalIcon,
   XIcon,
 } from 'lucide-react';
 
@@ -25,6 +26,7 @@ import {
 import { ChangesPane } from '@/renderer/code-screen/changes-pane';
 import { ChatComposer } from '@/renderer/code-screen/chat-composer';
 import { SessionAlerts } from '@/renderer/code-screen/session-alerts';
+import { SessionTerminal } from '@/renderer/code-screen/session-terminal';
 import { SessionTranscript } from '@/renderer/code-screen/session-transcript';
 import { useCodeTargets } from '@/renderer/code-screen/use-code-targets';
 import {
@@ -50,7 +52,7 @@ const SIDEBAR_MIN_WIDTH = 200;
 const SIDEBAR_MAX_WIDTH = 500;
 const SIDEBAR_DEFAULT_WIDTH = 280;
 
-type ActiveLayer = 'files' | 'codex';
+type ActiveLayer = 'files' | 'codex' | 'terminal';
 
 function ResizableHandle({
   onResize,
@@ -128,6 +130,19 @@ function LayerToggle({
       >
         <BotIcon className="size-3" />
         Codex
+      </button>
+      <button
+        type="button"
+        onClick={() => onChangeLayer('terminal')}
+        className={cn(
+          'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+          activeLayer === 'terminal'
+            ? 'bg-background text-foreground shadow-sm'
+            : 'text-muted-foreground hover:text-foreground',
+        )}
+      >
+        <TerminalIcon className="size-3" />
+        Terminal
       </button>
     </div>
   );
@@ -317,6 +332,7 @@ export function CodeWorkspaceScreen({
     }
 
     await stopSession(activeTarget.id);
+    await window.electronAPI.closeTerminalSession(activeTarget.id);
     removeTarget(activeTarget.id);
   };
 
@@ -453,6 +469,12 @@ export function CodeWorkspaceScreen({
                   <div className="relative min-h-0 flex-1 overflow-auto">
                     {activeLayer === 'files' ? (
                       viewport
+                    ) : activeLayer === 'terminal' ? (
+                      <SessionTerminal
+                        key={activeTarget.id}
+                        sessionId={activeTarget.id}
+                        cwd={activeTarget.cwd}
+                      />
                     ) : (
                       <SessionTranscript
                         sessionState={sessionState}

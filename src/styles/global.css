@@ -164,3 +164,20 @@
 .diff-syntax .cm-diff-delete-inner {
   background: color-mix(in oklab, oklch(0.63 0.2 25) 34%, transparent);
 }
+
+.devland-terminal .xterm {
+  height: 100%;
+}
+
+.devland-terminal .xterm-screen {
+  width: 100% !important;
+}
+
+.devland-terminal .xterm-viewport {
+  border-radius: calc(var(--radius) * 0.9);
+  scrollbar-color: color-mix(in oklab, var(--muted-foreground) 32%, transparent) transparent;
+}
+
+.devland-terminal .xterm-rows {
+  padding-right: 2px;
+}

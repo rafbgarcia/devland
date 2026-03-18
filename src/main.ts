@@ -14,6 +14,7 @@ import {
   type AppShortcutCommand,
 } from '@/ipc/contracts';
 import { registerAppIpcHandlers } from './main-process/ipc';
+import { terminalSessionManager } from './main-process/terminal-session-manager';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -276,4 +277,8 @@ app.on('activate', () => {
   } else {
     focusMainWindow();
   }
+});
+
+app.on('before-quit', () => {
+  terminalSessionManager.dispose();
 });

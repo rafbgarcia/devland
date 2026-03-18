@@ -42,6 +42,11 @@ export const STOP_CODEX_SESSION_CHANNEL = 'app:stop-codex-session';
 export const RESPOND_TO_CODEX_APPROVAL_CHANNEL = 'app:respond-to-codex-approval';
 export const RESPOND_TO_CODEX_USER_INPUT_CHANNEL = 'app:respond-to-codex-user-input';
 export const CODEX_SESSION_EVENT_CHANNEL = 'app:codex-session-event';
+export const OPEN_TERMINAL_SESSION_CHANNEL = 'app:open-terminal-session';
+export const WRITE_TERMINAL_SESSION_CHANNEL = 'app:write-terminal-session';
+export const RESIZE_TERMINAL_SESSION_CHANNEL = 'app:resize-terminal-session';
+export const CLOSE_TERMINAL_SESSION_CHANNEL = 'app:close-terminal-session';
+export const TERMINAL_SESSION_EVENT_CHANNEL = 'app:terminal-session-event';
 export const GET_PR_DIFF_META_CHANNEL = 'app:get-pr-diff-meta';
 export const GET_COMMIT_DIFF_CHANNEL = 'app:get-commit-diff';
 export const GET_PR_DIFF_CHANNEL = 'app:get-pr-diff';
@@ -468,6 +473,73 @@ export const CodexSessionEventSchema = z.discriminatedUnion('type', [
 ]);
 export type CodexSessionEvent = z.infer<typeof CodexSessionEventSchema>;
 
+export const TerminalSessionStatusSchema = z.enum([
+  'starting',
+  'running',
+  'exited',
+  'error',
+]);
+export type TerminalSessionStatus = z.infer<typeof TerminalSessionStatusSchema>;
+
+export const OpenTerminalSessionInputSchema = z.object({
+  sessionId: z.string().min(1),
+  cwd: z.string().min(1),
+  cols: z.number().int().min(20).max(400).optional(),
+  rows: z.number().int().min(5).max(200).optional(),
+});
+export type OpenTerminalSessionInput = z.infer<typeof OpenTerminalSessionInputSchema>;
+
+export const WriteTerminalSessionInputSchema = z.object({
+  sessionId: z.string().min(1),
+  data: z.string().min(1).max(65_536),
+});
+export type WriteTerminalSessionInput = z.infer<typeof WriteTerminalSessionInputSchema>;
+
+export const ResizeTerminalSessionInputSchema = z.object({
+  sessionId: z.string().min(1),
+  cols: z.number().int().min(20).max(400),
+  rows: z.number().int().min(5).max(200),
+});
+export type ResizeTerminalSessionInput = z.infer<typeof ResizeTerminalSessionInputSchema>;
+
+export const TerminalSessionSnapshotSchema = z.object({
+  sessionId: z.string().min(1),
+  cwd: z.string().min(1),
+  status: TerminalSessionStatusSchema,
+  pid: z.number().int().positive().nullable(),
+  history: z.string(),
+  exitCode: z.number().int().nullable(),
+  exitSignal: z.number().int().nullable(),
+  error: z.string().min(1).nullable(),
+  updatedAt: z.string().min(1),
+});
+export type TerminalSessionSnapshot = z.infer<typeof TerminalSessionSnapshotSchema>;
+
+export const TerminalSessionEventSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('started'),
+    sessionId: z.string().min(1),
+    snapshot: TerminalSessionSnapshotSchema,
+  }),
+  z.object({
+    type: z.literal('output'),
+    sessionId: z.string().min(1),
+    data: z.string(),
+  }),
+  z.object({
+    type: z.literal('exited'),
+    sessionId: z.string().min(1),
+    exitCode: z.number().int().nullable(),
+    exitSignal: z.number().int().nullable(),
+  }),
+  z.object({
+    type: z.literal('error'),
+    sessionId: z.string().min(1),
+    message: z.string().min(1),
+  }),
+]);
+export type TerminalSessionEvent = z.infer<typeof TerminalSessionEventSchema>;
+
 export const PrCommitSchema = z.object({
   sha: z.string().min(1),
   shortSha: z.string().min(1),
@@ -630,6 +702,11 @@ export interface ElectronApi {
     requestId: string;
     answers: Record<string, string>;
   }) => Promise<void>;
+  openTerminalSession: (input: OpenTerminalSessionInput) => Promise<TerminalSessionSnapshot>;
+  writeTerminalSession: (input: WriteTerminalSessionInput) => Promise<void>;
+  resizeTerminalSession: (input: ResizeTerminalSessionInput) => Promise<void>;
+  closeTerminalSession: (sessionId: string) => Promise<void>;
   onGitStateChanged: (listener: (event: GitStateChangedEvent) => void) => () => void;
   onCodexSessionEvent: (listener: (event: CodexSessionEvent) => void) => () => void;
+  onTerminalSessionEvent: (listener: (event: TerminalSessionEvent) => void) => () => void;
 }
