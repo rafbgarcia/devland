@@ -1,106 +1,80 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
-import { HistoryIcon } from 'lucide-react';
+import { HistoryIcon, LoaderCircleIcon } from 'lucide-react';
 
 import { dayjs } from '@/lib/dayjs';
-import { summarizeCodexUserMessage } from '@/lib/codex-chat';
-import type { CodexChatMessage } from '@/renderer/code-screen/codex-session-state';
+import type { CodexThreadSummary } from '@/ipc/contracts';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/shadcn/components/ui/dropdown-menu';
 import { cn } from '@/shadcn/lib/utils';
 
-type HistoryEntry = {
-  id: string;
-  createdAt: string;
-  promptText: string;
-  additions: number;
-  deletions: number;
-  hasDiff: boolean;
-};
-
-function buildHistoryEntries(messages: CodexChatMessage[]): HistoryEntry[] {
-  const entries: HistoryEntry[] = [];
-  const indexByTurnKey = new Map<string, number>();
-
-  for (let i = 0; i < messages.length; i += 1) {
-    const message = messages[i];
-
-    if (!message || message.role !== 'assistant') {
-      continue;
-    }
-
-    const prompt = messages.findLast(
-      (candidate, candidateIndex) =>
-        candidateIndex < i &&
-        candidate.role === 'user' &&
-        (message.turnId === null || candidate.turnId === message.turnId),
-    ) ?? null;
-
-    const turnKey = message.turnId ?? message.id;
-    const existing = indexByTurnKey.get(turnKey);
-
-    if (existing !== undefined) {
-      const entry = entries[existing];
-
-      if (entry && message.diff) {
-        entries[existing] = {
-          ...entry,
-          additions: message.diff.files.reduce((sum, f) => sum + f.additions, 0),
-          deletions: message.diff.files.reduce((sum, f) => sum + f.deletions, 0),
-          hasDiff: true,
-        };
-      }
-
-      continue;
-    }
-
-    const additions = message.diff?.files.reduce((sum, f) => sum + f.additions, 0) ?? 0;
-    const deletions = message.diff?.files.reduce((sum, f) => sum + f.deletions, 0) ?? 0;
-
-    entries.push({
-      id: turnKey,
-      createdAt: message.createdAt,
-      promptText:
-        prompt
-          ? summarizeCodexUserMessage({
-              text: prompt.text,
-              attachments: prompt.attachments,
-            })
-          : 'Assistant turn',
-      additions,
-      deletions,
-      hasDiff: !!message.diff && message.diff.files.length > 0,
-    });
-    indexByTurnKey.set(turnKey, entries.length - 1);
-  }
-
-  return entries;
-}
-
 export function SessionHistoryDropdown({
-  messages,
-  disabled,
+  cwd,
+  currentThreadId,
 }: {
-  messages: CodexChatMessage[];
-  disabled?: boolean;
+  cwd: string;
+  currentThreadId: string | null;
 }) {
-  const entries = useMemo(() => buildHistoryEntries(messages), [messages]);
-  const reversedEntries = useMemo(() => entries.toReversed(), [entries]);
+  const [open, setOpen] = useState(false);
+  const [entries, setEntries] = useState<CodexThreadSummary[]>([]);
+  const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    let cancelled = false;
+    setStatus('loading');
+    setErrorMessage(null);
+
+    void window.electronAPI
+      .listCodexThreads({
+        cwd,
+        limit: 24,
+      })
+      .then((nextEntries) => {
+        if (cancelled) {
+          return;
+        }
+
+        setEntries(nextEntries);
+        setStatus('ready');
+      })
+      .catch((error: unknown) => {
+        if (cancelled) {
+          return;
+        }
+
+        console.error('Failed to load Codex thread history:', error);
+        setErrorMessage(
+          error instanceof Error ? error.message : 'Failed to load Codex sessions.',
+        );
+        setStatus('error');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cwd, open]);
+
+  const sortedEntries = useMemo(
+    () => entries.toSorted((left, right) => right.updatedAt - left.updatedAt),
+    [entries],
+  );
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger
-        disabled={disabled}
         className={cn(
           'flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground',
-          'disabled:pointer-events-none disabled:opacity-40',
         )}
         aria-label="Session history"
       >
@@ -116,31 +90,59 @@ export function SessionHistoryDropdown({
           <DropdownMenuLabel>Session history</DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        {reversedEntries.length === 0 ? (
-          <div className="px-2 py-3 text-center text-xs text-muted-foreground">
-            No turns yet
+        {status === 'loading' ? (
+          <div className="flex items-center gap-2 px-3 py-3 text-xs text-muted-foreground">
+            <LoaderCircleIcon className="size-3 animate-spin" />
+            Loading Codex sessions...
           </div>
-        ) : (
-          <DropdownMenuGroup>
-            {reversedEntries.map((entry) => (
-              <DropdownMenuItem key={entry.id} className="flex items-center gap-3 px-2.5 py-2">
-                <p className="min-w-0 flex-1 truncate text-sm font-medium">
-                  {entry.promptText}
-                </p>
-                {entry.hasDiff ? (
-                  <span className="shrink-0 text-xs tabular-nums">
-                    <span className="text-emerald-400">+{entry.additions}</span>
-                    {' '}
-                    <span className="text-red-400">-{entry.deletions}</span>
-                  </span>
-                ) : null}
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {dayjs(entry.createdAt).fromNow(true)}
-                </span>
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuGroup>
-        )}
+        ) : null}
+        {status === 'error' ? (
+          <div className="px-3 py-3 text-xs text-destructive/80">
+            {errorMessage ?? 'Failed to load Codex sessions.'}
+          </div>
+        ) : null}
+        {status === 'ready' && sortedEntries.length === 0 ? (
+          <div className="px-3 py-3 text-xs text-muted-foreground">
+            No Codex sessions for this repo yet.
+          </div>
+        ) : null}
+        {status === 'ready' && sortedEntries.length > 0 ? (
+          <div className="flex flex-col gap-1 p-1.5">
+            {sortedEntries.map((entry) => {
+              const title = entry.name?.trim() || entry.preview.trim() || 'Untitled session';
+              const preview = entry.name?.trim()
+                ? entry.preview.trim()
+                : '';
+              const isCurrent = currentThreadId === entry.id;
+
+              return (
+                <div
+                  key={entry.id}
+                  className="rounded-xl border border-border/70 bg-background/70 px-3 py-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+                      {title}
+                    </p>
+                    {isCurrent ? (
+                      <span className="shrink-0 rounded-full bg-primary/12 px-2 py-0.5 text-[10px] font-medium text-primary">
+                        Current
+                      </span>
+                    ) : null}
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {dayjs.unix(entry.updatedAt).fromNow(true)}
+                    </span>
+                  </div>
+                  {preview ? (
+                    <p className="mt-1 truncate text-xs text-muted-foreground">
+                      {preview}
+                    </p>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );

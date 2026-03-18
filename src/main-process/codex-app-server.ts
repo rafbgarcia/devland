@@ -7,6 +7,7 @@ import type {
   CodexApprovalKind,
   CodexSessionEvent,
   CodexSessionStatus,
+  CodexThreadSummary,
   CodexUserInputQuestion,
 } from '@/ipc/contracts';
 import type {
@@ -36,6 +37,12 @@ type PendingRequest = {
   reject: (error: Error) => void;
 };
 
+type RequestContext = {
+  child: ChildProcessWithoutNullStreams;
+  nextRequestId: number;
+  pending: Map<string, PendingRequest>;
+};
+
 type PendingApprovalRequest = {
   requestId: string;
   jsonRpcId: JsonRpcId;
@@ -56,10 +63,10 @@ type SessionContext = {
   sessionId: string;
   cwd: string;
   runtimeMode: CodexRuntimeMode;
-  child: ChildProcessWithoutNullStreams;
+  child: RequestContext['child'];
   output: readline.Interface;
-  nextRequestId: number;
-  pending: Map<string, PendingRequest>;
+  nextRequestId: RequestContext['nextRequestId'];
+  pending: RequestContext['pending'];
   pendingApprovals: Map<string, PendingApprovalRequest>;
   pendingUserInputs: Map<string, PendingUserInputRequest>;
   status: CodexSessionStatus;
@@ -189,6 +196,9 @@ const asObject = (value: unknown): Record<string, unknown> | undefined =>
 const asString = (value: unknown): string | undefined =>
   typeof value === 'string' ? value : undefined;
 
+const asNumber = (value: unknown): number | undefined =>
+  typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+
 const asArray = (value: unknown): unknown[] | undefined =>
   Array.isArray(value) ? value : undefined;
 
@@ -250,10 +260,51 @@ const randomId = (): string =>
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
+export function parseCodexThreadSummaries(result: unknown): CodexThreadSummary[] {
+  const threads = asArray(asObject(result)?.data) ?? [];
+
+  return threads.flatMap((thread) => {
+    const candidate = asObject(thread);
+    const id = asString(candidate?.id);
+    const cwd = asString(candidate?.cwd);
+    const createdAt = asNumber(candidate?.createdAt);
+    const updatedAt = asNumber(candidate?.updatedAt);
+
+    if (!id || !cwd || createdAt === undefined || updatedAt === undefined) {
+      return [];
+    }
+
+    return [{
+      id,
+      name: coalesceStrings(asString(candidate?.name)),
+      preview: asString(candidate?.preview) ?? '',
+      cwd,
+      createdAt,
+      updatedAt,
+    }];
+  });
+}
+
 export class CodexAppServerManager extends EventEmitter<{
   event: [CodexSessionEvent];
 }> {
   private readonly sessions = new Map<string, SessionContext>();
+
+  async listThreads(cwd: string, limit = 20): Promise<CodexThreadSummary[]> {
+    return this.withStandaloneClient(cwd, async (context) => {
+      const response = await this.sendRequest(
+        context,
+        'thread/list',
+        {
+          cwd,
+          limit,
+          sortKey: 'updated_at',
+        },
+      );
+
+      return parseCodexThreadSummaries(response);
+    });
+  }
 
   async sendPrompt(
     sessionId: string,
@@ -535,6 +586,89 @@ export class CodexAppServerManager extends EventEmitter<{
     }
 
     return context;
+  }
+
+  private async withStandaloneClient<T>(
+    cwd: string,
+    run: (context: RequestContext) => Promise<T>,
+  ): Promise<T> {
+    if (codexExecutable === null) {
+      throw new Error('Codex CLI is not installed. Install it from https://codex.openai.com');
+    }
+
+    const child = spawn(codexExecutable, ['app-server'], {
+      cwd,
+      windowsHide: true,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    const output = readline.createInterface({ input: child.stdout });
+    const context: RequestContext = {
+      child,
+      nextRequestId: 1,
+      pending: new Map(),
+    };
+    let isClosed = false;
+
+    const closeClient = () => {
+      if (isClosed) {
+        return;
+      }
+
+      isClosed = true;
+      for (const pending of context.pending.values()) {
+        clearTimeout(pending.timeout);
+        pending.reject(new Error('Codex app-server client stopped before request completed.'));
+      }
+      context.pending.clear();
+      output.close();
+      if (!child.killed) {
+        child.kill();
+      }
+    };
+
+    output.on('line', (line) => {
+      let parsed: unknown;
+
+      try {
+        parsed = JSON.parse(line);
+      } catch {
+        return;
+      }
+
+      if (
+        parsed &&
+        typeof parsed === 'object' &&
+        'id' in parsed &&
+        !('method' in parsed)
+      ) {
+        this.handleResponse(context, parsed as JsonRpcResponse);
+      }
+    });
+
+    child.on('error', (error) => {
+      for (const pending of context.pending.values()) {
+        clearTimeout(pending.timeout);
+        pending.reject(error);
+      }
+      context.pending.clear();
+    });
+
+    child.on('exit', () => {
+      for (const pending of context.pending.values()) {
+        clearTimeout(pending.timeout);
+        pending.reject(new Error('Codex app-server client exited unexpectedly.'));
+      }
+      context.pending.clear();
+    });
+
+    try {
+      await this.sendRequest(context, 'initialize', buildCodexInitializeParams());
+      this.writeMessage(context, { method: 'initialized' });
+
+      return await run(context);
+    } finally {
+      closeClient();
+    }
   }
 
   private attachProcessListeners(context: SessionContext): void {
@@ -868,7 +1002,7 @@ export class CodexAppServerManager extends EventEmitter<{
     }
   }
 
-  private handleResponse(context: SessionContext, response: JsonRpcResponse): void {
+  private handleResponse(context: RequestContext, response: JsonRpcResponse): void {
     const key = String(response.id);
     const pending = context.pending.get(key);
 
@@ -888,7 +1022,7 @@ export class CodexAppServerManager extends EventEmitter<{
   }
 
   private async sendRequest<TResponse>(
-    context: SessionContext,
+    context: RequestContext,
     method: string,
     params: unknown,
   ): Promise<TResponse> {
@@ -917,7 +1051,7 @@ export class CodexAppServerManager extends EventEmitter<{
     return result as TResponse;
   }
 
-  private writeMessage(context: SessionContext, message: unknown): void {
+  private writeMessage(context: RequestContext, message: unknown): void {
     if (!context.child.stdin.writable) {
       throw new Error('Cannot write to Codex stdin.');
     }

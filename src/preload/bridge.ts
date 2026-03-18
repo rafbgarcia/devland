@@ -37,6 +37,7 @@ import {
   GET_WORKING_TREE_FILE_TEXT_CHANNEL,
   GET_COMMIT_PARENT_CHANNEL,
   GitStateChangedEventSchema,
+  LIST_CODEX_THREADS_CHANNEL,
   START_GIT_STATE_WATCH_CHANNEL,
   STOP_GIT_STATE_WATCH_CHANNEL,
   INTERRUPT_CODEX_SESSION_CHANNEL,
@@ -145,6 +146,8 @@ export const electronApi: ElectronApi = {
     ipcRenderer.invoke(GET_COMMIT_PARENT_CHANNEL, repoPath, commitSha),
   sendCodexSessionPrompt: (input) =>
     ipcRenderer.invoke(SEND_CODEX_SESSION_PROMPT_CHANNEL, input),
+  listCodexThreads: (input) =>
+    ipcRenderer.invoke(LIST_CODEX_THREADS_CHANNEL, input),
   searchCodexPaths: (input) =>
     ipcRenderer.invoke(SEARCH_CODEX_PATHS_CHANNEL, input),
   interruptCodexSession: (sessionId) =>

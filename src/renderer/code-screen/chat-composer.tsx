@@ -37,7 +37,6 @@ import {
   codexRuntimeModeLabel,
 } from '@/lib/codex-chat';
 import type { CodexPathSearchResultItem } from '@/ipc/contracts';
-import type { CodexChatMessage } from '@/renderer/code-screen/codex-session-state';
 import {
   areComposerTagTriggersEqual,
   detectComposerTagTrigger,
@@ -311,20 +310,20 @@ function SettingsDropdown({
 
 export const ChatComposer = memo(function ChatComposer({
   activeRepoPath,
+  currentThreadId,
   storedRepoPaths,
   settings,
   isRunning,
-  messages,
   onSettingsChange,
   onNewSession,
   onSendPrompt,
   onInterrupt,
 }: {
   activeRepoPath: string;
+  currentThreadId: string | null;
   storedRepoPaths: string[];
   settings: CodexComposerSettings;
   isRunning: boolean;
-  messages: CodexChatMessage[];
   onSettingsChange: (settings: CodexComposerSettings) => void;
   onNewSession: () => void;
   onSendPrompt: (submission: CodexPromptSubmission) => Promise<void>;
@@ -346,7 +345,6 @@ export const ChatComposer = memo(function ChatComposer({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const fileInputId = useId();
 
-  const hasHistory = messages.length > 0;
   const isInputDisabled = isRunning || isSending;
   const placeholder = `Message ${CODEX_INTERACTION_MODE_LABEL} (${codexReasoningEffortLabel(settings.reasoningEffort)}, ${codexFastModeLabel(settings.fastMode)}, ${codexRuntimeModeLabel(settings.runtimeMode)})`;
   const tagMenuQuery = tagTrigger?.query.trim() ?? '';
@@ -702,7 +700,7 @@ export const ChatComposer = memo(function ChatComposer({
     <div className="w-full">
       <div className="flex items-end gap-2">
         <div className="flex shrink-0 items-center gap-0.5 pb-1">
-          <SessionHistoryDropdown messages={messages} disabled={!hasHistory} />
+          <SessionHistoryDropdown cwd={activeRepoPath} currentThreadId={currentThreadId} />
           <SettingsDropdown settings={settings} onChange={onSettingsChange} />
           <button
             type="button"

@@ -6,6 +6,7 @@ import {
   buildCodexInitializeParams,
   buildCodexTurnStartParams,
   mapCodexRuntimeMode,
+  parseCodexThreadSummaries,
   shouldEmitCodexActivity,
 } from '@/main-process/codex-app-server';
 
@@ -135,6 +136,42 @@ describe('buildCodexTurnStartParams', () => {
         model: 'gpt-5.3-codex',
         effort: 'medium',
       },
+    );
+  });
+});
+
+describe('parseCodexThreadSummaries', () => {
+  it('extracts thread list rows used by the renderer history menu', () => {
+    assert.deepEqual(
+      parseCodexThreadSummaries({
+        data: [
+          {
+            id: 'thread-1',
+            name: 'Fix composer previews',
+            preview: 'Investigate the broken image preview',
+            cwd: '/repo',
+            createdAt: 1710000000,
+            updatedAt: 1710000300,
+          },
+          {
+            id: '',
+            preview: 'invalid',
+            cwd: '/repo',
+            createdAt: 1710000000,
+            updatedAt: 1710000300,
+          },
+        ],
+      }),
+      [
+        {
+          id: 'thread-1',
+          name: 'Fix composer previews',
+          preview: 'Investigate the broken image preview',
+          cwd: '/repo',
+          createdAt: 1710000000,
+          updatedAt: 1710000300,
+        },
+      ],
     );
   });
 });

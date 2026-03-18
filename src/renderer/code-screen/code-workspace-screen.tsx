@@ -477,10 +477,10 @@ export function CodeWorkspaceScreen({
                     <ChatComposer
                       key={activeTarget.id}
                       activeRepoPath={activeTarget.cwd}
+                      currentThreadId={sessionState.threadId}
                       storedRepoPaths={storedRepoPaths}
                       settings={composerSettings}
                       isRunning={isRunning}
-                      messages={sessionState.messages}
                       onSettingsChange={handleComposerSettingsChange}
                       onNewSession={() => resetSession(activeTarget.id)}
                       onSendPrompt={handleSendPrompt}

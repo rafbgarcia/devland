@@ -34,6 +34,7 @@ export const GENERATE_PR_REVIEW_CHANNEL = 'app:generate-pr-review';
 export const SYNC_REPO_REVIEW_REFS_CHANNEL = 'app:sync-repo-review-refs';
 export const CREATE_GITHUB_PR_REVIEW_THREAD_CHANNEL = 'app:create-github-pr-review-thread';
 export const SEND_CODEX_SESSION_PROMPT_CHANNEL = 'app:send-codex-session-prompt';
+export const LIST_CODEX_THREADS_CHANNEL = 'app:list-codex-threads';
 export const SEARCH_CODEX_PATHS_CHANNEL = 'app:search-codex-paths';
 export const INTERRUPT_CODEX_SESSION_CHANNEL = 'app:interrupt-codex-session';
 export const STOP_CODEX_SESSION_CHANNEL = 'app:stop-codex-session';
@@ -108,6 +109,22 @@ export const CodexPathSearchResultSchema = z.object({
   truncated: z.boolean(),
 });
 export type CodexPathSearchResult = z.infer<typeof CodexPathSearchResultSchema>;
+
+export const CodexThreadSummarySchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1).nullable(),
+  preview: z.string(),
+  cwd: z.string().min(1),
+  createdAt: z.number().int().nonnegative(),
+  updatedAt: z.number().int().nonnegative(),
+});
+export type CodexThreadSummary = z.infer<typeof CodexThreadSummarySchema>;
+
+export const ListCodexThreadsInputSchema = z.object({
+  cwd: z.string().min(1),
+  limit: z.number().int().positive().max(100).optional(),
+});
+export type ListCodexThreadsInput = z.infer<typeof ListCodexThreadsInputSchema>;
 
 export const GhUserSchema = z.object({
   login: z.string().min(1),
@@ -575,6 +592,7 @@ export interface ElectronApi {
     resumeThreadId?: string | null;
     transcriptBootstrap?: string | null;
   }) => Promise<void>;
+  listCodexThreads: (input: ListCodexThreadsInput) => Promise<CodexThreadSummary[]>;
   searchCodexPaths: (input: CodexPathSearchInput) => Promise<CodexPathSearchResult>;
   interruptCodexSession: (sessionId: string) => Promise<void>;
   stopCodexSession: (sessionId: string) => Promise<void>;
