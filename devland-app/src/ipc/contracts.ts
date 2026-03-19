@@ -87,6 +87,17 @@ export type ProjectViewTab = (typeof PROJECT_VIEW_TABS)[number];
 
 export const DEFAULT_PROJECT_VIEW_TAB: ProjectViewTab = 'code';
 
+export const CODE_WORKSPACE_PANES = [
+  'changes',
+  'codex',
+  'browser',
+  'terminal',
+] as const;
+export const CodeWorkspacePaneSchema = z.enum(CODE_WORKSPACE_PANES);
+export type CodeWorkspacePane = z.infer<typeof CodeWorkspacePaneSchema>;
+
+export const DEFAULT_CODE_WORKSPACE_PANE: CodeWorkspacePane = 'codex';
+
 export const APP_SHORTCUT_DIRECTIONS = ['next', 'previous'] as const;
 export const AppShortcutDirectionSchema = z.enum(APP_SHORTCUT_DIRECTIONS);
 export type AppShortcutDirection = (typeof APP_SHORTCUT_DIRECTIONS)[number];
@@ -175,9 +186,16 @@ export const GhUserSchema = z.object({
 });
 export type GhUser = z.infer<typeof GhUserSchema>;
 
+export const RepoWorkspaceStateSchema = z.object({
+  activeTabId: z.string().min(1),
+  activeCodeTargetId: z.string().min(1).nullable(),
+  activeCodePaneId: CodeWorkspacePaneSchema,
+});
+export type RepoWorkspaceState = z.infer<typeof RepoWorkspaceStateSchema>;
+
 export const WorkspaceSessionSchema = z.object({
   activeRepoId: z.string().min(1).nullable(),
-  activeTab: ProjectViewTabSchema,
+  repoViewById: z.record(z.string().min(1), RepoWorkspaceStateSchema),
 });
 export type WorkspaceSession = z.infer<typeof WorkspaceSessionSchema>;
 

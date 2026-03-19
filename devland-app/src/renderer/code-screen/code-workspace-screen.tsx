@@ -25,6 +25,9 @@ import {
   type CodexComposerSettings,
   type CodexPromptSubmission,
 } from '@/lib/codex-chat';
+import {
+  type CodeWorkspacePane,
+} from '@/ipc/contracts';
 import { BrowserPanel } from '@/renderer/code-screen/browser/browser-panel';
 import { clearBrowserTargetState } from '@/renderer/code-screen/browser/browser-target-state';
 import { ChangesPane } from '@/renderer/code-screen/changes-pane';
@@ -46,6 +49,13 @@ import {
   requestGitStatusRefresh,
   subscribeToGitStatusRefresh,
 } from '@/renderer/shared/lib/git-status-refresh';
+import {
+  getRememberedCodePaneId,
+  getRememberedCodeTargetId,
+  rememberCodePane,
+  rememberCodeTarget,
+} from '@/renderer/shared/lib/workspace-view-state';
+import { useWorkspaceSession } from '@/renderer/projects-shell/use-workspace-session';
 import { useRepos } from '@/renderer/projects-shell/use-repos';
 import { Button } from '@/shadcn/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/shadcn/components/ui/tabs';
@@ -55,8 +65,6 @@ const TEMPORARY_WORKTREE_BRANCH_PATTERN = /^codex\/[0-9a-f]{8}$/;
 const SIDEBAR_MIN_WIDTH = 200;
 const SIDEBAR_MAX_WIDTH = 500;
 const SIDEBAR_DEFAULT_WIDTH = 280;
-
-type ActiveLayer = 'files' | 'codex' | 'browser' | 'terminal';
 
 function ResizableHandle({
   onResize,
@@ -101,20 +109,20 @@ function ResizableHandle({
 }
 
 function LayerToggle({
-  activeLayer,
-  onChangeLayer,
+  activePaneId,
+  onChangePane,
 }: {
-  activeLayer: ActiveLayer;
-  onChangeLayer: (layer: ActiveLayer) => void;
+  activePaneId: CodeWorkspacePane;
+  onChangePane: (paneId: CodeWorkspacePane) => void;
 }) {
   return (
     <div className="flex items-center gap-0.5 border-b border-border bg-muted/30 px-3 py-1.5">
       <button
         type="button"
-        onClick={() => onChangeLayer('files')}
+        onClick={() => onChangePane('changes')}
         className={cn(
           'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-          activeLayer === 'files'
+          activePaneId === 'changes'
             ? 'bg-background text-foreground shadow-sm'
             : 'text-muted-foreground hover:text-foreground',
         )}
@@ -124,10 +132,10 @@ function LayerToggle({
       </button>
       <button
         type="button"
-        onClick={() => onChangeLayer('codex')}
+        onClick={() => onChangePane('codex')}
         className={cn(
           'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-          activeLayer === 'codex'
+          activePaneId === 'codex'
             ? 'bg-background text-foreground shadow-sm'
             : 'text-muted-foreground hover:text-foreground',
         )}
@@ -137,10 +145,10 @@ function LayerToggle({
       </button>
       <button
         type="button"
-        onClick={() => onChangeLayer('browser')}
+        onClick={() => onChangePane('browser')}
         className={cn(
           'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-          activeLayer === 'browser'
+          activePaneId === 'browser'
             ? 'bg-background text-foreground shadow-sm'
             : 'text-muted-foreground hover:text-foreground',
         )}
@@ -150,10 +158,10 @@ function LayerToggle({
       </button>
       <button
         type="button"
-        onClick={() => onChangeLayer('terminal')}
+        onClick={() => onChangePane('terminal')}
         className={cn(
           'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-          activeLayer === 'terminal'
+          activePaneId === 'terminal'
             ? 'bg-background text-foreground shadow-sm'
             : 'text-muted-foreground hover:text-foreground',
         )}
@@ -173,25 +181,27 @@ export function CodeWorkspaceScreen({
   repoPath: string;
 }) {
   const [isCreatingWorktree, setIsCreatingWorktree] = useState(false);
-  const [activeLayer, setActiveLayer] = useState<ActiveLayer>('codex');
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
   const [composerSettingsByTargetId, setComposerSettingsByTargetId] = useState<
     Record<string, CodexComposerSettings>
   >({});
   const sidebarWidthAtDragStart = useRef(SIDEBAR_DEFAULT_WIDTH);
   const repos = useRepos();
+  const { session, updateSession } = useWorkspaceSession();
   const storedRepoPaths = useMemo(() => repos.map((repo) => repo.path), [repos]);
+  const rememberedTargetId = getRememberedCodeTargetId(session, repoId);
+  const activePaneId = getRememberedCodePaneId(session, repoId);
 
   const {
+    rootTarget,
     targets,
     activeTarget,
     activeTargetId,
-    setActiveTarget,
     addCurrentBranchSession,
     addWorktreeTarget,
     removeTarget,
     updateTarget,
-  } = useCodeTargets(repoId, repoPath);
+  } = useCodeTargets(repoId, repoPath, rememberedTargetId);
   const sessionState = useCodexSessionState(activeTarget.id);
   const {
     sendPrompt,
@@ -208,6 +218,28 @@ export function CodeWorkspaceScreen({
 
   const activeBranch = statusState.data?.branch ?? 'HEAD';
   const rootBranch = rootStatusState.data?.branch ?? 'HEAD';
+
+  const rememberActiveTarget = useCallback(
+    (targetId: string | null) => {
+      updateSession((currentSession) => rememberCodeTarget(currentSession, repoId, targetId));
+    },
+    [repoId, updateSession],
+  );
+
+  const rememberActivePane = useCallback(
+    (paneId: CodeWorkspacePane) => {
+      updateSession((currentSession) => rememberCodePane(currentSession, repoId, paneId));
+    },
+    [repoId, updateSession],
+  );
+
+  useEffect(() => {
+    if (rememberedTargetId === activeTargetId) {
+      return;
+    }
+
+    rememberActiveTarget(activeTargetId);
+  }, [activeTargetId, rememberActiveTarget, rememberedTargetId]);
 
   const handleGitStatusRefresh = useEffectEvent((changedRepoPath: string) => {
     const refreshes: Promise<unknown>[] = [];
@@ -337,6 +369,8 @@ export function CodeWorkspaceScreen({
       const result = await window.electronAPI.createGitWorktree(repoPath, activeBranch);
       const target = addWorktreeTarget(result.cwd, result.branch);
 
+      rememberActiveTarget(target.id);
+
       if (result.worktreeSetupCommand) {
         void window.electronAPI.execTerminalSessionCommand({
           sessionId: target.id,
@@ -365,7 +399,18 @@ export function CodeWorkspaceScreen({
     await window.electronAPI.disposeBrowserView(target.id);
     clearBrowserTargetState(target.id);
     removeTarget(target.id);
-  }, [removeTarget, stopSession, targets]);
+
+    if (activeTargetId === target.id) {
+      rememberActiveTarget(rootTarget.id);
+    }
+  }, [
+    activeTargetId,
+    rememberActiveTarget,
+    removeTarget,
+    rootTarget.id,
+    stopSession,
+    targets,
+  ]);
 
   const handleSidebarResize = useCallback((deltaX: number) => {
     setSidebarWidth(
@@ -405,15 +450,32 @@ export function CodeWorkspaceScreen({
         attachments: [],
       },
     );
-    setActiveLayer('codex');
-  }, [activeTarget.cwd, activeTarget.id, composerSettings, sendPrompt]);
+    rememberActivePane('codex');
+  }, [
+    activeTarget.cwd,
+    activeTarget.id,
+    composerSettings,
+    rememberActivePane,
+    sendPrompt,
+  ]);
 
   const isRunning = sessionState.status === 'running';
   const activeTargetLabel = targetLabels[activeTarget.id] ?? activeTarget.title;
+  const handleActiveTargetChange = useCallback(
+    (targetId: string) => {
+      rememberActiveTarget(targetId);
+    },
+    [rememberActiveTarget],
+  );
+  const handleAddCurrentBranchSession = useCallback(() => {
+    const target = addCurrentBranchSession();
+
+    rememberActiveTarget(target.id);
+  }, [addCurrentBranchSession, rememberActiveTarget]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <Tabs className="gap-0" value={activeTargetId} onValueChange={setActiveTarget}>
+      <Tabs className="gap-0" value={activeTargetId} onValueChange={handleActiveTargetChange}>
         <div className="border-b border-border px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-1">
@@ -454,7 +516,7 @@ export function CodeWorkspaceScreen({
                 type="button"
                 variant="ghost"
                 className="size-7 shrink-0 text-muted-foreground hover:text-foreground"
-                onClick={addCurrentBranchSession}
+                onClick={handleAddCurrentBranchSession}
                 aria-label="New session on current branch"
               >
                 <PlusIcon className="size-3.5" />
@@ -490,8 +552,8 @@ export function CodeWorkspaceScreen({
             headRevision={statusState.data.headRevision}
             workingTreeFiles={statusState.data.files}
             workingTreeStatusRefreshVersion={statusState.refreshVersion}
-            isViewportActive={activeLayer === 'files'}
-            onFileSelect={() => setActiveLayer('files')}
+            isViewportActive={activePaneId === 'changes'}
+            onFileSelect={() => rememberActivePane('changes')}
             onSubmitDiffComment={(anchor, body) => handleSubmitDiffComment(anchor, body)}
           >
             {({ sidebar, viewport }) => (
@@ -505,14 +567,14 @@ export function CodeWorkspaceScreen({
                 <ResizableHandle onResizeStart={() => { sidebarWidthAtDragStart.current = sidebarWidth; }} onResize={handleSidebarResize} />
 
                 <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
-                  <LayerToggle activeLayer={activeLayer} onChangeLayer={setActiveLayer} />
+                  <LayerToggle activePaneId={activePaneId} onChangePane={rememberActivePane} />
 
                   <div className="relative min-h-0 flex-1 overflow-auto">
-                    {activeLayer === 'files' ? (
+                    {activePaneId === 'changes' ? (
                       viewport
-                    ) : activeLayer === 'browser' ? (
+                    ) : activePaneId === 'browser' ? (
                       <BrowserPanel key={activeTarget.id} targetId={activeTarget.id} />
-                    ) : activeLayer === 'terminal' ? (
+                    ) : activePaneId === 'terminal' ? (
                       <SessionTerminal
                         key={activeTarget.id}
                         sessionId={activeTarget.id}
@@ -522,7 +584,7 @@ export function CodeWorkspaceScreen({
                       <SessionTranscript
                         sessionState={sessionState}
                         targetLabel={activeTargetLabel}
-                        onCreateSession={addCurrentBranchSession}
+                        onCreateSession={handleAddCurrentBranchSession}
                       />
                     )}
                   </div>
@@ -530,8 +592,8 @@ export function CodeWorkspaceScreen({
                   <div
                     className="shrink-0 border-t border-border/60 bg-background px-4 pb-3 pt-2.5"
                     onFocus={() => {
-                      if (activeLayer !== 'browser') {
-                        setActiveLayer('codex');
+                      if (activePaneId !== 'browser') {
+                        rememberActivePane('codex');
                       }
                     }}
                   >

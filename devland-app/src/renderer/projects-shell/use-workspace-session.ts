@@ -3,11 +3,12 @@ import { useCallback } from 'react';
 import { atom, useAtomValue, useSetAtom } from 'jotai';
 import { atomWithStorage } from 'jotai/utils';
 
-import type { ProjectViewTab, WorkspaceSession } from '@/ipc/contracts';
+import type { WorkspaceSession } from '@/ipc/contracts';
 import {
+  areWorkspaceSessionsEqual,
   DEFAULT_WORKSPACE_SESSION,
   sanitizeWorkspaceSession,
-} from '@/renderer/shared/lib/projects';
+} from '@/renderer/shared/lib/workspace-view-state';
 
 const STORAGE_KEY = 'devland:workspace-session';
 
@@ -34,8 +35,13 @@ const updateWorkspaceSessionAtom = atom(
       typeof nextSession === 'function'
         ? nextSession(currentSession)
         : { ...currentSession, ...nextSession };
+    const sanitizedSession = sanitizeWorkspaceSession(resolvedSession);
 
-    set(storedWorkspaceSessionAtom, sanitizeWorkspaceSession(resolvedSession));
+    if (areWorkspaceSessionsEqual(currentSession, sanitizedSession)) {
+      return;
+    }
+
+    set(storedWorkspaceSessionAtom, sanitizedSession);
   },
 );
 
@@ -47,16 +53,9 @@ export function useWorkspaceSession() {
     (activeRepoId: string | null) => updateSession({ activeRepoId }),
     [updateSession],
   );
-
-  const setActiveTab = useCallback(
-    (activeTab: ProjectViewTab) => updateSession({ activeTab }),
-    [updateSession],
-  );
-
   return {
     session,
     updateSession,
     setActiveRepoId,
-    setActiveTab,
   };
 }

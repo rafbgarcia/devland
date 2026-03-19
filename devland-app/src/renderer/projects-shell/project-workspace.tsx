@@ -1,5 +1,5 @@
-import { useEffect, useEffectEvent, useState, type ReactNode } from 'react';
-import { useLocation, useRouter } from '@tanstack/react-router';
+import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react';
+import { useRouter, useRouterState } from '@tanstack/react-router';
 import { AnimatePresence, Reorder } from 'motion/react';
 import {
   CodeIcon,
@@ -15,12 +15,18 @@ import type { AppShortcutCommand, ProjectViewTab, Repo } from '@/ipc/contracts';
 import {
   getAdjacentProjectTabRepoId,
   getProjectLabel,
+  getProjectTabIdFromRouteMatch,
+  getProjectTabRoute,
   getProjectTabRepoIdByShortcutSlot,
-  getProjectTabRouteTo,
-  isAbsoluteProjectPath,
   isProjectViewTab,
-  type ProjectTabRouteTo,
+  toProjectExtensionTabId,
+  type ProjectTabId,
+  isAbsoluteProjectPath,
 } from '@/renderer/shared/lib/projects';
+import {
+  getRememberedProjectTabId,
+  rememberProjectTab,
+} from '@/renderer/shared/lib/workspace-view-state';
 import { useProjectExtensions } from '@/renderer/extensions-screen/use-project-extensions';
 import { useRepoActions, useRepos } from './use-repos';
 import { useProjectRepo } from './use-project-repo';
@@ -46,73 +52,30 @@ import { Spinner } from '@/shadcn/components/ui/spinner';
 import { cn } from '@/shadcn/lib/utils';
 
 const VIEW_TABS = [
-  { value: 'code', label: 'Code', icon: CodeIcon, to: '/projects/$repoId/code' },
+  { value: 'code', label: 'Code', icon: CodeIcon },
   {
     value: 'pull-requests',
     label: 'Pull requests',
     icon: GitPullRequestArrowIcon,
-    to: '/projects/$repoId/pull-requests',
   },
-  { value: 'issues', label: 'Issues', icon: MessageSquareDotIcon, to: '/projects/$repoId/issues' },
-  { value: 'channels', label: 'Channels', icon: HashIcon, to: '/projects/$repoId/channels' },
+  { value: 'issues', label: 'Issues', icon: MessageSquareDotIcon },
+  { value: 'channels', label: 'Channels', icon: HashIcon },
 ] as const satisfies ReadonlyArray<{
   value: ProjectViewTab;
   label: string;
   icon: typeof CodeIcon;
-  to: ProjectTabRouteTo;
 }>;
-
-type ActiveProjectDestination =
-  | { kind: 'built-in'; tab: ProjectViewTab }
-  | { kind: 'extension'; extensionId: string };
 
 type ProjectWorkspaceTab = {
   key: string;
   label: string;
   icon: typeof CodeIcon;
-  destination: ActiveProjectDestination;
+  tabId: ProjectTabId;
 };
 
 const EXTENSION_ICON_BY_NAME = {
   'git-pull-request': GitPullRequestArrowIcon,
 } as const;
-
-const resolveActiveProjectDestination = (pathname: string): ActiveProjectDestination => {
-  const segments = pathname.split('/');
-
-  if (segments[3] === 'extensions') {
-    const extensionId = segments[4]?.trim();
-
-    if (extensionId) {
-      return {
-        kind: 'extension',
-        extensionId: decodeURIComponent(extensionId),
-      };
-    }
-  }
-
-  const tabSegment = segments[3] ?? 'code';
-
-  return {
-    kind: 'built-in',
-    tab: isProjectViewTab(tabSegment) ? tabSegment : 'code',
-  };
-};
-
-const isActiveDestination = (
-  left: ActiveProjectDestination,
-  right: ActiveProjectDestination,
-): boolean => {
-  if (left.kind === 'extension' && right.kind === 'extension') {
-    return left.extensionId === right.extensionId;
-  }
-
-  if (left.kind === 'built-in' && right.kind === 'built-in') {
-    return left.tab === right.tab;
-  }
-
-  return false;
-};
 
 export function AddProjectDialog({
   open,
@@ -258,7 +221,6 @@ export function ProjectWorkspace({
   children: ReactNode;
 }) {
   const router = useRouter();
-  const location = useLocation();
   const repos = useRepos();
   const activeRepo = useProjectRepo();
   const { addRepo, removeRepo, reorderRepos } = useRepoActions();
@@ -268,75 +230,67 @@ export function ProjectWorkspace({
       ? activeRepo.path
       : null,
   );
+  const activeRouteMatch = useRouterState({
+    select: (state) => state.matches.at(-1) ?? null,
+  });
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const activeDestination = resolveActiveProjectDestination(location.pathname);
-  const activeView = activeDestination.kind === 'built-in' ? activeDestination.tab : 'code';
+  const activeTabId = getProjectTabIdFromRouteMatch({
+    fullPath: activeRouteMatch?.fullPath,
+    extensionId: (() => {
+      const extensionId = (activeRouteMatch?.params as Record<string, unknown> | undefined)?.extensionId;
+
+      return typeof extensionId === 'string' ? extensionId : null;
+    })(),
+  });
+  const activeView = isProjectViewTab(activeTabId) ? activeTabId : 'code';
+  const repoViewByIdRef = useRef(session.repoViewById);
 
   const tabs: ProjectWorkspaceTab[] = [
     ...VIEW_TABS.map((tab) => ({
       key: tab.value,
       label: tab.label,
       icon: tab.icon,
-      destination: {
-        kind: 'built-in',
-        tab: tab.value,
-      } satisfies ActiveProjectDestination,
+      tabId: tab.value,
     })),
     ...projectExtensions.data.map((extension) => ({
       key: `extension:${extension.id}`,
       label: extension.tabName,
       icon: EXTENSION_ICON_BY_NAME[extension.tabIcon],
-      destination: {
-        kind: 'extension',
-        extensionId: extension.id,
-      } satisfies ActiveProjectDestination,
+      tabId: toProjectExtensionTabId(extension.id),
     })),
   ];
 
   useEffect(() => {
-    if (activeDestination.kind === 'extension') {
-      if (session.activeRepoId === activeRepoId) {
-        return;
-      }
+    repoViewByIdRef.current = session.repoViewById;
+  }, [session.repoViewById]);
 
-      updateSession({
-        activeRepoId,
-      });
+  const commitRememberedTab = useEffectEvent((repoId: string, tabId: ProjectTabId) => {
+    updateSession((currentSession) => {
+      const nextSession = rememberProjectTab(currentSession, repoId, tabId);
 
-      return;
-    }
+      repoViewByIdRef.current = nextSession.repoViewById;
 
-    if (session.activeRepoId === activeRepoId && session.activeTab === activeDestination.tab) {
-      return;
-    }
-
-    updateSession({
-      activeRepoId,
-      activeTab: activeDestination.tab,
+      return nextSession;
     });
-  }, [activeDestination, activeRepoId, session, updateSession]);
+  });
 
-  const navigateToDestination = (
-    repoId: string,
-    destination: ActiveProjectDestination,
-  ) => {
-    if (destination.kind === 'extension') {
-      void router.navigate({
-        to: '/projects/$repoId/extensions/$extensionId',
-        params: {
-          repoId,
-          extensionId: destination.extensionId,
-        },
-      });
+  useEffect(() => {
+    commitRememberedTab(activeRepoId, activeTabId);
+  }, [activeRepoId, activeTabId]);
 
-      return;
-    }
-
-    void router.navigate({
-      to: getProjectTabRouteTo(destination.tab),
-      params: { repoId },
-    });
+  const navigateToTab = (repoId: string, tabId: ProjectTabId) => {
+    commitRememberedTab(repoId, tabId);
+    void router.navigate(getProjectTabRoute(repoId, tabId));
   };
+
+  const getRepoSwitchTabId = (repoId: string): ProjectTabId =>
+    getRememberedProjectTabId(
+      {
+        activeRepoId: session.activeRepoId,
+        repoViewById: repoViewByIdRef.current,
+      },
+      repoId,
+    );
 
   const handleAppShortcutCommand = useEffectEvent(
     (command: AppShortcutCommand) => {
@@ -352,7 +306,7 @@ export function ProjectWorkspace({
         return;
       }
 
-      navigateToDestination(nextRepoId, activeDestination);
+      navigateToTab(nextRepoId, getRepoSwitchTabId(nextRepoId));
     },
   );
 
@@ -369,7 +323,7 @@ export function ProjectWorkspace({
       if (nextRepoId === null) {
         void router.navigate({ to: '/projects', replace: true });
       } else {
-        navigateToDestination(nextRepoId, activeDestination);
+        navigateToTab(nextRepoId, getRepoSwitchTabId(nextRepoId));
       }
     }
 
@@ -381,7 +335,7 @@ export function ProjectWorkspace({
   };
 
   const handleProjectAdded = (repo: Repo) => {
-    navigateToDestination(repo.id, activeDestination);
+    navigateToTab(repo.id, activeTabId);
   };
 
   return (
@@ -402,7 +356,7 @@ export function ProjectWorkspace({
                 key={repo.id}
                 value={repo}
                 onClick={() => {
-                  navigateToDestination(repo.id, activeDestination);
+                  navigateToTab(repo.id, getRepoSwitchTabId(repo.id));
                 }}
                 initial={{ opacity: 0, width: 0 }}
                 animate={{
@@ -463,7 +417,7 @@ export function ProjectWorkspace({
           <nav className="-mb-px flex gap-1">
             {tabs.map((tab) => {
               const Icon = tab.icon;
-              const isActive = isActiveDestination(tab.destination, activeDestination);
+              const isActive = tab.tabId === activeTabId;
 
               return (
                 <button
@@ -475,7 +429,7 @@ export function ProjectWorkspace({
                       : 'border-transparent text-muted-foreground hover:text-foreground',
                   )}
                   onClick={() => {
-                    navigateToDestination(activeRepoId, tab.destination);
+                    navigateToTab(activeRepoId, tab.tabId);
                   }}
                   type="button"
                 >
@@ -490,7 +444,7 @@ export function ProjectWorkspace({
         <div
           className={cn(
             'flex-1',
-            activeDestination.kind === 'extension' || activeView === 'channels'
+            !isProjectViewTab(activeTabId) || activeView === 'channels'
               ? 'min-h-0 overflow-hidden'
               : 'overflow-y-auto',
           )}

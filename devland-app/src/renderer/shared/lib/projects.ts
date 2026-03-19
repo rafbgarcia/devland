@@ -4,7 +4,6 @@ import {
   PROJECT_VIEW_TABS,
   type ProjectViewTab,
   type Repo,
-  type WorkspaceSession,
 } from '@/ipc/contracts';
 
 export type ProjectTabRouteTo =
@@ -17,10 +16,23 @@ export type ProjectIssueDetailPath = `/projects/${string}/issues/${number}`;
 
 export type ProjectPullRequestDetailPath = `/projects/${string}/pull-requests/${number}`;
 
-export const isAbsoluteProjectPath = (value: string): boolean =>
-  value.startsWith('/') || /^[A-Za-z]:[\\/]/.test(value) || value.startsWith('\\\\');
+export type ProjectExtensionTabId = `extension:${string}`;
+
+export type ProjectTabId = ProjectViewTab | ProjectExtensionTabId;
 
 const GITHUB_REPO_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+const PROJECT_VIEW_TAB_SET = new Set<string>(PROJECT_VIEW_TABS);
+const EXTENSION_TAB_ID_PREFIX = 'extension:';
+
+const PROJECT_TAB_ROUTE_BY_VALUE: Record<ProjectViewTab, ProjectTabRouteTo> = {
+  code: '/projects/$repoId/code',
+  'pull-requests': '/projects/$repoId/pull-requests',
+  issues: '/projects/$repoId/issues',
+  channels: '/projects/$repoId/channels',
+};
+
+export const isAbsoluteProjectPath = (value: string): boolean =>
+  value.startsWith('/') || /^[A-Za-z]:[\\/]/.test(value) || value.startsWith('\\\\');
 
 export const isGitHubProjectReference = (value: string): boolean =>
   GITHUB_REPO_PATTERN.test(value);
@@ -60,8 +72,6 @@ export const getProjectLabel = (projectPath: string): string => {
   return segments.at(-1) ?? projectPath;
 };
 
-const PROJECT_VIEW_TAB_SET = new Set<string>(PROJECT_VIEW_TABS);
-
 export const isProjectViewTab = (value: string): value is ProjectViewTab =>
   PROJECT_VIEW_TAB_SET.has(value);
 
@@ -90,15 +100,97 @@ export const resolvePreferredRepoId = (
   return repos[0]?.id ?? null;
 };
 
-const PROJECT_TAB_ROUTE_BY_VALUE: Record<ProjectViewTab, ProjectTabRouteTo> = {
-  code: '/projects/$repoId/code',
-  'pull-requests': '/projects/$repoId/pull-requests',
-  issues: '/projects/$repoId/issues',
-  channels: '/projects/$repoId/channels',
-};
-
 export const getProjectTabRouteTo = (tab: ProjectViewTab): ProjectTabRouteTo =>
   PROJECT_TAB_ROUTE_BY_VALUE[tab];
+
+export const toProjectExtensionTabId = (
+  extensionId: string,
+): ProjectExtensionTabId => `${EXTENSION_TAB_ID_PREFIX}${extensionId}` as ProjectExtensionTabId;
+
+export const getProjectExtensionIdFromTabId = (
+  tabId: string | null | undefined,
+): string | null => {
+  if (
+    tabId === undefined ||
+    tabId === null ||
+    !tabId.startsWith(EXTENSION_TAB_ID_PREFIX)
+  ) {
+    return null;
+  }
+
+  const extensionId = tabId.slice(EXTENSION_TAB_ID_PREFIX.length).trim();
+
+  return extensionId === '' ? null : extensionId;
+};
+
+export const resolveProjectTabId = (
+  value: string | null | undefined,
+  fallbackTabId: ProjectTabId = DEFAULT_PROJECT_VIEW_TAB,
+): ProjectTabId => {
+  if (value !== undefined && value !== null) {
+    if (isProjectViewTab(value)) {
+      return value;
+    }
+
+    const extensionId = getProjectExtensionIdFromTabId(value);
+
+    if (extensionId !== null) {
+      return toProjectExtensionTabId(extensionId);
+    }
+  }
+
+  return fallbackTabId;
+};
+
+export const getProjectTabIdFromRouteMatch = ({
+  fullPath,
+  extensionId,
+}: {
+  fullPath: string | null | undefined;
+  extensionId?: string | null | undefined;
+}): ProjectTabId => {
+  switch (fullPath) {
+    case '/projects/$repoId/code':
+      return 'code';
+    case '/projects/$repoId/pull-requests':
+      return 'pull-requests';
+    case '/projects/$repoId/issues':
+      return 'issues';
+    case '/projects/$repoId/channels':
+      return 'channels';
+    case '/projects/$repoId/extensions/$extensionId':
+      return extensionId ? toProjectExtensionTabId(extensionId) : DEFAULT_PROJECT_VIEW_TAB;
+    default:
+      return DEFAULT_PROJECT_VIEW_TAB;
+  }
+};
+
+export const getProjectTabRoute = (
+  repoId: string,
+  tabId: ProjectTabId,
+):
+  | { to: ProjectTabRouteTo; params: { repoId: string } }
+  | {
+      to: '/projects/$repoId/extensions/$extensionId';
+      params: { repoId: string; extensionId: string };
+    } => {
+  const extensionId = getProjectExtensionIdFromTabId(tabId);
+
+  if (extensionId !== null) {
+    return {
+      to: '/projects/$repoId/extensions/$extensionId',
+      params: {
+        repoId,
+        extensionId,
+      },
+    };
+  }
+
+  return {
+    to: getProjectTabRouteTo(resolveProjectViewTab(tabId)),
+    params: { repoId },
+  };
+};
 
 export const getProjectTabRepoIdByShortcutSlot = (
   repos: Repo[],
@@ -139,29 +231,6 @@ export const getAdjacentProjectTabRepoId = (
     : (activeRepoIndex - 1 + repos.length) % repos.length;
 
   return repos[adjacentRepoIndex]?.id ?? null;
-};
-
-export const DEFAULT_WORKSPACE_SESSION: WorkspaceSession = {
-  activeRepoId: null,
-  activeTab: DEFAULT_PROJECT_VIEW_TAB,
-};
-
-export const sanitizeWorkspaceSession = (value: unknown): WorkspaceSession => {
-  if (typeof value !== 'object' || value === null) {
-    return DEFAULT_WORKSPACE_SESSION;
-  }
-
-  const record = value as Record<string, unknown>;
-
-  return {
-    activeRepoId:
-      typeof record.activeRepoId === 'string' && record.activeRepoId.trim() !== ''
-        ? record.activeRepoId
-        : null,
-    activeTab: resolveProjectViewTab(
-      typeof record.activeTab === 'string' ? record.activeTab : null,
-    ),
-  };
 };
 
 export const getProjectIssueDetailPath = (

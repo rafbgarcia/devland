@@ -6,9 +6,10 @@ import { AddProjectDialog } from '@/renderer/projects-shell/project-workspace';
 import { useRepoActions, useRepos } from '@/renderer/projects-shell/use-repos';
 import { useWorkspaceSession } from '@/renderer/projects-shell/use-workspace-session';
 import {
-  getProjectTabRouteTo,
+  getProjectTabRoute,
   resolvePreferredRepoId,
 } from '@/renderer/shared/lib/projects';
+import { getRememberedProjectTabId } from '@/renderer/shared/lib/workspace-view-state';
 import { Button } from '@/shadcn/components/ui/button';
 import {
   Empty,
@@ -37,13 +38,9 @@ function ProjectsIndexRoute() {
     return <ProjectsEmptyState />;
   }
 
-  return (
-    <Navigate
-      replace
-      to={getProjectTabRouteTo(session.activeTab)}
-      params={{ repoId }}
-    />
-  );
+  const tabId = getRememberedProjectTabId(session, repoId);
+
+  return <Navigate replace {...getProjectTabRoute(repoId, tabId)} />;
 }
 
 function ProjectsEmptyState() {

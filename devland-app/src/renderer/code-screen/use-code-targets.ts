@@ -7,10 +7,8 @@ import type { CodeTarget } from '@/ipc/contracts';
 import { CodeTargetSchema } from '@/ipc/contracts';
 
 type StoredCodeTargets = Record<string, CodeTarget[]>;
-type StoredActiveTargetIds = Record<string, string>;
 
 const CODE_TARGETS_STORAGE_KEY = 'devland:code-targets';
-const ACTIVE_CODE_TARGET_STORAGE_KEY = 'devland:active-code-targets';
 
 const sanitizeStoredCodeTargets = (value: unknown): StoredCodeTargets => {
   if (typeof value !== 'object' || value === null) {
@@ -38,34 +36,13 @@ const sanitizeStoredCodeTargets = (value: unknown): StoredCodeTargets => {
   return next;
 };
 
-const sanitizeStoredActiveTargetIds = (value: unknown): StoredActiveTargetIds => {
-  if (typeof value !== 'object' || value === null) {
-    return {};
-  }
-
-  return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>).flatMap(([repoId, targetId]) =>
-      typeof targetId === 'string' && targetId.trim() !== ''
-        ? [[repoId, targetId]]
-        : [],
-    ),
-  );
-};
-
 const storedCodeTargetsAtom = atomWithStorage<StoredCodeTargets>(
   CODE_TARGETS_STORAGE_KEY,
-  {},
-);
-const storedActiveTargetIdsAtom = atomWithStorage<StoredActiveTargetIds>(
-  ACTIVE_CODE_TARGET_STORAGE_KEY,
   {},
 );
 
 const codeTargetsAtom = atom<StoredCodeTargets>((get) =>
   sanitizeStoredCodeTargets(get(storedCodeTargetsAtom)),
-);
-const activeTargetIdsAtom = atom<StoredActiveTargetIds>((get) =>
-  sanitizeStoredActiveTargetIds(get(storedActiveTargetIdsAtom)),
 );
 
 const updateCodeTargetsAtom = atom(
@@ -78,21 +55,6 @@ const updateCodeTargetsAtom = atom(
     const current = get(codeTargetsAtom);
     const resolved = typeof nextValue === 'function' ? nextValue(current) : nextValue;
     set(storedCodeTargetsAtom, sanitizeStoredCodeTargets(resolved));
-  },
-);
-
-const updateActiveTargetIdsAtom = atom(
-  null,
-  (
-    get,
-    set,
-    nextValue:
-      | StoredActiveTargetIds
-      | ((current: StoredActiveTargetIds) => StoredActiveTargetIds),
-  ) => {
-    const current = get(activeTargetIdsAtom);
-    const resolved = typeof nextValue === 'function' ? nextValue(current) : nextValue;
-    set(storedActiveTargetIdsAtom, sanitizeStoredActiveTargetIds(resolved));
   },
 );
 
@@ -110,11 +72,13 @@ const createCodeTarget = (
   createdAt: new Date().toISOString(),
 });
 
-export function useCodeTargets(repoId: string, repoPath: string) {
+export function useCodeTargets(
+  repoId: string,
+  repoPath: string,
+  preferredTargetId: string | null,
+) {
   const storedTargets = useAtomValue(codeTargetsAtom);
-  const activeTargetIds = useAtomValue(activeTargetIdsAtom);
   const updateCodeTargets = useSetAtom(updateCodeTargetsAtom);
-  const updateActiveTargetIds = useSetAtom(updateActiveTargetIdsAtom);
 
   const rootTarget = useMemo<CodeTarget>(
     () => ({
@@ -135,22 +99,15 @@ export function useCodeTargets(repoId: string, repoPath: string) {
   );
 
   const activeTargetId = useMemo(() => {
-    const preferred = activeTargetIds[repoId];
+    if (preferredTargetId !== null && targets.some((target) => target.id === preferredTargetId)) {
+      return preferredTargetId;
+    }
 
-    return targets.some((target) => target.id === preferred)
-      ? preferred
-      : rootTarget.id;
-  }, [activeTargetIds, repoId, rootTarget.id, targets]);
+    return rootTarget.id;
+  }, [preferredTargetId, rootTarget.id, targets]);
 
   const activeTarget =
     targets.find((target) => target.id === activeTargetId) ?? rootTarget;
-
-  const setActiveTarget = useCallback(
-    (targetId: string) => {
-      updateActiveTargetIds((current) => ({ ...current, [repoId]: targetId }));
-    },
-    [repoId, updateActiveTargetIds],
-  );
 
   const addCurrentBranchSession = useCallback(() => {
     const sessionCount =
@@ -167,16 +124,9 @@ export function useCodeTargets(repoId: string, repoPath: string) {
       ...current,
       [repoId]: [...(current[repoId] ?? []), target],
     }));
-    updateActiveTargetIds((current) => ({ ...current, [repoId]: target.id }));
 
     return target;
-  }, [
-    repoId,
-    repoPath,
-    storedTargetsForRepo,
-    updateActiveTargetIds,
-    updateCodeTargets,
-  ]);
+  }, [repoId, repoPath, storedTargetsForRepo, updateCodeTargets]);
 
   const addWorktreeTarget = useCallback(
     (cwd: string, branch: string) => {
@@ -186,11 +136,10 @@ export function useCodeTargets(repoId: string, repoPath: string) {
         ...current,
         [repoId]: [...(current[repoId] ?? []), target],
       }));
-      updateActiveTargetIds((current) => ({ ...current, [repoId]: target.id }));
 
       return target;
     },
-    [repoId, updateActiveTargetIds, updateCodeTargets],
+    [repoId, updateCodeTargets],
   );
 
   const removeTarget = useCallback(
@@ -206,12 +155,8 @@ export function useCodeTargets(repoId: string, repoPath: string) {
               Object.entries(current).filter(([currentRepoId]) => currentRepoId !== repoId),
             );
       });
-      updateActiveTargetIds((current) => ({
-        ...current,
-        [repoId]: current[repoId] === targetId ? rootTarget.id : current[repoId] ?? rootTarget.id,
-      }));
     },
-    [repoId, rootTarget.id, updateActiveTargetIds, updateCodeTargets],
+    [repoId, updateCodeTargets],
   );
 
   const updateTarget = useCallback(
@@ -229,10 +174,10 @@ export function useCodeTargets(repoId: string, repoPath: string) {
   );
 
   return {
+    rootTarget,
     targets,
     activeTarget,
     activeTargetId,
-    setActiveTarget,
     addCurrentBranchSession,
     addWorktreeTarget,
     removeTarget,
