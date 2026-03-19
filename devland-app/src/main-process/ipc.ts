@@ -38,6 +38,9 @@ import {
   GET_GIT_BLOB_TEXT_CHANNEL,
   GET_WORKING_TREE_FILE_TEXT_CHANNEL,
   GET_COMMIT_PARENT_CHANNEL,
+  GET_REPO_EXTENSIONS_CHANNEL,
+  INSTALL_REPO_EXTENSION_CHANNEL,
+  RUN_EXTENSION_COMMAND_CHANNEL,
   START_GIT_STATE_WATCH_CHANNEL,
   STOP_GIT_STATE_WATCH_CHANNEL,
   LIST_CODEX_THREADS_CHANNEL,
@@ -75,6 +78,8 @@ import { createGitHubPrReviewThread } from './gh-review-comments';
 import { getRepositoryIssues } from './gh-queries/issues';
 import { getRepositoryPullRequests } from './gh-queries/pull-requests';
 import { getGhUser } from './gh-queries/user';
+import { getRepoExtensions, installRepoExtension } from './extensions/repo-extensions';
+import { runExtensionCommand } from './extensions/runtime';
 import {
   checkoutGitBranch,
   createGitWorktree,
@@ -310,6 +315,18 @@ export const registerAppIpcHandlers = (
     GET_COMMIT_PARENT_CHANNEL,
     (_event, repoPath: string, commitSha: string) =>
       getCommitParent(repoPath, commitSha),
+  );
+  ipcMain.handle(
+    GET_REPO_EXTENSIONS_CHANNEL,
+    (_event, repoPath: string) => getRepoExtensions(repoPath),
+  );
+  ipcMain.handle(
+    INSTALL_REPO_EXTENSION_CHANNEL,
+    (_event, input) => installRepoExtension(input),
+  );
+  ipcMain.handle(
+    RUN_EXTENSION_COMMAND_CHANNEL,
+    (_event, input) => runExtensionCommand(input),
   );
   ipcMain.handle(
     SEND_CODEX_SESSION_PROMPT_CHANNEL,

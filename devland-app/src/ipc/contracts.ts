@@ -1,9 +1,16 @@
 import { z } from 'zod';
+import { type DevlandRunCommandResult } from '@devlandapp/sdk';
 
 import type {
   CodexComposerSettings,
   CodexImageAttachmentInput,
 } from '@/lib/codex-chat';
+import {
+  ProjectExtensionSchema,
+  type ProjectExtension,
+  type InstallRepoExtensionInput,
+  type RunExtensionCommandInput,
+} from '@/extensions/contracts';
 
 export const GET_APP_BOOTSTRAP_CHANNEL = 'app:get-app-bootstrap';
 export const PICK_REPO_DIRECTORY_CHANNEL = 'app:pick-repo-directory';
@@ -63,6 +70,9 @@ export const GET_PR_DIFF_CHANNEL = 'app:get-pr-diff';
 export const GET_GIT_BLOB_TEXT_CHANNEL = 'app:get-git-blob-text';
 export const GET_WORKING_TREE_FILE_TEXT_CHANNEL = 'app:get-working-tree-file-text';
 export const GET_COMMIT_PARENT_CHANNEL = 'app:get-commit-parent';
+export const GET_REPO_EXTENSIONS_CHANNEL = 'app:get-repo-extensions';
+export const INSTALL_REPO_EXTENSION_CHANNEL = 'app:install-repo-extension';
+export const RUN_EXTENSION_COMMAND_CHANNEL = 'app:run-extension-command';
 
 export const PROJECT_VIEW_TABS = [
   'code',
@@ -260,6 +270,9 @@ export const RepoDetailsSchema = z.object({
   name: z.string().min(1),
 });
 export type RepoDetails = z.infer<typeof RepoDetailsSchema>;
+
+export const ProjectExtensionsSchema = z.array(ProjectExtensionSchema);
+export const InstallRepoExtensionResultSchema = z.void();
 
 export const GIT_FILE_STATUSES = [
   'modified',
@@ -711,6 +724,11 @@ export interface ElectronApi {
     maxBytes?: number;
   }) => Promise<string | null>;
   getCommitParent: (repoPath: string, commitSha: string) => Promise<string | null>;
+  getRepoExtensions: (repoPath: string) => Promise<ProjectExtension[]>;
+  installRepoExtension: (input: InstallRepoExtensionInput) => Promise<void>;
+  runExtensionCommand: (
+    input: RunExtensionCommandInput,
+  ) => Promise<DevlandRunCommandResult>;
   sendCodexSessionPrompt: (input: {
     sessionId: string;
     cwd: string;

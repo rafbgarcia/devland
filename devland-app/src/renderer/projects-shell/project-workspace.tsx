@@ -17,10 +17,13 @@ import {
   getProjectLabel,
   getProjectTabRepoIdByShortcutSlot,
   getProjectTabRouteTo,
+  isAbsoluteProjectPath,
   isProjectViewTab,
   type ProjectTabRouteTo,
 } from '@/renderer/shared/lib/projects';
+import { useProjectExtensions } from '@/renderer/extensions-screen/use-project-extensions';
 import { useRepoActions, useRepos } from './use-repos';
+import { useProjectRepo } from './use-project-repo';
 import { useWorkspaceSession } from './use-workspace-session';
 import { Button } from '@/shadcn/components/ui/button';
 import {
@@ -59,13 +62,57 @@ const VIEW_TABS = [
   to: ProjectTabRouteTo;
 }>;
 
-function useActiveView(): ProjectViewTab {
-  const location = useLocation();
-  const segments = location.pathname.split('/');
+type ActiveProjectDestination =
+  | { kind: 'built-in'; tab: ProjectViewTab }
+  | { kind: 'extension'; extensionId: string };
+
+type ProjectWorkspaceTab = {
+  key: string;
+  label: string;
+  icon: typeof CodeIcon;
+  destination: ActiveProjectDestination;
+};
+
+const EXTENSION_ICON_BY_NAME = {
+  'git-pull-request': GitPullRequestArrowIcon,
+} as const;
+
+const resolveActiveProjectDestination = (pathname: string): ActiveProjectDestination => {
+  const segments = pathname.split('/');
+
+  if (segments[3] === 'extensions') {
+    const extensionId = segments[4]?.trim();
+
+    if (extensionId) {
+      return {
+        kind: 'extension',
+        extensionId: decodeURIComponent(extensionId),
+      };
+    }
+  }
+
   const tabSegment = segments[3] ?? 'code';
 
-  return isProjectViewTab(tabSegment) ? tabSegment : 'code';
-}
+  return {
+    kind: 'built-in',
+    tab: isProjectViewTab(tabSegment) ? tabSegment : 'code',
+  };
+};
+
+const isActiveDestination = (
+  left: ActiveProjectDestination,
+  right: ActiveProjectDestination,
+): boolean => {
+  if (left.kind === 'extension' && right.kind === 'extension') {
+    return left.extensionId === right.extensionId;
+  }
+
+  if (left.kind === 'built-in' && right.kind === 'built-in') {
+    return left.tab === right.tab;
+  }
+
+  return false;
+};
 
 export function AddProjectDialog({
   open,
@@ -211,32 +258,82 @@ export function ProjectWorkspace({
   children: ReactNode;
 }) {
   const router = useRouter();
+  const location = useLocation();
   const repos = useRepos();
+  const activeRepo = useProjectRepo();
   const { addRepo, removeRepo, reorderRepos } = useRepoActions();
   const { session, updateSession } = useWorkspaceSession();
+  const projectExtensions = useProjectExtensions(
+    activeRepo !== null && isAbsoluteProjectPath(activeRepo.path)
+      ? activeRepo.path
+      : null,
+  );
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const activeView = useActiveView();
+  const activeDestination = resolveActiveProjectDestination(location.pathname);
+  const activeView = activeDestination.kind === 'built-in' ? activeDestination.tab : 'code';
+
+  const tabs: ProjectWorkspaceTab[] = [
+    ...VIEW_TABS.map((tab) => ({
+      key: tab.value,
+      label: tab.label,
+      icon: tab.icon,
+      destination: {
+        kind: 'built-in',
+        tab: tab.value,
+      } satisfies ActiveProjectDestination,
+    })),
+    ...projectExtensions.data.map((extension) => ({
+      key: `extension:${extension.id}`,
+      label: extension.tabName,
+      icon: EXTENSION_ICON_BY_NAME[extension.tabIcon],
+      destination: {
+        kind: 'extension',
+        extensionId: extension.id,
+      } satisfies ActiveProjectDestination,
+    })),
+  ];
 
   useEffect(() => {
-    if (
-      session.activeRepoId === activeRepoId &&
-      session.activeTab === activeView
-    ) {
+    if (activeDestination.kind === 'extension') {
+      if (session.activeRepoId === activeRepoId) {
+        return;
+      }
+
+      updateSession({
+        activeRepoId,
+      });
+
+      return;
+    }
+
+    if (session.activeRepoId === activeRepoId && session.activeTab === activeDestination.tab) {
       return;
     }
 
     updateSession({
       activeRepoId,
-      activeTab: activeView,
+      activeTab: activeDestination.tab,
     });
-  }, [activeRepoId, activeView, session, updateSession]);
+  }, [activeDestination, activeRepoId, session, updateSession]);
 
-  const navigateToTab = (
+  const navigateToDestination = (
     repoId: string,
-    to: ProjectTabRouteTo,
+    destination: ActiveProjectDestination,
   ) => {
+    if (destination.kind === 'extension') {
+      void router.navigate({
+        to: '/projects/$repoId/extensions/$extensionId',
+        params: {
+          repoId,
+          extensionId: destination.extensionId,
+        },
+      });
+
+      return;
+    }
+
     void router.navigate({
-      to,
+      to: getProjectTabRouteTo(destination.tab),
       params: { repoId },
     });
   };
@@ -255,7 +352,7 @@ export function ProjectWorkspace({
         return;
       }
 
-      navigateToTab(nextRepoId, getProjectTabRouteTo(activeView));
+      navigateToDestination(nextRepoId, activeDestination);
     },
   );
 
@@ -272,7 +369,7 @@ export function ProjectWorkspace({
       if (nextRepoId === null) {
         void router.navigate({ to: '/projects', replace: true });
       } else {
-        navigateToTab(nextRepoId, getProjectTabRouteTo(activeView));
+        navigateToDestination(nextRepoId, activeDestination);
       }
     }
 
@@ -284,7 +381,7 @@ export function ProjectWorkspace({
   };
 
   const handleProjectAdded = (repo: Repo) => {
-    navigateToTab(repo.id, getProjectTabRouteTo(activeView));
+    navigateToDestination(repo.id, activeDestination);
   };
 
   return (
@@ -305,7 +402,7 @@ export function ProjectWorkspace({
                 key={repo.id}
                 value={repo}
                 onClick={() => {
-                  navigateToTab(repo.id, getProjectTabRouteTo(activeView));
+                  navigateToDestination(repo.id, activeDestination);
                 }}
                 initial={{ opacity: 0, width: 0 }}
                 animate={{
@@ -364,13 +461,13 @@ export function ProjectWorkspace({
       <div className="flex min-h-0 flex-1 flex-col rounded-b-xl border border-border bg-card shadow-sm">
         <div className="flex shrink-0 items-center justify-between border-b border-border px-5">
           <nav className="-mb-px flex gap-1">
-            {VIEW_TABS.map((tab) => {
+            {tabs.map((tab) => {
               const Icon = tab.icon;
-              const isActive = tab.value === activeView;
+              const isActive = isActiveDestination(tab.destination, activeDestination);
 
               return (
                 <button
-                  key={tab.value}
+                  key={tab.key}
                   className={cn(
                     'relative flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-[13px] font-medium transition-colors',
                     isActive
@@ -378,7 +475,7 @@ export function ProjectWorkspace({
                       : 'border-transparent text-muted-foreground hover:text-foreground',
                   )}
                   onClick={() => {
-                    navigateToTab(activeRepoId, tab.to);
+                    navigateToDestination(activeRepoId, tab.destination);
                   }}
                   type="button"
                 >
@@ -393,7 +490,9 @@ export function ProjectWorkspace({
         <div
           className={cn(
             'flex-1',
-            activeView === 'channels' ? 'min-h-0 overflow-hidden' : 'overflow-y-auto',
+            activeDestination.kind === 'extension' || activeView === 'channels'
+              ? 'min-h-0 overflow-hidden'
+              : 'overflow-y-auto',
           )}
         >
           {children}

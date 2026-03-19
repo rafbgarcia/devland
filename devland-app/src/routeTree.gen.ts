@@ -18,6 +18,7 @@ import { Route as ProjectsRepoIdPullRequestsRouteImport } from './routes/project
 import { Route as ProjectsRepoIdIssuesRouteImport } from './routes/projects.$repoId.issues'
 import { Route as ProjectsRepoIdCodeRouteImport } from './routes/projects.$repoId.code'
 import { Route as ProjectsRepoIdChannelsRouteImport } from './routes/projects.$repoId.channels'
+import { Route as ProjectsRepoIdExtensionsExtensionIdRouteImport } from './routes/projects.$repoId.extensions.$extensionId'
 
 const OnboardingPrerequisitesRoute = OnboardingPrerequisitesRouteImport.update({
   id: '/onboarding-prerequisites',
@@ -65,6 +66,12 @@ const ProjectsRepoIdChannelsRoute = ProjectsRepoIdChannelsRouteImport.update({
   path: '/channels',
   getParentRoute: () => ProjectsRepoIdRoute,
 } as any)
+const ProjectsRepoIdExtensionsExtensionIdRoute =
+  ProjectsRepoIdExtensionsExtensionIdRouteImport.update({
+    id: '/extensions/$extensionId',
+    path: '/extensions/$extensionId',
+    getParentRoute: () => ProjectsRepoIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -76,6 +83,7 @@ export interface FileRoutesByFullPath {
   '/projects/$repoId/issues': typeof ProjectsRepoIdIssuesRoute
   '/projects/$repoId/pull-requests': typeof ProjectsRepoIdPullRequestsRoute
   '/projects/$repoId/': typeof ProjectsRepoIdIndexRoute
+  '/projects/$repoId/extensions/$extensionId': typeof ProjectsRepoIdExtensionsExtensionIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -86,6 +94,7 @@ export interface FileRoutesByTo {
   '/projects/$repoId/issues': typeof ProjectsRepoIdIssuesRoute
   '/projects/$repoId/pull-requests': typeof ProjectsRepoIdPullRequestsRoute
   '/projects/$repoId': typeof ProjectsRepoIdIndexRoute
+  '/projects/$repoId/extensions/$extensionId': typeof ProjectsRepoIdExtensionsExtensionIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -98,6 +107,7 @@ export interface FileRoutesById {
   '/projects/$repoId/issues': typeof ProjectsRepoIdIssuesRoute
   '/projects/$repoId/pull-requests': typeof ProjectsRepoIdPullRequestsRoute
   '/projects/$repoId/': typeof ProjectsRepoIdIndexRoute
+  '/projects/$repoId/extensions/$extensionId': typeof ProjectsRepoIdExtensionsExtensionIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -111,6 +121,7 @@ export interface FileRouteTypes {
     | '/projects/$repoId/issues'
     | '/projects/$repoId/pull-requests'
     | '/projects/$repoId/'
+    | '/projects/$repoId/extensions/$extensionId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -121,6 +132,7 @@ export interface FileRouteTypes {
     | '/projects/$repoId/issues'
     | '/projects/$repoId/pull-requests'
     | '/projects/$repoId'
+    | '/projects/$repoId/extensions/$extensionId'
   id:
     | '__root__'
     | '/'
@@ -132,6 +144,7 @@ export interface FileRouteTypes {
     | '/projects/$repoId/issues'
     | '/projects/$repoId/pull-requests'
     | '/projects/$repoId/'
+    | '/projects/$repoId/extensions/$extensionId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -206,6 +219,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsRepoIdChannelsRouteImport
       parentRoute: typeof ProjectsRepoIdRoute
     }
+    '/projects/$repoId/extensions/$extensionId': {
+      id: '/projects/$repoId/extensions/$extensionId'
+      path: '/extensions/$extensionId'
+      fullPath: '/projects/$repoId/extensions/$extensionId'
+      preLoaderRoute: typeof ProjectsRepoIdExtensionsExtensionIdRouteImport
+      parentRoute: typeof ProjectsRepoIdRoute
+    }
   }
 }
 
@@ -215,6 +235,7 @@ interface ProjectsRepoIdRouteChildren {
   ProjectsRepoIdIssuesRoute: typeof ProjectsRepoIdIssuesRoute
   ProjectsRepoIdPullRequestsRoute: typeof ProjectsRepoIdPullRequestsRoute
   ProjectsRepoIdIndexRoute: typeof ProjectsRepoIdIndexRoute
+  ProjectsRepoIdExtensionsExtensionIdRoute: typeof ProjectsRepoIdExtensionsExtensionIdRoute
 }
 
 const ProjectsRepoIdRouteChildren: ProjectsRepoIdRouteChildren = {
@@ -223,6 +244,8 @@ const ProjectsRepoIdRouteChildren: ProjectsRepoIdRouteChildren = {
   ProjectsRepoIdIssuesRoute: ProjectsRepoIdIssuesRoute,
   ProjectsRepoIdPullRequestsRoute: ProjectsRepoIdPullRequestsRoute,
   ProjectsRepoIdIndexRoute: ProjectsRepoIdIndexRoute,
+  ProjectsRepoIdExtensionsExtensionIdRoute:
+    ProjectsRepoIdExtensionsExtensionIdRoute,
 }
 
 const ProjectsRepoIdRouteWithChildren = ProjectsRepoIdRoute._addFileChildren(

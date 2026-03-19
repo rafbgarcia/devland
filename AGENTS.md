@@ -11,4 +11,4 @@
 HARD STOP RULES:
 - HARD STOP on ambiguious decisions; design choices; compromises; product decisions;
 - HARD STOP when you notice design flaws, inappropriate production code or tests;
-- HARD STOP before any UI changes load the shadcn skill;
+- HARD STOP make sure you have loaded shadcn skill for UI changes;

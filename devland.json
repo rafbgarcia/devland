@@ -1,0 +1,10 @@
+{
+  "extensions": [
+    {
+      "source": "path:./extensions/gh-prs",
+      "tabName": "Pull requests",
+      "tabIcon": "git-pull-request",
+      "port": "4310"
+    }
+  ]
+}
