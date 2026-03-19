@@ -1,11 +1,15 @@
 import {
   app,
   BrowserWindow,
+  net,
   nativeImage,
+  protocol,
   session,
   shell,
   type Input,
 } from 'electron';
+import { access } from 'node:fs/promises';
+import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 
@@ -13,9 +17,25 @@ import {
   APP_SHORTCUT_COMMAND_CHANNEL,
   type AppShortcutCommand,
 } from '@/ipc/contracts';
+import {
+  DEVLAND_EXTENSION_PROTOCOL,
+  resolveExtensionAssetPath,
+} from './main-process/extensions/protocol';
 import { registerAppIpcHandlers } from './main-process/ipc';
 import { targetBrowserManager } from './main-process/browser/target-browser-manager';
 import { terminalSessionManager } from './main-process/terminal-session-manager';
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: DEVLAND_EXTENSION_PROTOCOL,
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+    },
+  },
+]);
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -33,7 +53,7 @@ const developmentContentSecurityPolicy = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https://*.githubusercontent.com",
   "font-src 'self' data:",
-  "frame-src 'self' http://127.0.0.1:* http://localhost:* https:",
+  `frame-src 'self' ${DEVLAND_EXTENSION_PROTOCOL}: http://127.0.0.1:* http://localhost:* https:`,
   `connect-src 'self' https://*.convex.cloud https://*.convex.site wss://*.convex.cloud ${devServerOrigin} ${
     devServerOrigin?.replace(/^http/, 'ws') ?? ''
   }`,
@@ -55,6 +75,10 @@ if (testUserDataDir) {
 
 const isAppUrl = (targetUrl: string): boolean => {
   if (targetUrl.startsWith('file://')) {
+    return true;
+  }
+
+  if (targetUrl.startsWith(`${DEVLAND_EXTENSION_PROTOCOL}://`)) {
     return true;
   }
 
@@ -162,6 +186,24 @@ const configureSessionSecurity = (): void => {
   });
 };
 
+const registerExtensionProtocol = (): void => {
+  protocol.handle(DEVLAND_EXTENSION_PROTOCOL, async (request) => {
+    const assetPath = resolveExtensionAssetPath(request.url);
+
+    if (assetPath === null) {
+      return new Response('Extension asset not found.', { status: 404 });
+    }
+
+    try {
+      await access(assetPath);
+
+      return net.fetch(pathToFileURL(assetPath).toString());
+    } catch {
+      return new Response('Extension asset not found.', { status: 404 });
+    }
+  });
+};
+
 const createWindow = async (): Promise<BrowserWindow> => {
   if (mainWindow && !mainWindow.isDestroyed()) {
     return mainWindow;
@@ -257,6 +299,7 @@ app.on('second-instance', () => {
 app.whenReady().then(async () => {
   app.setAppUserModelId(app.name);
   configureMacDockIcon();
+  registerExtensionProtocol();
   configureSessionSecurity();
   registerAppIpcHandlers(() => mainWindow);
   await createWindow();

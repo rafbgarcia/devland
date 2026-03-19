@@ -2,7 +2,6 @@ import { execFile } from 'node:child_process';
 import { access, cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { z } from 'zod';
 
@@ -21,6 +20,7 @@ import {
   type RepoExtensionDefinition,
   type RepoExtensionSource,
 } from '@/extensions/contracts';
+import { getExtensionEntryUrl } from '@/main-process/extensions/protocol';
 import { ghExecutable } from '@/main-process/gh-cli';
 
 const execFileAsync = promisify(execFile);
@@ -31,6 +31,7 @@ const INSTALLED_EXTENSION_PACKAGE_DIR = 'package';
 const InstalledExtensionMetadataSchema = z.object({
   source: GitHubRepoExtensionSourceSchema,
   installedVersion: z.string().min(1),
+  installedReleaseVersion: z.string().min(1).optional(),
   installedAt: z.number().int().nonnegative(),
 });
 type InstalledExtensionMetadata = z.infer<typeof InstalledExtensionMetadataSchema>;
@@ -49,6 +50,13 @@ const deriveExtensionKey = (value: string): string => {
   const baseName = path.posix.basename(normalizedValue).trim();
 
   return sanitizePathSegment(baseName);
+};
+
+const getRequestedExtensionVersionLabel = (value: string): string => {
+  const normalizedValue = value.trim().replace(/\/+$/, '');
+  const lastSegment = normalizedValue.split('/').filter(Boolean).at(-1);
+
+  return lastSegment && lastSegment.length > 0 ? lastSegment : normalizedValue;
 };
 
 const getGitHubRepoUrl = (owner: string, repo: string): string =>
@@ -247,6 +255,7 @@ const installGithubExtension = async (source: GitHubRepoExtensionSource): Promis
         InstalledExtensionMetadataSchema.parse({
           source,
           installedVersion: manifest.version,
+          installedReleaseVersion: source.version,
           installedAt: Date.now(),
         }),
         null,
@@ -277,10 +286,10 @@ const buildProjectExtensionError = (
     id: source.extensionKey,
     tabName: definition.tabName,
     tabIcon: definition.tabIcon,
-    status: 'error',
-    name: null,
-    version: null,
-    requestedVersion: source.kind === 'github' ? source.version : null,
+      status: 'error',
+      name: null,
+      version: null,
+    requestedVersion: source.kind === 'github' ? getRequestedExtensionVersionLabel(source.version) : null,
     commands: [],
     entryUrl: null,
     installPath: null,
@@ -307,7 +316,7 @@ const buildPathProjectExtension = async (
       commands: manifest.commands,
       entryUrl:
         source.port === null
-          ? pathToFileURL(path.join(source.extensionPath, manifest.entry)).toString()
+          ? getExtensionEntryUrl(source.extensionPath, manifest.entry)
           : `http://127.0.0.1:${source.port}/`,
       installPath: source.extensionPath,
       repositoryUrl: null,
@@ -340,7 +349,7 @@ const buildGithubProjectExtension = async (
         status: 'install-required',
         name: null,
         version: null,
-        requestedVersion: source.version,
+        requestedVersion: getRequestedExtensionVersionLabel(source.version),
         commands: [],
         entryUrl: null,
         installPath: null,
@@ -352,7 +361,13 @@ const buildGithubProjectExtension = async (
 
     const installedPackageRoot = await getInstalledExtensionPackageRoot(source);
     const { manifest } = await readExtensionManifest(installedPackageRoot);
-    const isUpToDate = metadata.installedVersion === source.version;
+    const requestedVersion = getRequestedExtensionVersionLabel(source.version);
+    const isUpToDate =
+      metadata.installedReleaseVersion === source.version ||
+      (
+        metadata.installedReleaseVersion === undefined &&
+        metadata.installedVersion === requestedVersion
+      );
 
     return ProjectExtensionSchema.parse({
       id: source.extensionKey,
@@ -361,9 +376,9 @@ const buildGithubProjectExtension = async (
       status: isUpToDate ? 'ready' : 'update-available',
       name: manifest.name,
       version: manifest.version,
-      requestedVersion: source.version,
+      requestedVersion,
       commands: manifest.commands,
-      entryUrl: pathToFileURL(path.join(installedPackageRoot, manifest.entry)).toString(),
+      entryUrl: getExtensionEntryUrl(installedPackageRoot, manifest.entry),
       installPath: installedPackageRoot,
       repositoryUrl: source.repoUrl,
       source,

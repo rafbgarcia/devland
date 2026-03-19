@@ -1,7 +1,7 @@
 {
   "id": "gh-prs",
   "name": "GitHub Pull Requests",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "entry": "dist/index.html",
   "commands": ["gh"]
 }

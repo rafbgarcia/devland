@@ -338,6 +338,7 @@ export function ProjectExtensionView({
                 Update extension
               </Button>
               <Button
+                nativeButton={false}
                 render={
                   <a
                     href={extension.repositoryUrl ?? undefined}
@@ -379,6 +380,7 @@ export function ProjectExtensionView({
               </Button>
               {extension.repositoryUrl !== null ? (
               <Button
+                nativeButton={false}
                 render={
                   <a
                     href={extension.repositoryUrl}

@@ -1,9 +1,0 @@
-{
-  "extensions": [
-    {
-      "source": "github:rafbgarcia/devland@ext/gh-prs/0.1.0#gh-prs.tgz",
-      "tabName": "Pull requests",
-      "tabIcon": "git-pull-request"
-    }
-  ]
-}

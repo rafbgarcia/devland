@@ -1,10 +1,9 @@
 {
   "extensions": [
     {
-      "source": "path:./extensions/gh-prs",
+      "source": "github:rafbgarcia/devland@ext/gh-prs/0.1.1#gh-prs.tgz",
       "tabName": "Pull requests",
-      "tabIcon": "git-pull-request",
-      "port": "4310"
+      "tabIcon": "git-pull-request"
     }
   ]
 }
