@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events';
 import { spawn as spawnPty, type IPty } from 'node-pty';
 
 import type {
+  ExecTerminalSessionCommandInput,
   OpenTerminalSessionInput,
   ResizeTerminalSessionInput,
   TerminalSessionEvent,
@@ -15,6 +16,8 @@ const DEFAULT_TERMINAL_COLS = 120;
 const DEFAULT_TERMINAL_ROWS = 32;
 const MAX_TERMINAL_HISTORY_CHARS = 200_000;
 const DEFAULT_UNIX_SHELL = process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash';
+type SpawnPty = typeof spawnPty;
+type TerminalSessionInitInput = OpenTerminalSessionInput | ExecTerminalSessionCommandInput;
 
 type TerminalSession = {
   sessionId: string;
@@ -64,10 +67,17 @@ const resolveShellCommand = (): string => {
   return DEFAULT_UNIX_SHELL;
 };
 
+const normalizeExecCommand = (command: string): string =>
+  /[\r\n]$/.test(command) ? command : `${command}\r`;
+
 export class TerminalSessionManager extends EventEmitter<{
   event: [TerminalSessionEvent];
 }> {
   private readonly sessions = new Map<string, TerminalSession>();
+
+  constructor(private readonly spawn: SpawnPty = spawnPty) {
+    super();
+  }
 
   async open(input: OpenTerminalSessionInput): Promise<TerminalSessionSnapshot> {
     const session = this.ensureSession(input);
@@ -84,6 +94,20 @@ export class TerminalSessionManager extends EventEmitter<{
     }
 
     return createSnapshot(session);
+  }
+
+  async exec(input: ExecTerminalSessionCommandInput): Promise<void> {
+    const session = this.ensureSession(input);
+
+    if (session.child === null) {
+      this.startSessionProcess(session);
+    }
+
+    if (session.child === null) {
+      throw new Error(session.error ?? 'Terminal session failed to start.');
+    }
+
+    session.child.write(normalizeExecCommand(input.command));
   }
 
   async write(input: WriteTerminalSessionInput): Promise<void> {
@@ -132,7 +156,7 @@ export class TerminalSessionManager extends EventEmitter<{
     }
   }
 
-  private ensureSession(input: OpenTerminalSessionInput): TerminalSession {
+  private ensureSession(input: TerminalSessionInitInput): TerminalSession {
     const existing = this.sessions.get(input.sessionId);
 
     if (existing) {
@@ -173,7 +197,7 @@ export class TerminalSessionManager extends EventEmitter<{
     session.updatedAt = nowIso();
 
     try {
-      const child = spawnPty(shell, [], {
+      const child = this.spawn(shell, [], {
         name: 'xterm-256color',
         cwd: session.cwd,
         cols: session.cols,

@@ -50,6 +50,7 @@ export const RESPOND_TO_CODEX_APPROVAL_CHANNEL = 'app:respond-to-codex-approval'
 export const RESPOND_TO_CODEX_USER_INPUT_CHANNEL = 'app:respond-to-codex-user-input';
 export const CODEX_SESSION_EVENT_CHANNEL = 'app:codex-session-event';
 export const OPEN_TERMINAL_SESSION_CHANNEL = 'app:open-terminal-session';
+export const EXEC_TERMINAL_SESSION_COMMAND_CHANNEL = 'app:exec-terminal-session-command';
 export const WRITE_TERMINAL_SESSION_CHANNEL = 'app:write-terminal-session';
 export const RESIZE_TERMINAL_SESSION_CHANNEL = 'app:resize-terminal-session';
 export const CLOSE_TERMINAL_SESSION_CHANNEL = 'app:close-terminal-session';
@@ -330,6 +331,7 @@ export type CodeTarget = z.infer<typeof CodeTargetSchema>;
 export const CreateGitWorktreeResultSchema = z.object({
   cwd: z.string().min(1),
   branch: z.string().min(1),
+  worktreeSetupCommand: z.string().min(1).optional(),
 });
 export type CreateGitWorktreeResult = z.infer<typeof CreateGitWorktreeResultSchema>;
 
@@ -511,6 +513,15 @@ export const OpenTerminalSessionInputSchema = z.object({
   rows: z.number().int().min(5).max(200).optional(),
 });
 export type OpenTerminalSessionInput = z.infer<typeof OpenTerminalSessionInputSchema>;
+
+export const ExecTerminalSessionCommandInputSchema = z.object({
+  sessionId: z.string().min(1),
+  cwd: z.string().min(1),
+  command: z.string().min(1),
+  cols: z.number().int().min(20).max(400).optional(),
+  rows: z.number().int().min(5).max(200).optional(),
+});
+export type ExecTerminalSessionCommandInput = z.infer<typeof ExecTerminalSessionCommandInputSchema>;
 
 export const WriteTerminalSessionInputSchema = z.object({
   sessionId: z.string().min(1),
@@ -759,6 +770,7 @@ export interface ElectronApi {
     answers: Record<string, string>;
   }) => Promise<void>;
   openTerminalSession: (input: OpenTerminalSessionInput) => Promise<TerminalSessionSnapshot>;
+  execTerminalSessionCommand: (input: ExecTerminalSessionCommandInput) => Promise<void>;
   writeTerminalSession: (input: WriteTerminalSessionInput) => Promise<void>;
   resizeTerminalSession: (input: ResizeTerminalSessionInput) => Promise<void>;
   closeTerminalSession: (sessionId: string) => Promise<void>;

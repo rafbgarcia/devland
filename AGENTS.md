@@ -9,6 +9,6 @@
     . thin `src/routes/` files
 
 HARD STOP RULES:
-- HARD STOP on ambiguious decisions; design choices; compromises; product decisions;
+- HARD STOP on ambiguious decisions; clarify assumptions; design choices; compromises; product decisions;
 - HARD STOP when you notice design flaws, inappropriate production code or tests;
 - HARD STOP make sure you have loaded shadcn skill for UI changes;

@@ -12,7 +12,6 @@ import {
   InstallRepoExtensionInputSchema,
   PathRepoExtensionSourceSchema,
   ProjectExtensionSchema,
-  RepoExtensionsConfigSchema,
   type GitHubRepoExtensionSource,
   type InstallRepoExtensionInput,
   type PathRepoExtensionSource,
@@ -22,9 +21,9 @@ import {
 } from '@/extensions/contracts';
 import { getExtensionEntryUrl } from '@/main-process/extensions/protocol';
 import { ghExecutable } from '@/main-process/gh-cli';
+import { DEVLAND_CONFIG_FILE, readRepoConfig } from '@/main-process/repo-config';
 
 const execFileAsync = promisify(execFile);
-const DEVLAND_CONFIG_FILE = 'devland.json';
 const INSTALLED_EXTENSION_METADATA_FILE = 'installation.json';
 const INSTALLED_EXTENSION_PACKAGE_DIR = 'package';
 
@@ -409,30 +408,7 @@ const buildProjectExtension = async (
 };
 
 const readRepoExtensionsConfig = async (repoPath: string): Promise<RepoExtensionDefinition[]> => {
-  const configPath = path.join(repoPath, DEVLAND_CONFIG_FILE);
-
-  let configValue: unknown;
-
-  try {
-    configValue = await readJsonFile<unknown>(configPath);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') {
-      return [];
-    }
-
-    throw error;
-  }
-
-  if (
-    typeof configValue !== 'object' ||
-    configValue === null ||
-    !('extensions' in configValue)
-  ) {
-    return [];
-  }
-
-  const config = RepoExtensionsConfigSchema.parse(configValue);
-
+  const config = await readRepoConfig(repoPath);
   return config.extensions;
 };
 

@@ -51,6 +51,7 @@ import {
   SEARCH_CODEX_PATHS_CHANNEL,
   STOP_CODEX_SESSION_CHANNEL,
   OPEN_TERMINAL_SESSION_CHANNEL,
+  EXEC_TERMINAL_SESSION_COMMAND_CHANNEL,
   WRITE_TERMINAL_SESSION_CHANNEL,
   RESIZE_TERMINAL_SESSION_CHANNEL,
   CLOSE_TERMINAL_SESSION_CHANNEL,
@@ -189,6 +190,8 @@ export const electronApi: ElectronApi = {
     ipcRenderer.invoke(RESPOND_TO_CODEX_USER_INPUT_CHANNEL, input),
   openTerminalSession: (input) =>
     ipcRenderer.invoke(OPEN_TERMINAL_SESSION_CHANNEL, input),
+  execTerminalSessionCommand: (input) =>
+    ipcRenderer.invoke(EXEC_TERMINAL_SESSION_COMMAND_CHANNEL, input),
   writeTerminalSession: (input) =>
     ipcRenderer.invoke(WRITE_TERMINAL_SESSION_CHANNEL, input),
   resizeTerminalSession: (input) =>

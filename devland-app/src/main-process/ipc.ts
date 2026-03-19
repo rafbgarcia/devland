@@ -52,6 +52,7 @@ import {
   SEND_CODEX_SESSION_PROMPT_CHANNEL,
   STOP_CODEX_SESSION_CHANNEL,
   OPEN_TERMINAL_SESSION_CHANNEL,
+  EXEC_TERMINAL_SESSION_COMMAND_CHANNEL,
   WRITE_TERMINAL_SESSION_CHANNEL,
   RESIZE_TERMINAL_SESSION_CHANNEL,
   CLOSE_TERMINAL_SESSION_CHANNEL,
@@ -107,6 +108,7 @@ import {
 } from './git';
 import { gitStateWatcher } from './git-state-watcher';
 import { terminalSessionManager } from './terminal-session-manager';
+import { readRepoConfig } from './repo-config';
 
 const getAppBootstrap = async (): Promise<AppBootstrap> => {
   if (process.env.DEVLAND_TEST_MODE === '1') {
@@ -250,8 +252,15 @@ export const registerAppIpcHandlers = (
   );
   ipcMain.handle(
     CREATE_GIT_WORKTREE_CHANNEL,
-    (_event, repoPath: string, baseBranch: string) =>
-      createGitWorktree(repoPath, baseBranch),
+    async (_event, repoPath: string, baseBranch: string) => {
+      const result = await createGitWorktree(repoPath, baseBranch);
+      const config = await readRepoConfig(repoPath);
+
+      return {
+        ...result,
+        worktreeSetupCommand: config.worktreeSetupCommand,
+      };
+    },
   );
   ipcMain.handle(
     PROMOTE_GIT_WORKTREE_BRANCH_CHANNEL,
@@ -411,6 +420,10 @@ export const registerAppIpcHandlers = (
   ipcMain.handle(
     OPEN_TERMINAL_SESSION_CHANNEL,
     (_event, input) => terminalSessionManager.open(input),
+  );
+  ipcMain.handle(
+    EXEC_TERMINAL_SESSION_COMMAND_CHANNEL,
+    (_event, input) => terminalSessionManager.exec(input),
   );
   ipcMain.handle(
     WRITE_TERMINAL_SESSION_CHANNEL,

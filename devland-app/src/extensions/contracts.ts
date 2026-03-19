@@ -27,10 +27,11 @@ export const RepoExtensionDefinitionSchema = z.object({
 });
 export type RepoExtensionDefinition = z.infer<typeof RepoExtensionDefinitionSchema>;
 
-export const RepoExtensionsConfigSchema = z.object({
+export const RepoConfigSchema = z.object({
   extensions: z.array(RepoExtensionDefinitionSchema).default([]),
+  worktreeSetupCommand: z.string().trim().min(1).optional(),
 });
-export type RepoExtensionsConfig = z.infer<typeof RepoExtensionsConfigSchema>;
+export type RepoConfig = z.infer<typeof RepoConfigSchema>;
 
 export const PathRepoExtensionSourceSchema = z.object({
   kind: z.literal('path'),

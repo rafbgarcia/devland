@@ -16,6 +16,7 @@ import {
   LoaderCircleIcon,
   PlusIcon,
   TerminalIcon,
+  Trash2Icon,
   XIcon,
 } from 'lucide-react';
 
@@ -334,7 +335,17 @@ export function CodeWorkspaceScreen({
 
     try {
       const result = await window.electronAPI.createGitWorktree(repoPath, activeBranch);
-      addWorktreeTarget(result.cwd, result.branch);
+      const target = addWorktreeTarget(result.cwd, result.branch);
+
+      if (result.worktreeSetupCommand) {
+        void window.electronAPI.execTerminalSessionCommand({
+          sessionId: target.id,
+          cwd: result.cwd,
+          command: result.worktreeSetupCommand,
+        }).catch((error) => {
+          console.error('Failed to start worktree setup command:', error);
+        });
+      }
     } catch (error) {
       console.error('Failed to create worktree:', error);
     } finally {
@@ -342,17 +353,19 @@ export function CodeWorkspaceScreen({
     }
   };
 
-  const handleCloseActiveTarget = async () => {
-    if (activeTarget.kind === 'root') {
+  const handleRemoveTarget = useCallback(async (targetId: string) => {
+    const target = targets.find((candidate) => candidate.id === targetId);
+
+    if (!target || target.kind === 'root') {
       return;
     }
 
-    await stopSession(activeTarget.id);
-    await window.electronAPI.closeTerminalSession(activeTarget.id);
-    await window.electronAPI.disposeBrowserView(activeTarget.id);
-    clearBrowserTargetState(activeTarget.id);
-    removeTarget(activeTarget.id);
-  };
+    await stopSession(target.id);
+    await window.electronAPI.closeTerminalSession(target.id);
+    await window.electronAPI.disposeBrowserView(target.id);
+    clearBrowserTargetState(target.id);
+    removeTarget(target.id);
+  }, [removeTarget, stopSession, targets]);
 
   const handleSidebarResize = useCallback((deltaX: number) => {
     setSidebarWidth(
@@ -406,13 +419,34 @@ export function CodeWorkspaceScreen({
             <div className="flex min-w-0 items-center gap-1">
               <TabsList variant="line" className="min-w-0 bg-transparent p-0">
                 {targets.map((target) => (
-                  <TabsTrigger
-                    key={target.id}
-                    value={target.id}
-                    className="max-w-[18rem] truncate px-3"
-                  >
-                    {targetLabels[target.id] ?? target.title}
-                  </TabsTrigger>
+                  <div key={target.id} className="flex min-w-0 items-center gap-1">
+                    <TabsTrigger
+                      value={target.id}
+                      className="max-w-[18rem] px-3"
+                    >
+                      <span className="truncate">{targetLabels[target.id] ?? target.title}</span>
+                    </TabsTrigger>
+                    {target.kind !== 'root' ? (
+                      <Button
+                        size="icon"
+                        type="button"
+                        variant="ghost"
+                        className="size-7 shrink-0 text-muted-foreground hover:text-foreground"
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                        }}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          void handleRemoveTarget(target.id);
+                        }}
+                        aria-label={target.kind === 'worktree' ? `Remove worktree ${target.title}` : `Close session ${target.title}`}
+                      >
+                        {target.kind === 'worktree' ? <Trash2Icon /> : <XIcon />}
+                      </Button>
+                    ) : null}
+                  </div>
                 ))}
               </TabsList>
               <Button
@@ -428,17 +462,6 @@ export function CodeWorkspaceScreen({
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              {activeTarget.kind !== 'root' ? (
-                <Button
-                  size="sm"
-                  type="button"
-                  variant="outline"
-                  onClick={handleCloseActiveTarget}
-                >
-                  <XIcon data-icon="inline-start" />
-                  Close target
-                </Button>
-              ) : null}
               <Button
                 size="sm"
                 type="button"
