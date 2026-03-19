@@ -5,7 +5,7 @@
     "": {
       "name": "@devlandapp/gh-prs-extension",
       "dependencies": {
-        "@devlandapp/sdk": "file:../../packages/devland-sdk",
+        "@devlandapp/sdk": "^0.1.0",
         "react": "19.2.4",
         "react-dom": "19.2.4",
       },
@@ -19,7 +19,7 @@
     },
   },
   "packages": {
-    "@devlandapp/sdk": ["@devlandapp/sdk@file:../../packages/devland-sdk", { "dependencies": { "zod": "4.3.6" } }],
+    "@devlandapp/sdk": ["@devlandapp/sdk@0.1.0", "", { "dependencies": { "zod": "4.3.6" } }, "sha512-R9eZEfoUnM1juTquRvpqwnTgCblo+gJj5W/+v3BSp+btNXOty31bQsZeuvUR8gSx6KCaxxyPutes2FRYfoYiZA=="],
 
     "@emnapi/core": ["@emnapi/core@1.9.0", "", { "dependencies": { "@emnapi/wasi-threads": "1.2.0", "tslib": "^2.4.0" } }, "sha512-0DQ98G9ZQZOxfUcQn1waV2yS8aWdZ6kJMbYCJB3oUBecjWYO1fqJ+a1DRfPF3O5JEkwqwP1A9QEN/9mYm2Yd0w=="],
 
