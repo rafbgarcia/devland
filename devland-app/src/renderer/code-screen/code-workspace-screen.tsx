@@ -16,7 +16,6 @@ import {
   LoaderCircleIcon,
   PlusIcon,
   TerminalIcon,
-  Trash2Icon,
   XIcon,
 } from 'lucide-react';
 
@@ -26,12 +25,14 @@ import {
   type CodexPromptSubmission,
 } from '@/lib/codex-chat';
 import {
+  type CodeTarget,
   type CodeWorkspacePane,
 } from '@/ipc/contracts';
 import { BrowserPanel } from '@/renderer/code-screen/browser/browser-panel';
 import { clearBrowserTargetState } from '@/renderer/code-screen/browser/browser-target-state';
 import { ChangesPane } from '@/renderer/code-screen/changes-pane';
 import { ChatComposer } from '@/renderer/code-screen/chat-composer';
+import { CodexTabMenu } from '@/renderer/code-screen/codex-tab-menu';
 import { SessionAlerts } from '@/renderer/code-screen/session-alerts';
 import { SessionTerminal } from '@/renderer/code-screen/session-terminal';
 import { SessionTranscript } from '@/renderer/code-screen/session-transcript';
@@ -57,14 +58,30 @@ import {
 } from '@/renderer/shared/lib/workspace-view-state';
 import { useWorkspaceSession } from '@/renderer/projects-shell/use-workspace-session';
 import { useRepos } from '@/renderer/projects-shell/use-repos';
-import { Button } from '@/shadcn/components/ui/button';
-import { Tabs, TabsList, TabsTrigger } from '@/shadcn/components/ui/tabs';
+import { Tabs } from '@/shadcn/components/ui/tabs';
 import { cn } from '@/shadcn/lib/utils';
 
 const TEMPORARY_WORKTREE_BRANCH_PATTERN = /^codex\/[0-9a-f]{8}$/;
+const SESSION_TARGET_TITLE_PATTERN = /^Session\s+(\d+)$/;
 const SIDEBAR_MIN_WIDTH = 200;
 const SIDEBAR_MAX_WIDTH = 500;
 const SIDEBAR_DEFAULT_WIDTH = 280;
+
+function formatCodeTargetLabel(target: CodeTarget, rootBranch: string) {
+  if (target.kind === 'root') {
+    return rootBranch;
+  }
+
+  if (target.kind === 'session') {
+    const match = SESSION_TARGET_TITLE_PATTERN.exec(target.title);
+
+    if (match !== null) {
+      return `${rootBranch}.${Number(match[1]) + 1}`;
+    }
+  }
+
+  return target.title;
+}
 
 function ResizableHandle({
   onResize,
@@ -111,9 +128,11 @@ function ResizableHandle({
 function LayerToggle({
   activePaneId,
   onChangePane,
+  codexMenu,
 }: {
   activePaneId: CodeWorkspacePane;
   onChangePane: (paneId: CodeWorkspacePane) => void;
+  codexMenu: React.ReactNode;
 }) {
   return (
     <div className="flex items-center gap-0.5 border-b border-border bg-muted/30 px-3 py-1.5">
@@ -142,6 +161,7 @@ function LayerToggle({
       >
         <BotIcon className="size-3" />
         Codex
+        {codexMenu}
       </button>
       <button
         type="button"
@@ -296,17 +316,7 @@ export function CodeWorkspaceScreen({
   const targetLabels = useMemo(
     () =>
       Object.fromEntries(
-        targets.map((target) => {
-          if (target.kind === 'root') {
-            return [target.id, rootBranch];
-          }
-
-          if (target.kind === 'session') {
-            return [target.id, `${target.title} · ${rootBranch}`];
-          }
-
-          return [target.id, target.title];
-        }),
+        targets.map((target) => [target.id, formatCodeTargetLabel(target, rootBranch)]),
       ),
     [rootBranch, targets],
   );
@@ -459,6 +469,23 @@ export function CodeWorkspaceScreen({
     sendPrompt,
   ]);
 
+  useEffect(() => {
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'n' && event.metaKey && !event.shiftKey && !event.altKey) {
+        event.preventDefault();
+        resetSession(activeTarget.id);
+      }
+
+      if (event.key === 'Escape' && sessionState.status === 'running') {
+        event.preventDefault();
+        void interruptSession(activeTarget.id);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeTarget.id, interruptSession, resetSession, sessionState.status]);
+
   const isRunning = sessionState.status === 'running';
   const activeTargetLabel = targetLabels[activeTarget.id] ?? activeTarget.title;
   const handleActiveTargetChange = useCallback(
@@ -476,69 +503,81 @@ export function CodeWorkspaceScreen({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <Tabs className="gap-0" value={activeTargetId} onValueChange={handleActiveTargetChange}>
-        <div className="border-b border-border px-4 py-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-1">
-              <TabsList variant="line" className="min-w-0 bg-transparent p-0">
-                {targets.map((target) => (
-                  <div key={target.id} className="flex min-w-0 items-center gap-1">
-                    <TabsTrigger
-                      value={target.id}
-                      className="max-w-[18rem] px-3"
-                    >
-                      <span className="truncate">{targetLabels[target.id] ?? target.title}</span>
-                    </TabsTrigger>
-                    {target.kind !== 'root' ? (
-                      <Button
-                        size="icon"
-                        type="button"
-                        variant="ghost"
-                        className="size-7 shrink-0 text-muted-foreground hover:text-foreground"
-                        onMouseDown={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                        }}
-                        onClick={(event) => {
-                          event.preventDefault();
+        <div className="flex items-center gap-1 border-b border-border bg-muted/20 px-2 py-1.5">
+          <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
+            {targets.map((target) => {
+              const isActive = activeTargetId === target.id;
+              const label = targetLabels[target.id] ?? target.title;
+
+              return (
+                <button
+                  key={target.id}
+                  type="button"
+                  onClick={() => handleActiveTargetChange(target.id)}
+                  className={cn(
+                    'group/tab relative flex max-w-[16rem] shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-colors',
+                    isActive
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:bg-background/50 hover:text-foreground/80',
+                  )}
+                >
+                  {target.kind === 'worktree' ? (
+                    <GitBranchPlusIcon className="size-3 shrink-0 text-muted-foreground/60" />
+                  ) : null}
+                  <span className="truncate">{label}</span>
+                  {target.kind !== 'root' ? (
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                      }}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        void handleRemoveTarget(target.id);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
                           event.stopPropagation();
                           void handleRemoveTarget(target.id);
-                        }}
-                        aria-label={target.kind === 'worktree' ? `Remove worktree ${target.title}` : `Close session ${target.title}`}
-                      >
-                        {target.kind === 'worktree' ? <Trash2Icon /> : <XIcon />}
-                      </Button>
-                    ) : null}
-                  </div>
-                ))}
-              </TabsList>
-              <Button
-                size="icon"
-                type="button"
-                variant="ghost"
-                className="size-7 shrink-0 text-muted-foreground hover:text-foreground"
-                onClick={handleAddCurrentBranchSession}
-                aria-label="New session on current branch"
-              >
-                <PlusIcon className="size-3.5" />
-              </Button>
-            </div>
+                        }
+                      }}
+                      className="ml-0.5 flex size-4 shrink-0 items-center justify-center rounded opacity-0 transition-opacity hover:bg-muted group-hover/tab:opacity-60 group-hover/tab:hover:opacity-100"
+                      aria-label={target.kind === 'worktree' ? `Remove worktree ${target.title}` : `Close session ${target.title}`}
+                    >
+                      <XIcon className="size-2.5" />
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
 
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                size="sm"
-                type="button"
-                variant="outline"
-                onClick={handleCreateWorktree}
-                disabled={isCreatingWorktree}
-              >
-                {isCreatingWorktree ? (
-                  <LoaderCircleIcon className="animate-spin" data-icon="inline-start" />
-                ) : (
-                  <GitBranchPlusIcon data-icon="inline-start" />
-                )}
-                New worktree from {activeBranch}
-              </Button>
-            </div>
+            <button
+              type="button"
+              onClick={handleAddCurrentBranchSession}
+              className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/40 transition-colors hover:bg-background/50 hover:text-muted-foreground"
+              aria-label="New session on current branch"
+            >
+              <PlusIcon className="size-3" />
+            </button>
+          </div>
+
+          <div className="shrink-0 border-l border-border/40 pl-2">
+            <button
+              type="button"
+              onClick={handleCreateWorktree}
+              disabled={isCreatingWorktree}
+              className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-background/50 hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+            >
+              {isCreatingWorktree ? (
+                <LoaderCircleIcon className="size-3 animate-spin" />
+              ) : (
+                <GitBranchPlusIcon className="size-3" />
+              )}
+              Worktree
+            </button>
           </div>
         </div>
       </Tabs>
@@ -567,7 +606,22 @@ export function CodeWorkspaceScreen({
                 <ResizableHandle onResizeStart={() => { sidebarWidthAtDragStart.current = sidebarWidth; }} onResize={handleSidebarResize} />
 
                 <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
-                  <LayerToggle activePaneId={activePaneId} onChangePane={rememberActivePane} />
+                  <LayerToggle
+                    activePaneId={activePaneId}
+                    onChangePane={rememberActivePane}
+                    codexMenu={
+                      <CodexTabMenu
+                        cwd={activeTarget.cwd}
+                        currentThreadId={sessionState.threadId}
+                        settings={composerSettings}
+                        onSettingsChange={handleComposerSettingsChange}
+                        onNewSession={() => resetSession(activeTarget.id)}
+                        onSelectThread={(threadId) =>
+                          resumeThread(activeTarget.id, activeTarget.cwd, composerSettings, threadId)
+                        }
+                      />
+                    }
+                  />
 
                   <div className="relative min-h-0 flex-1 overflow-auto">
                     {activePaneId === 'changes' ? (
@@ -609,15 +663,9 @@ export function CodeWorkspaceScreen({
                     <ChatComposer
                       key={activeTarget.id}
                       activeRepoPath={activeTarget.cwd}
-                      currentThreadId={sessionState.threadId}
                       storedRepoPaths={storedRepoPaths}
                       settings={composerSettings}
                       isRunning={isRunning}
-                      onSettingsChange={handleComposerSettingsChange}
-                      onNewSession={() => resetSession(activeTarget.id)}
-                      onSelectThread={(threadId) =>
-                        resumeThread(activeTarget.id, activeTarget.cwd, composerSettings, threadId)
-                      }
                       onSendPrompt={handleSendPrompt}
                       onInterrupt={() => interruptSession(activeTarget.id)}
                     />

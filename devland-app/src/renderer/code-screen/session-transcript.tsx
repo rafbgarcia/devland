@@ -23,6 +23,7 @@ import {
   WrenchIcon,
   ZapIcon,
 } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import { useVirtualizer, type VirtualItem } from '@tanstack/react-virtual';
 
@@ -111,12 +112,6 @@ const AssistantMarkdown = memo(function AssistantMarkdown({
           {text}
         </ReactMarkdown>
       </div>
-      {isStreaming ? (
-        <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          <LoaderCircleIcon className="size-3 animate-spin" />
-          Deving...
-        </div>
-      ) : null}
     </div>
   );
 });
@@ -160,28 +155,47 @@ const ToolEntryInline = memo(function ToolEntryInline({
 function ToolGroupRow({ entries }: { entries: SessionTimelineToolEntry[] }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const hasOverflow = entries.length > MAX_COLLAPSED_TOOL_ENTRIES;
-  const visibleEntries =
-    hasOverflow && !isExpanded ? entries.slice(-MAX_COLLAPSED_TOOL_ENTRIES) : entries;
+  const hiddenCount = entries.length - MAX_COLLAPSED_TOOL_ENTRIES;
+  const previousEntries = hasOverflow ? entries.slice(0, hiddenCount) : [];
+  const lastEntries = hasOverflow ? entries.slice(-MAX_COLLAPSED_TOOL_ENTRIES) : entries;
 
   return (
     <div className="py-1 pl-10">
       <div className="flex flex-col">
-        {visibleEntries.map((entry) => (
+        {hasOverflow ? (
+          <>
+            <button
+              type="button"
+              onClick={() => setIsExpanded((current) => !current)}
+              className="mb-0.5 flex items-center gap-1 text-[11px] text-muted-foreground/50 transition-colors hover:text-muted-foreground"
+            >
+              <ChevronDownIcon
+                className={cn('size-3 transition-transform', isExpanded && 'rotate-180')}
+              />
+              {isExpanded ? 'Show less' : `${hiddenCount} more`}
+            </button>
+            <AnimatePresence initial={false}>
+              {isExpanded ? (
+                <motion.div
+                  key="hidden-entries"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.1, ease: 'easeInOut' }}
+                  className="flex flex-col overflow-hidden"
+                >
+                  {previousEntries.map((entry) => (
+                    <ToolEntryInline key={entry.id} entry={entry} />
+                  ))}
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
+          </>
+        ) : null}
+        {lastEntries.map((entry) => (
           <ToolEntryInline key={entry.id} entry={entry} />
         ))}
       </div>
-      {hasOverflow ? (
-        <button
-          type="button"
-          onClick={() => setIsExpanded((current) => !current)}
-          className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground/50 transition-colors hover:text-muted-foreground"
-        >
-          <ChevronDownIcon
-            className={cn('size-3 transition-transform', isExpanded && 'rotate-180')}
-          />
-          {isExpanded ? 'Show less' : `${entries.length - MAX_COLLAPSED_TOOL_ENTRIES} more`}
-        </button>
-      ) : null}
     </div>
   );
 }
@@ -194,23 +208,23 @@ const UserMessageRow = memo(function UserMessageRow({
   attachments: CodexSessionState['messages'][number]['attachments'];
 }) {
   return (
-    <div className="flex justify-end py-2">
-      <div className="flex max-w-[72%] flex-col gap-3 rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-sm leading-relaxed text-primary-foreground shadow-sm">
+    <div className="flex justify-end py-1.5">
+      <div className="flex max-w-[72%] flex-col gap-3 rounded-2xl rounded-br-md bg-primary/90 px-3.5 py-2 text-[13px] leading-relaxed text-primary-foreground">
         {attachments.length > 0 ? (
           <div className="flex flex-wrap gap-2">
             {attachments.map((attachment, index) => (
               <div
                 key={`${attachment.name}:${attachment.sizeBytes}:${index}`}
-                className="overflow-hidden rounded-xl border border-primary-foreground/15 bg-primary-foreground/8"
+                className="overflow-hidden rounded-lg border border-primary-foreground/15 bg-primary-foreground/8"
               >
                 {attachment.previewUrl ? (
                   <img
                     src={attachment.previewUrl}
                     alt={attachment.name}
-                    className="size-20 object-cover"
+                    className="size-16 object-cover"
                   />
                 ) : (
-                  <div className="flex size-20 items-center justify-center px-2 text-center text-[11px] leading-tight text-primary-foreground/85">
+                  <div className="flex size-16 items-center justify-center px-2 text-center text-[10px] leading-tight text-primary-foreground/85">
                     {attachment.name}
                   </div>
                 )}
@@ -234,9 +248,9 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
   isStreaming?: boolean;
 }) {
   return (
-    <div className="flex gap-3 py-2">
-      <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted/60 text-muted-foreground">
-        <BotIcon className="size-3.5" />
+    <div className="flex gap-2.5 py-1.5">
+      <div className="flex size-5 shrink-0 items-center justify-center rounded-md bg-muted/50 text-muted-foreground/60 mt-1">
+        <BotIcon className="size-3" />
       </div>
       <div className="min-w-0 flex-1 pt-0.5">
         <AssistantMarkdown
@@ -250,14 +264,11 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
 
 const WorkingRow = memo(function WorkingRow() {
   return (
-    <div className="flex items-center gap-3 py-2">
-      <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted/60 text-muted-foreground">
-        <BotIcon className="size-3.5" />
+    <div className="flex items-center gap-2.5 py-1.5">
+      <div className="flex size-5 shrink-0 items-center justify-center rounded-md bg-muted/50 text-muted-foreground/60">
+        <BotIcon className="size-3" />
       </div>
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <LoaderCircleIcon className="size-3 animate-spin" />
-        Thinking...
-      </div>
+      <LoaderCircleIcon className="size-3 animate-spin text-muted-foreground/50" />
     </div>
   );
 });
@@ -304,6 +315,16 @@ export const SessionTranscript = memo(function SessionTranscript({
     ],
   );
   const hasConversation = rows.length > 0;
+
+  // Track tool entry count changes for auto-scroll (entries can be added to existing work rows
+  // without changing rows.length)
+  const lastRowFingerprint = useMemo(() => {
+    const lastRow = rows[rows.length - 1];
+    if (lastRow?.kind === 'work') {
+      return `${rows.length}:${lastRow.entries.length}`;
+    }
+    return `${rows.length}`;
+  }, [rows]);
 
   const handleScroll = useCallback(() => {
     const element = scrollRef.current;
@@ -378,7 +399,7 @@ export const SessionTranscript = memo(function SessionTranscript({
     return () => window.cancelAnimationFrame(frameId);
   }, [
     rowVirtualizer,
-    rows.length,
+    lastRowFingerprint,
     sessionState.currentTurnEntries.length,
   ]);
 
@@ -426,6 +447,7 @@ export const SessionTranscript = memo(function SessionTranscript({
               return (
                 <div
                   key={`virtual-row:${row.id}`}
+                  data-index={virtualRow.index}
                   ref={rowVirtualizer.measureElement}
                   className="absolute left-0 top-0 w-full"
                   style={{ transform: `translateY(${virtualRow.start}px)` }}

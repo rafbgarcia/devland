@@ -1,8 +1,9 @@
 import { memo, useMemo, useState } from 'react';
 
+import { CircleAlertIcon, ShieldQuestionIcon } from 'lucide-react';
+
 import type { PendingApproval, PendingUserInput } from '@/renderer/code-screen/codex-session-state';
-import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';
-import { Button } from '@/shadcn/components/ui/button';
+import { cn } from '@/shadcn/lib/utils';
 
 export const SessionAlerts = memo(function SessionAlerts({
   targetId,
@@ -41,130 +42,133 @@ export const SessionAlerts = memo(function SessionAlerts({
   return (
     <>
       {sessionError ? (
-        <div className="mb-2">
-          <Alert variant="destructive">
-            <AlertTitle>Codex session error</AlertTitle>
-            <AlertDescription>{sessionError}</AlertDescription>
-          </Alert>
+        <div className="mb-2 flex items-start gap-2 rounded-lg bg-destructive/8 px-3 py-2.5">
+          <CircleAlertIcon className="mt-0.5 size-3.5 shrink-0 text-destructive/70" />
+          <p className="text-xs leading-relaxed text-destructive/90">{sessionError}</p>
         </div>
       ) : null}
 
       {activePendingApproval ? (
-        <div className="mb-2">
-          <Alert>
-            <AlertTitle>{activePendingApproval.title}</AlertTitle>
-            <AlertDescription>
-              {activePendingApproval.command ??
-                activePendingApproval.detail ??
-                'Codex requested approval to continue.'}
-            </AlertDescription>
-            <div className="mt-3 flex gap-2">
-              <Button
-                size="sm"
-                type="button"
-                onClick={() =>
-                  void onRespondToApproval(
-                    targetId,
-                    activePendingApproval.requestId,
-                    'accept',
-                  )
-                }
-              >
-                Accept once
-              </Button>
-              <Button
-                size="sm"
-                type="button"
-                variant="outline"
-                onClick={() =>
-                  void onRespondToApproval(
-                    targetId,
-                    activePendingApproval.requestId,
-                    'acceptForSession',
-                  )
-                }
-              >
-                Accept for session
-              </Button>
-              <Button
-                size="sm"
-                type="button"
-                variant="outline"
-                onClick={() =>
-                  void onRespondToApproval(
-                    targetId,
-                    activePendingApproval.requestId,
-                    'decline',
-                  )
-                }
-              >
-                Decline
-              </Button>
+        <div className="mb-2 rounded-lg border border-border/60 bg-muted/30">
+          <div className="flex items-start gap-2.5 px-3 pt-2.5 pb-2">
+            <ShieldQuestionIcon className="mt-0.5 size-3.5 shrink-0 text-amber-500/70" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-foreground/90">
+                {activePendingApproval.title}
+              </p>
+              {(activePendingApproval.command ?? activePendingApproval.detail) ? (
+                <p className="mt-1 truncate font-mono text-[11px] leading-relaxed text-muted-foreground">
+                  {activePendingApproval.command ?? activePendingApproval.detail}
+                </p>
+              ) : null}
             </div>
-          </Alert>
+          </div>
+          <div className="flex items-center gap-1.5 border-t border-border/40 px-3 py-1.5">
+            <button
+              type="button"
+              onClick={() =>
+                void onRespondToApproval(
+                  targetId,
+                  activePendingApproval.requestId,
+                  'accept',
+                )
+              }
+              className="rounded-md bg-primary/90 px-2.5 py-1 text-[11px] font-medium text-primary-foreground transition-colors hover:bg-primary"
+            >
+              Accept
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                void onRespondToApproval(
+                  targetId,
+                  activePendingApproval.requestId,
+                  'acceptForSession',
+                )
+              }
+              className="rounded-md px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              Always
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                void onRespondToApproval(
+                  targetId,
+                  activePendingApproval.requestId,
+                  'decline',
+                )
+              }
+              className="rounded-md px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+            >
+              Decline
+            </button>
+          </div>
         </div>
       ) : null}
 
       {activePendingUserInput ? (
-        <div className="mb-2">
-          <Alert>
-            <AlertTitle>User input requested</AlertTitle>
-            <AlertDescription>
-              Codex needs a structured answer before it can continue.
-            </AlertDescription>
-            <div className="mt-3 flex flex-col gap-3">
-              {activePendingUserInput.questions.map((question: PendingUserInput['questions'][number]) => (
-                <div key={question.id} className="flex flex-col gap-2">
-                  <div className="text-sm font-medium">{question.question}</div>
-                  <div className="flex flex-wrap gap-2">
-                    {question.options.map((option: PendingUserInput['questions'][number]['options'][number]) => {
-                      const isSelected = activeDraftAnswers[question.id] === option.label;
-
-                      return (
-                        <Button
-                          key={option.label}
-                          size="sm"
-                          type="button"
-                          variant={isSelected ? 'default' : 'outline'}
-                          onClick={() =>
-                            setDraftAnswersByRequest((current) => ({
-                              ...current,
-                              [activePendingUserInput.requestId]: {
-                                ...(current[activePendingUserInput.requestId] ?? {}),
-                                [question.id]: option.label,
-                              },
-                            }))
-                          }
-                        >
-                          {option.label}
-                        </Button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  type="button"
-                  disabled={
-                    activePendingUserInput.questions.some(
-                      (question: PendingUserInput['questions'][number]) => !activeDraftAnswers[question.id],
-                    )
-                  }
-                  onClick={() =>
-                    void onRespondToUserInput(
-                      targetId,
-                      activePendingUserInput.requestId,
-                      activeDraftAnswers,
-                    )
-                  }
-                >
-                  Submit answers
-                </Button>
-              </div>
+        <div className="mb-2 rounded-lg border border-border/60 bg-muted/30">
+          <div className="flex items-start gap-2.5 px-3 pt-2.5 pb-2">
+            <ShieldQuestionIcon className="mt-0.5 size-3.5 shrink-0 text-amber-500/70" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-foreground/90">Input needed</p>
             </div>
-          </Alert>
+          </div>
+          <div className="flex flex-col gap-3 border-t border-border/40 px-3 py-2.5">
+            {activePendingUserInput.questions.map((question: PendingUserInput['questions'][number]) => (
+              <div key={question.id} className="flex flex-col gap-1.5">
+                <p className="text-xs font-medium text-foreground/80">{question.question}</p>
+                <div className="flex flex-wrap gap-1">
+                  {question.options.map((option: PendingUserInput['questions'][number]['options'][number]) => {
+                    const isSelected = activeDraftAnswers[question.id] === option.label;
+
+                    return (
+                      <button
+                        key={option.label}
+                        type="button"
+                        onClick={() =>
+                          setDraftAnswersByRequest((current) => ({
+                            ...current,
+                            [activePendingUserInput.requestId]: {
+                              ...(current[activePendingUserInput.requestId] ?? {}),
+                              [question.id]: option.label,
+                            },
+                          }))
+                        }
+                        className={cn(
+                          'rounded-md border px-2.5 py-1 text-[11px] transition-colors',
+                          isSelected
+                            ? 'border-primary/40 bg-primary/10 text-primary'
+                            : 'border-border/50 text-muted-foreground hover:border-border hover:text-foreground',
+                        )}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+            <button
+              type="button"
+              disabled={
+                activePendingUserInput.questions.some(
+                  (question: PendingUserInput['questions'][number]) => !activeDraftAnswers[question.id],
+                )
+              }
+              onClick={() =>
+                void onRespondToUserInput(
+                  targetId,
+                  activePendingUserInput.requestId,
+                  activeDraftAnswers,
+                )
+              }
+              className="self-start rounded-md bg-primary/90 px-2.5 py-1 text-[11px] font-medium text-primary-foreground transition-colors hover:bg-primary disabled:pointer-events-none disabled:opacity-40"
+            >
+              Submit
+            </button>
+          </div>
         </div>
       ) : null}
     </>

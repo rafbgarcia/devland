@@ -199,7 +199,11 @@ export function estimateSessionTimelineRowHeight(
   viewportWidthPx: number | null,
 ): number {
   if (row.kind === 'work') {
-    return WORK_GROUP_BASE_HEIGHT_PX + row.entries.length * WORK_ENTRY_HEIGHT_PX;
+    const MAX_COLLAPSED = 3;
+    const visibleCount = Math.min(row.entries.length, MAX_COLLAPSED);
+    const hasOverflow = row.entries.length > MAX_COLLAPSED;
+    const overflowButtonHeight = hasOverflow ? 22 : 0;
+    return WORK_GROUP_BASE_HEIGHT_PX + visibleCount * WORK_ENTRY_HEIGHT_PX + overflowButtonHeight;
   }
 
   if (row.kind === 'working') {

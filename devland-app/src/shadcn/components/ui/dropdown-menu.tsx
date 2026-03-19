@@ -6,6 +6,10 @@ function DropdownMenu({ ...props }: MenuPrimitive.Root.Props) {
   return <MenuPrimitive.Root {...props} />;
 }
 
+function DropdownMenuSubmenu({ ...props }: MenuPrimitive.SubmenuRoot.Props) {
+  return <MenuPrimitive.SubmenuRoot {...props} />;
+}
+
 function DropdownMenuTrigger({ className, ...props }: MenuPrimitive.Trigger.Props) {
   return (
     <MenuPrimitive.Trigger
@@ -138,6 +142,19 @@ function DropdownMenuCheckboxItemIndicator({ className, ...props }: MenuPrimitiv
   );
 }
 
+function DropdownMenuSubmenuTrigger({ className, ...props }: MenuPrimitive.SubmenuTrigger.Props) {
+  return (
+    <MenuPrimitive.SubmenuTrigger
+      data-slot="dropdown-menu-submenu-trigger"
+      className={cn(
+        'relative flex cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none select-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*="size-"])]:size-4',
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
 export {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -150,5 +167,7 @@ export {
   DropdownMenuRadioItem,
   DropdownMenuRadioItemIndicator,
   DropdownMenuSeparator,
+  DropdownMenuSubmenu,
+  DropdownMenuSubmenuTrigger,
   DropdownMenuTrigger,
 };

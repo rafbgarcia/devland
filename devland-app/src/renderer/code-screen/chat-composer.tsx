@@ -12,29 +12,18 @@ import {
 } from 'react';
 
 import {
-  CheckIcon,
   ImagePlusIcon,
   LoaderCircleIcon,
-  PlusIcon,
-  SettingsIcon,
-  ShieldCheckIcon,
   SquareIcon,
   XIcon,
-  ZapIcon,
 } from 'lucide-react';
 
 import {
   CODEX_IMAGE_ATTACHMENT_MAX_BYTES,
   CODEX_IMAGE_ATTACHMENT_MAX_BYTES_LABEL,
   CODEX_IMAGE_ATTACHMENTS_MAX_COUNT,
-  CODEX_INTERACTION_MODE_LABEL,
-  CODEX_MODEL_OPTIONS,
-  CODEX_REASONING_EFFORTS,
-  codexFastModeLabel,
   type CodexComposerSettings,
   type CodexPromptSubmission,
-  codexReasoningEffortLabel,
-  codexRuntimeModeLabel,
 } from '@/lib/codex-chat';
 import type { CodexPathSearchResultItem } from '@/ipc/contracts';
 import {
@@ -47,19 +36,7 @@ import {
   createComposerImageAttachment,
   type ComposerImageAttachment,
 } from '@/renderer/code-screen/chat-composer-attachments';
-import { SessionHistoryDropdown } from '@/renderer/code-screen/session-history-dropdown';
 import { VscodeEntryIcon } from '@/renderer/shared/ui/vscode-entry-icon';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuRadioItemIndicator,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/shadcn/components/ui/dropdown-menu';
 import {
   Dialog,
   DialogClose,
@@ -170,164 +147,18 @@ function PathSuggestionMenu({
   );
 }
 
-function SettingsDropdown({
-  settings,
-  onChange,
-}: {
-  settings: CodexComposerSettings;
-  onChange: (settings: CodexComposerSettings) => void;
-}) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        type="button"
-        className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        aria-label="Composer settings"
-      >
-        <SettingsIcon className="size-4" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent side="top" sideOffset={8} align="start" className="w-64">
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>Select model</DropdownMenuLabel>
-          <DropdownMenuRadioGroup
-            value={settings.model}
-            onValueChange={(model) => {
-              if (!model || model === settings.model) {
-                return;
-              }
-
-              onChange({
-                ...settings,
-                model,
-              });
-            }}
-          >
-            {CODEX_MODEL_OPTIONS.map((modelOption) => (
-              <DropdownMenuRadioItem
-                key={modelOption.value}
-                value={modelOption.value}
-                closeOnClick={false}
-              >
-                <ZapIcon className="size-3.5 text-amber-400" />
-                {modelOption.label}
-                <DropdownMenuRadioItemIndicator className="ml-auto">
-                  <CheckIcon className="size-3.5" />
-                </DropdownMenuRadioItemIndicator>
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuGroup>
-
-        <DropdownMenuSeparator />
-
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>Select reasoning</DropdownMenuLabel>
-          <DropdownMenuRadioGroup
-            value={settings.reasoningEffort}
-            onValueChange={(reasoningEffort) => {
-              if (!reasoningEffort || reasoningEffort === settings.reasoningEffort) {
-                return;
-              }
-
-              onChange({
-                ...settings,
-                reasoningEffort: reasoningEffort as CodexComposerSettings['reasoningEffort'],
-              });
-            }}
-          >
-            {CODEX_REASONING_EFFORTS.map((effort) => (
-              <DropdownMenuRadioItem key={effort} value={effort} closeOnClick={false}>
-                {codexReasoningEffortLabel(effort)}
-                <DropdownMenuRadioItemIndicator className="ml-auto">
-                  <CheckIcon className="size-3.5" />
-                </DropdownMenuRadioItemIndicator>
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuGroup>
-
-        <DropdownMenuSeparator />
-
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>Fast mode</DropdownMenuLabel>
-          <DropdownMenuRadioGroup
-            value={settings.fastMode ? 'on' : 'off'}
-            onValueChange={(value) => {
-              onChange({
-                ...settings,
-                fastMode: value === 'on',
-              });
-            }}
-          >
-            {['off', 'on'].map((value) => (
-              <DropdownMenuRadioItem key={value} value={value} closeOnClick={false}>
-                {value}
-                <DropdownMenuRadioItemIndicator className="ml-auto">
-                  <CheckIcon className="size-3.5" />
-                </DropdownMenuRadioItemIndicator>
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuGroup>
-
-        <DropdownMenuSeparator />
-
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>Access</DropdownMenuLabel>
-          <DropdownMenuRadioGroup
-            value={settings.runtimeMode}
-            onValueChange={(runtimeMode) => {
-              if (!runtimeMode || runtimeMode === settings.runtimeMode) {
-                return;
-              }
-
-              onChange({
-                ...settings,
-                runtimeMode: runtimeMode as CodexComposerSettings['runtimeMode'],
-              });
-            }}
-          >
-            <DropdownMenuRadioItem value="approval-required" closeOnClick={false}>
-              <ShieldCheckIcon className="size-3.5" />
-              Supervised
-              <DropdownMenuRadioItemIndicator className="ml-auto">
-                <CheckIcon className="size-3.5" />
-              </DropdownMenuRadioItemIndicator>
-            </DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="full-access" closeOnClick={false}>
-              <ShieldCheckIcon className="size-3.5" />
-              Full access
-              <DropdownMenuRadioItemIndicator className="ml-auto">
-                <CheckIcon className="size-3.5" />
-              </DropdownMenuRadioItemIndicator>
-            </DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
-        </DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
 export const ChatComposer = memo(function ChatComposer({
   activeRepoPath,
-  currentThreadId,
   storedRepoPaths,
   settings,
   isRunning,
-  onSettingsChange,
-  onNewSession,
-  onSelectThread,
   onSendPrompt,
   onInterrupt,
 }: {
   activeRepoPath: string;
-  currentThreadId: string | null;
   storedRepoPaths: string[];
   settings: CodexComposerSettings;
   isRunning: boolean;
-  onSettingsChange: (settings: CodexComposerSettings) => void;
-  onNewSession: () => void;
-  onSelectThread: (threadId: string) => Promise<void>;
   onSendPrompt: (submission: CodexPromptSubmission) => Promise<void>;
   onInterrupt: () => Promise<void>;
 }) {
@@ -348,7 +179,7 @@ export const ChatComposer = memo(function ChatComposer({
   const fileInputId = useId();
 
   const isInputDisabled = isRunning || isSending;
-  const placeholder = `Message ${CODEX_INTERACTION_MODE_LABEL} (${codexReasoningEffortLabel(settings.reasoningEffort)}, ${codexFastModeLabel(settings.fastMode)}, ${codexRuntimeModeLabel(settings.runtimeMode)})`;
+  const placeholder = 'BUILD';
   const tagMenuQuery = tagTrigger?.query.trim() ?? '';
   const isTagMenuOpen = tagTrigger !== null && tagMenuQuery.length > 0;
   const openAttachment =
@@ -700,136 +531,113 @@ export const ChatComposer = memo(function ChatComposer({
 
   return (
     <div className="w-full">
-      <div className="flex items-end gap-2">
-        <div className="flex shrink-0 items-center gap-0.5 pb-1">
-          <SessionHistoryDropdown
-            cwd={activeRepoPath}
-            currentThreadId={currentThreadId}
-            onSelectThread={onSelectThread}
+      <div className="relative">
+        {isTagMenuOpen ? (
+          <PathSuggestionMenu
+            items={tagSuggestions}
+            activeIndex={activeTagSuggestionIndex}
+            isLoading={isTagSearchLoading}
+            query={tagMenuQuery}
+            onHighlight={setActiveTagSuggestionIndex}
+            onSelect={handleSelectTagSuggestion}
           />
-          <SettingsDropdown settings={settings} onChange={onSettingsChange} />
+        ) : null}
+
+        {attachments.length > 0 ? (
+          <div className="mb-1.5 flex flex-wrap gap-2">
+            {attachments.map((attachment) => (
+              <div
+                key={attachment.id}
+                className="relative overflow-hidden rounded-lg border border-border/60 bg-muted/40"
+              >
+                <button
+                  type="button"
+                  onClick={() => setOpenAttachmentId(attachment.id)}
+                  className="block cursor-zoom-in"
+                  aria-label={`Open ${attachment.name}`}
+                >
+                  <img
+                    src={attachment.dataUrl}
+                    alt={attachment.name}
+                    className="size-16 object-cover"
+                  />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveAttachment(attachment.id)}
+                  className="absolute right-1 top-1 flex size-5 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80"
+                  aria-label={`Remove ${attachment.name}`}
+                >
+                  <XIcon className="size-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        <form
+          className={cn(
+            'flex items-end gap-0 rounded-lg bg-muted/40 transition-colors',
+            isDragOver && 'ring-2 ring-primary/40',
+          )}
+          onSubmit={handleSubmit}
+          onDragEnter={handleDragEnter}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          <input
+            ref={fileInputRef}
+            id={fileInputId}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={handleFilesSelected}
+          />
           <button
             type="button"
-            onClick={onNewSession}
-            className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            aria-label="New session"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isInputDisabled}
+            className="my-auto ml-1 flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+            aria-label="Attach images"
           >
-            <PlusIcon className="size-4" />
+            <ImagePlusIcon className="size-[18px]" />
           </button>
-        </div>
 
-        <div className="relative min-w-0 flex-1">
-          {isTagMenuOpen ? (
-            <PathSuggestionMenu
-              items={tagSuggestions}
-              activeIndex={activeTagSuggestionIndex}
-              isLoading={isTagSearchLoading}
-              query={tagMenuQuery}
-              onHighlight={setActiveTagSuggestionIndex}
-              onSelect={handleSelectTagSuggestion}
-            />
-          ) : null}
+          <textarea
+            ref={textareaRef}
+            className="field-sizing-content max-h-40 min-h-[2.5rem] min-w-0 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-2 py-2.5 text-sm leading-normal text-foreground outline-none placeholder:text-muted-foreground/40"
+            placeholder={placeholder}
+            value={prompt}
+            onChange={handlePromptChange}
+            onClick={syncTextareaSelection}
+            onKeyDown={handleKeyDown}
+            onKeyUp={syncTextareaSelection}
+            onPaste={handlePaste}
+            onSelect={syncTextareaSelection}
+            disabled={isInputDisabled}
+            rows={1}
+          />
 
-          <form
-            className={cn(
-              'flex min-w-0 flex-1 flex-col gap-3 rounded-xl border border-border bg-muted/30 px-3 py-2 transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20',
-              isDragOver && 'border-primary/70 bg-primary/5',
-            )}
-            onSubmit={handleSubmit}
-            onDragEnter={handleDragEnter}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-          >
-            {attachments.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {attachments.map((attachment) => (
-                  <div
-                    key={attachment.id}
-                    className="relative overflow-hidden rounded-xl border border-border/80 bg-background"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setOpenAttachmentId(attachment.id)}
-                      className="block cursor-zoom-in"
-                      aria-label={`Open ${attachment.name}`}
-                    >
-                      <img
-                        src={attachment.dataUrl}
-                        alt={attachment.name}
-                        className="size-16 object-cover"
-                      />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveAttachment(attachment.id)}
-                      className="absolute right-1 top-1 flex size-5 items-center justify-center rounded-full bg-background/90 text-foreground transition-colors hover:bg-background"
-                      aria-label={`Remove ${attachment.name}`}
-                    >
-                      <XIcon className="size-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-
-            <div className="flex items-end gap-2">
-              <input
-                ref={fileInputRef}
-                id={fileInputId}
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={handleFilesSelected}
-              />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isInputDisabled}
-                className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-                aria-label="Attach images"
-              >
-                <ImagePlusIcon className="size-4" />
-              </button>
-
-              <textarea
-                ref={textareaRef}
-                className="field-sizing-content min-h-[1.5rem] flex-1 resize-none overflow-y-auto border-0 bg-transparent text-sm leading-normal text-foreground outline-none placeholder:text-muted-foreground/50"
-                placeholder={placeholder}
-                value={prompt}
-                onChange={handlePromptChange}
-                onClick={syncTextareaSelection}
-                onKeyDown={handleKeyDown}
-                onKeyUp={syncTextareaSelection}
-                onPaste={handlePaste}
-                onSelect={syncTextareaSelection}
-                disabled={isInputDisabled}
-                rows={1}
-              />
-            </div>
-          </form>
-        </div>
-
-        {isRunning ? (
-          <div className="shrink-0 pb-1">
+          {isRunning ? (
             <button
               type="button"
               onClick={() => void onInterrupt()}
-              className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+              className="my-auto mr-1 flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
               aria-label="Stop"
             >
               <SquareIcon className="size-3.5 fill-current" />
             </button>
-          </div>
-        ) : null}
+          ) : null}
+        </form>
       </div>
 
-      <div className="mt-1 px-0.5 text-[10px] text-muted-foreground/40">
-        {composerNotice && (
-          <span className="text-destructive/80">{composerNotice}</span>
-        )}
-      </div>
+      {composerNotice ? (
+        <div className="mt-1 px-1 text-[10px] text-destructive/70">
+          {composerNotice}
+        </div>
+      ) : null}
 
       <Dialog
         open={openAttachment !== null}
