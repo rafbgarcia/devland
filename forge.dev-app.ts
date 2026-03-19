@@ -30,9 +30,10 @@ type LauncherMetadata = {
   iconMtimeMs: number;
   sourceAppBundlePath: string;
   sourceAppBundleMtimeMs: number;
+  preservesSymlinks: boolean;
 };
 
-const LAUNCHER_VERSION = 1;
+const LAUNCHER_VERSION = 2;
 
 const setPlistString = (plistPath: string, key: string, value: string): void => {
   const replaceResult = spawnSync('plutil', ['-replace', key, '-string', value, plistPath], {
@@ -142,6 +143,7 @@ export const resolveDevElectronExecutable = (
     iconMtimeMs: statSync(config.iconPath).mtimeMs,
     sourceAppBundlePath,
     sourceAppBundleMtimeMs: statSync(sourceAppBundlePath).mtimeMs,
+    preservesSymlinks: true,
   };
   const currentMetadata = readJson<LauncherMetadata>(metadataPath);
 
@@ -156,7 +158,10 @@ export const resolveDevElectronExecutable = (
   }
 
   rmSync(targetAppBundlePath, { recursive: true, force: true });
-  cpSync(sourceAppBundlePath, targetAppBundlePath, { recursive: true });
+  cpSync(sourceAppBundlePath, targetAppBundlePath, {
+    recursive: true,
+    verbatimSymlinks: true,
+  });
   patchMainBundleInfoPlist(targetAppBundlePath, config);
   patchHelperBundleInfoPlists(targetAppBundlePath, config);
   writeFileSync(metadataPath, `${JSON.stringify(expectedMetadata, null, 2)}\n`);
