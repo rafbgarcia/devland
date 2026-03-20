@@ -40,19 +40,18 @@ function createRenderFile(): DiffRenderFile {
 }
 
 describe('DiffFileSection', () => {
-  it('overlays the change-group handle instead of reserving row width', () => {
+  it('spans the change-group handle across modified rows', () => {
     const markup = renderToStaticMarkup(
       <DiffFileSection
         file={createRenderFile()}
         sectionRef={() => {}}
-        getHunkSelectionType={() => 'none'}
+        getRowSelectionType={() => 'none'}
+        getHunkSelectionType={() => 'all'}
         hideHeader
       />,
     );
 
     assert.match(markup, /aria-label="Toggle change group selection"/);
-    assert.match(markup, /absolute left-1 top-0 z-10 w-1\.5 rounded-full/);
-    assert.doesNotMatch(markup, /\bpl-3\b/);
-    assert.doesNotMatch(markup, /\bw-3\b/);
+    assert.match(markup, /style="height:40px"/);
   });
 });

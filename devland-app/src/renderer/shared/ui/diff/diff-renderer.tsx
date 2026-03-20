@@ -471,48 +471,73 @@ function ExpansionControlRow({
   );
 }
 
-const HUNK_GUTTER_CLASS =
-  'flex w-7 shrink-0 items-center justify-center border-r border-border/30 select-none';
+const HUNK_GUTTER_CONTAINER_CLASS =
+  'relative w-7 shrink-0 border-r border-border/30 select-none';
+const HUNK_GUTTER_BUTTON_CLASS = 'flex w-full items-center justify-center';
+
+function getHunkSelectionClassName(selectionType: DiffSelectionType) {
+  return cn(
+    selectionType === 'all' && 'bg-blue-700 text-white',
+    selectionType === 'partial' && 'bg-blue-700/60 text-white/70',
+    selectionType === 'none' && 'text-muted-foreground/40 hover:bg-blue-700/40 hover:text-white/60',
+  );
+}
 
 function HunkSelectionGutter({
   selectionType,
   onClick,
+  heightPx,
 }: {
   selectionType: DiffSelectionType;
   onClick?: (() => void) | undefined;
+  heightPx?: number | undefined;
 }) {
+  const resolvedHeightPx = heightPx ?? ROW_HEIGHT_PX;
+
   return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick?.();
-      }}
-      className={cn(
-        HUNK_GUTTER_CLASS,
-        'cursor-pointer',
-        selectionType === 'all' && 'bg-blue-700 text-white',
-        selectionType === 'partial' && 'bg-blue-700/60 text-white/70',
-        selectionType === 'none' && 'text-muted-foreground/40 hover:bg-blue-700/40 hover:text-white/60',
-      )}
-      aria-label="Toggle change group selection"
-    >
-      {selectionType === 'partial' ? (
-        <MinusIcon className="size-3" />
-      ) : (
-        <CheckIcon
-          className={cn(
-            'size-3',
-            selectionType === 'none' ? 'opacity-0 group-hover:opacity-40' : 'opacity-100',
-          )}
-        />
-      )}
-    </button>
+    <div className={HUNK_GUTTER_CONTAINER_CLASS}>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onClick?.();
+        }}
+        className={cn(
+          HUNK_GUTTER_BUTTON_CLASS,
+          'absolute inset-x-0 top-0 z-10 cursor-pointer',
+          getHunkSelectionClassName(selectionType),
+        )}
+        style={{ height: `${resolvedHeightPx}px` }}
+        aria-label="Toggle change group selection"
+      >
+        {selectionType === 'partial' ? (
+          <MinusIcon className="size-3" />
+        ) : (
+          <CheckIcon
+            className={cn(
+              'size-3',
+              selectionType === 'none' ? 'opacity-0 group-hover:opacity-40' : 'opacity-100',
+            )}
+          />
+        )}
+      </button>
+    </div>
   );
 }
 
-function EmptyHunkGutter() {
-  return <span className={HUNK_GUTTER_CLASS} />;
+function EmptyHunkGutter({
+  selectionType,
+}: {
+  selectionType?: DiffSelectionType | undefined;
+}) {
+  return (
+    <span
+      className={cn(
+        HUNK_GUTTER_CONTAINER_CLASS,
+        selectionType !== undefined && selectionType !== 'none' && getHunkSelectionClassName(selectionType),
+      )}
+    />
+  );
 }
 
 function UnifiedContextRow({
@@ -767,10 +792,8 @@ function DiffBodyRow({
 export function DiffFileSection({
   file,
   sectionRef,
-  selectionType,
   getRowSelectionType,
   getHunkSelectionType,
-  onToggleFileSelection,
   onToggleRowSelection,
   onToggleHunkSelection,
   onSubmitComment,
@@ -780,13 +803,11 @@ export function DiffFileSection({
 }: {
   file: DiffRenderFile;
   sectionRef: (el: HTMLDivElement | null) => void;
-  selectionType?: DiffSelectionType | undefined;
   getRowSelectionType?: ((
     row: DiffRenderFile['rows'][number],
     side?: DiffSelectionSide,
   ) => DiffSelectionType) | undefined;
   getHunkSelectionType?: ((hunkStartLineNumber: number) => DiffSelectionType) | undefined;
-  onToggleFileSelection?: (() => void) | undefined;
   onToggleRowSelection?: ((
     row: DiffRenderFile['rows'][number],
     side?: DiffSelectionSide,
@@ -1120,7 +1141,7 @@ export function DiffFileSection({
           </span>
         </div>
       ) : null}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto overflow-y-hidden">
         <div className="min-w-[720px] w-max">
           {renderItems.map((item, renderIndex) => {
             const hasHunkGutter = getRowSelectionType !== undefined;
@@ -1147,6 +1168,7 @@ export function DiffFileSection({
                     hunkSelectionType !== undefined ? (
                       <HunkSelectionGutter
                         selectionType={hunkSelectionType}
+                        heightPx={ROW_HEIGHT_PX}
                         onClick={onToggleHunkSelection
                           ? () => onToggleHunkSelection(item.row.originalStartLineNumber)
                           : undefined}
@@ -1193,18 +1215,19 @@ export function DiffFileSection({
             let hunkGutter: React.ReactNode = null;
             if (hasHunkGutter) {
               if (isChangedRow && isFirstInGroup && changeGroupMetadataEntry) {
-                hunkGutter = (
-                  <HunkSelectionGutter
-                    selectionType={changeGroupMetadataEntry.selectionType}
-                    onClick={onToggleHunkSelection
-                      ? () => onToggleHunkSelection(row.changeGroupStartLineNumber)
-                      : undefined}
-                  />
-                );
-              } else {
-                hunkGutter = <EmptyHunkGutter />;
-              }
-            }
+                    hunkGutter = (
+                      <HunkSelectionGutter
+                        selectionType={changeGroupMetadataEntry.selectionType}
+                        heightPx={changeGroupMetadataEntry.renderLineCount * ROW_HEIGHT_PX}
+                        onClick={onToggleHunkSelection
+                          ? () => onToggleHunkSelection(row.changeGroupStartLineNumber)
+                          : undefined}
+                      />
+                    );
+                  } else {
+                    hunkGutter = <EmptyHunkGutter selectionType={changeGroupMetadataEntry?.selectionType} />;
+                  }
+                }
 
             return (
               <div key={item.key} className={cn(hasHunkGutter && 'flex')}>

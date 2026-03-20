@@ -15,7 +15,26 @@ import {
 import { useWorkingTreeCommitSelection } from '@/renderer/code-screen/use-working-tree-commit-selection';
 import { getParsedDiffFiles } from '@/renderer/shared/ui/diff/parsed-diff-files';
 import { SingleFileDiffView } from '@/renderer/shared/ui/diff/single-file-diff-view';
+import { getExpandedDiffHighlightLineFilters } from '@/renderer/shared/ui/diff/diff-expansion';
+import { useDiffExpansionState } from '@/renderer/shared/ui/diff/use-diff-expansion-state';
 import { useDiffRenderFiles } from '@/renderer/shared/ui/diff/use-diff-render-files';
+
+function lineFiltersEqual(left: readonly number[], right: readonly number[]) {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  return left.every((value, index) => value === right[index]);
+}
+
+function expandedHighlightFiltersEqual(
+  left: { oldLineFilter: readonly number[]; newLineFilter: readonly number[] } | undefined,
+  right: { oldLineFilter: readonly number[]; newLineFilter: readonly number[] },
+) {
+  return left !== undefined &&
+    lineFiltersEqual(left.oldLineFilter, right.oldLineFilter) &&
+    lineFiltersEqual(left.newLineFilter, right.newLineFilter);
+}
 
 type CodeChangesSelection =
   | { type: 'working-tree' }
@@ -43,10 +62,8 @@ function ActiveDiffViewport({
   selectedFilePath,
   emptyMessage,
   isWorkingTreeSelection,
-  getFileSelectionType,
   getRowSelectionType,
   getHunkSelectionType,
-  onToggleFileSelection,
   onToggleRowSelection,
   onToggleHunkSelection,
   onSubmitComment,
@@ -59,10 +76,8 @@ function ActiveDiffViewport({
   selectedFilePath: string | null;
   emptyMessage: string;
   isWorkingTreeSelection: boolean;
-  getFileSelectionType: ReturnType<typeof useWorkingTreeCommitSelection>['getFileSelectionType'];
   getRowSelectionType: ReturnType<typeof useWorkingTreeCommitSelection>['getRowSelectionType'];
   getHunkSelectionType: (path: string, hunkStartLineNumber: number) => 'none' | 'all' | 'partial';
-  onToggleFileSelection: (path: string) => void;
   onToggleRowSelection: (
     path: string,
     row: Parameters<ReturnType<typeof useWorkingTreeCommitSelection>['toggleRowSelection']>[1],
@@ -75,10 +90,15 @@ function ActiveDiffViewport({
     () => selectedFilePath === null ? [] : [selectedFilePath],
     [selectedFilePath],
   );
+  const { getFileExpansionState, expandFileGap } = useDiffExpansionState(rawDiff);
+  const [highlightLineNumbersByPath, setHighlightLineNumbersByPath] = useState<
+    Record<string, { oldLineFilter: number[]; newLineFilter: number[] }>
+  >({});
   const renderFiles = useDiffRenderFiles({
     rawDiff,
     context: renderContext,
     highlightPaths,
+    highlightLineNumbersByPath,
   });
   const selectedFile = useMemo(
     () =>
@@ -87,19 +107,61 @@ function ActiveDiffViewport({
         : (renderFiles.find((file) => file.path === selectedFilePath) ?? null),
     [renderFiles, selectedFilePath],
   );
+  const selectedFileExpansionState = useMemo(
+    () => selectedFilePath === null ? undefined : getFileExpansionState(selectedFilePath),
+    [getFileExpansionState, selectedFilePath],
+  );
+
+  useEffect(() => {
+    if (selectedFile === null) {
+      setHighlightLineNumbersByPath((current) => Object.keys(current).length === 0 ? current : {});
+      return;
+    }
+
+    const nextHighlightFilters = getExpandedDiffHighlightLineFilters({
+      file: selectedFile.diff,
+      rows: selectedFile.rows,
+      contents: selectedFile.contents,
+      expansionState: selectedFileExpansionState,
+    });
+    const hasVisibleExpandedContext =
+      nextHighlightFilters.oldLineFilter.length > 0 || nextHighlightFilters.newLineFilter.length > 0;
+
+    setHighlightLineNumbersByPath((current) => {
+      if (!hasVisibleExpandedContext) {
+        return Object.keys(current).length === 0 ? current : {};
+      }
+
+      const currentSelection = current[selectedFile.path];
+      if (
+        Object.keys(current).length === 1 &&
+        expandedHighlightFiltersEqual(currentSelection, nextHighlightFilters)
+      ) {
+        return current;
+      }
+
+      return {
+        [selectedFile.path]: nextHighlightFilters,
+      };
+    });
+  }, [selectedFile, selectedFileExpansionState]);
 
   return (
     <SingleFileDiffView
       rawDiff={rawDiff}
       selectedFile={selectedFile}
       emptyMessage={emptyMessage}
-      getFileSelectionType={isWorkingTreeSelection ? getFileSelectionType : undefined}
       getRowSelectionType={isWorkingTreeSelection ? getRowSelectionType : undefined}
       getHunkSelectionType={isWorkingTreeSelection ? getHunkSelectionType : undefined}
-      onToggleFileSelection={isWorkingTreeSelection ? onToggleFileSelection : undefined}
       onToggleRowSelection={isWorkingTreeSelection ? onToggleRowSelection : undefined}
       onToggleHunkSelection={isWorkingTreeSelection ? onToggleHunkSelection : undefined}
       onSubmitComment={onSubmitComment}
+      expansionState={selectedFileExpansionState}
+      onExpandGap={
+        selectedFile
+          ? (gap, action) => expandFileGap(selectedFile.path, gap, action)
+          : undefined
+      }
     />
   );
 }
@@ -357,10 +419,8 @@ export function ChangesPane({
       selectedFilePath={selectedFilePath}
       emptyMessage={emptyMessage}
       isWorkingTreeSelection={isWorkingTreeSelection}
-      getFileSelectionType={workingTreeCommitSelection.getFileSelectionType}
       getRowSelectionType={workingTreeCommitSelection.getRowSelectionType}
       getHunkSelectionType={getWorkingTreeHunkSelectionType}
-      onToggleFileSelection={toggleWorkingTreeFileSelection}
       onToggleRowSelection={handleToggleRowSelection}
       onToggleHunkSelection={handleToggleHunkSelection}
       onSubmitComment={onSubmitDiffComment}

@@ -27,6 +27,11 @@ export type DiffFileTokens = {
   newTokens: DiffHighlightTokens;
 };
 
+export type DiffHighlightLineSelection = {
+  oldLineFilter?: readonly number[];
+  newLineFilter?: readonly number[];
+};
+
 function splitContentLines(content: string | null | undefined) {
   if (content == null || content.length === 0) {
     return [] as string[];
@@ -105,6 +110,17 @@ export async function loadDiffFileContents(pair: DiffContentPair): Promise<DiffF
   return { pair, oldContents, newContents };
 }
 
+function mergeLineFilters(
+  baseFilter: readonly number[],
+  extraFilter: readonly number[] | undefined,
+) {
+  if (!extraFilter || extraFilter.length === 0) {
+    return [...baseFilter];
+  }
+
+  return [...new Set([...baseFilter, ...extraFilter])].sort((left, right) => left - right);
+}
+
 function requestHighlight(request: DiffHighlightRequest): Promise<DiffHighlightResponse> {
   if (request.contentLines.length === 0 || request.lines?.length === 0) {
     return Promise.resolve({});
@@ -164,9 +180,12 @@ export async function highlightDiffFileContents(
   file: DiffFile,
   tabSize = 2,
   contents?: DiffFileContents,
+  lineSelection?: DiffHighlightLineSelection,
 ): Promise<DiffFileTokens> {
   const resolvedContents = contents ?? (await loadDiffFileContents(pair));
   const filters: DiffLineFilters = getDiffLineFilters(file.hunks);
+  const oldLineFilter = mergeLineFilters(filters.oldLineFilter, lineSelection?.oldLineFilter);
+  const newLineFilter = mergeLineFilters(filters.newLineFilter, lineSelection?.newLineFilter);
   const preferredPath = getPreferredPath(pair);
   const basename = preferredPath.split(/[\\/]/).at(-1) ?? preferredPath;
   const extensionMatch = /\.[^.]+$/.exec(preferredPath);
@@ -174,13 +193,11 @@ export async function highlightDiffFileContents(
   const oldContentLines =
     resolvedContents.oldContents.length > 0
       ? resolvedContents.oldContents
-      : buildFallbackContentLines(file, 'old', filters.oldLineFilter);
+      : buildFallbackContentLines(file, 'old', oldLineFilter);
   const newContentLines =
     resolvedContents.newContents.length > 0
       ? resolvedContents.newContents
-      : buildFallbackContentLines(file, 'new', filters.newLineFilter);
-  const highlightAllOldLines = resolvedContents.oldContents.length > 0;
-  const highlightAllNewLines = resolvedContents.newContents.length > 0;
+      : buildFallbackContentLines(file, 'new', newLineFilter);
 
   const [oldTokens, newTokens] = await Promise.all([
     requestHighlight({
@@ -189,7 +206,7 @@ export async function highlightDiffFileContents(
       contentLines: oldContentLines,
       tabSize,
       addModeClass: true,
-      ...(highlightAllOldLines ? {} : { lines: filters.oldLineFilter }),
+      lines: oldLineFilter,
     }).catch((error: unknown) => {
       console.error(`Failed to load old-side syntax tokens for ${preferredPath}:`, error);
       return {};
@@ -200,7 +217,7 @@ export async function highlightDiffFileContents(
       contentLines: newContentLines,
       tabSize,
       addModeClass: true,
-      ...(highlightAllNewLines ? {} : { lines: filters.newLineFilter }),
+      lines: newLineFilter,
     }).catch((error: unknown) => {
       console.error(`Failed to load new-side syntax tokens for ${preferredPath}:`, error);
       return {};

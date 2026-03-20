@@ -12,6 +12,7 @@ import {
 import {
   highlightDiffFileContents,
   loadDiffFileContents,
+  type DiffHighlightLineSelection,
   type DiffFileContents,
   type DiffFileTokens,
 } from '@/renderer/shared/ui/diff/highlighter';
@@ -131,6 +132,17 @@ function getSyntaxCacheKey(file: DiffFile, pair: DiffContentPair) {
   return `${file.displayPath}|${file.status}|${file.additions}|${file.deletions}|${oldKey}|${newKey}|${diffHash}`;
 }
 
+function serializeHighlightLineSelection(selection: DiffHighlightLineSelection | undefined) {
+  if (!selection) {
+    return 'old:;new:';
+  }
+
+  const oldKey = selection.oldLineFilter?.join(',') ?? '';
+  const newKey = selection.newLineFilter?.join(',') ?? '';
+
+  return `old:${oldKey};new:${newKey}`;
+}
+
 function getContentCacheKey(pair: DiffContentPair) {
   const oldKey =
     pair.oldSource.type === 'git'
@@ -167,10 +179,12 @@ export function useDiffRenderFiles({
   rawDiff,
   context,
   highlightPaths,
+  highlightLineNumbersByPath,
 }: {
   rawDiff: AsyncState<string>;
   context: DiffRenderContext | null;
   highlightPaths?: readonly string[] | undefined;
+  highlightLineNumbersByPath?: Record<string, DiffHighlightLineSelection> | undefined;
 }) {
   const [syntaxTokensByPath, setSyntaxTokensByPath] = useState<Record<string, DiffFileTokens | null>>({});
   const [contentsByPath, setContentsByPath] = useState<Record<string, DiffFileContents | null>>({});
@@ -290,7 +304,8 @@ export function useDiffRenderFiles({
             contents = await pendingContents;
           }
 
-          const cacheKey = getSyntaxCacheKey(file.diff, file.contentPair);
+          const highlightLineSelection = highlightLineNumbersByPath?.[file.path];
+          const cacheKey = `${getSyntaxCacheKey(file.diff, file.contentPair)}|${serializeHighlightLineSelection(highlightLineSelection)}`;
           const cached = getFromLruCache(syntaxCacheRef.current, cacheKey);
 
           if (cached instanceof Promise) {
@@ -301,7 +316,13 @@ export function useDiffRenderFiles({
             return [file.path, { syntaxTokens: cached, contents }] as const;
           }
 
-          const pending = highlightDiffFileContents(file.contentPair, file.diff, 2, contents)
+          const pending = highlightDiffFileContents(
+            file.contentPair,
+            file.diff,
+            2,
+            contents,
+            highlightLineSelection,
+          )
             .then((tokens: DiffFileTokens) => {
               setLruCacheValue(syntaxCacheRef.current, cacheKey, tokens, SYNTAX_CACHE_LIMIT);
               return tokens;
@@ -347,7 +368,7 @@ export function useDiffRenderFiles({
     return () => {
       cancelled = true;
     };
-  }, [baseFiles, context, highlightPathSet, rawDiff.status]);
+  }, [baseFiles, context, highlightLineNumbersByPath, highlightPathSet, rawDiff.status]);
 
   return useMemo(
     () => baseFiles.map((file) => ({

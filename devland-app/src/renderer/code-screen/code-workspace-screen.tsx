@@ -9,16 +9,12 @@ import {
 } from 'react';
 
 import {
-  BotIcon,
-  FileCodeIcon,
   GitBranchPlusIcon,
-  GlobeIcon,
   LoaderCircleIcon,
   PlusIcon,
-  TerminalIcon,
   XIcon,
 } from 'lucide-react';
-import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 
 import {
   DEFAULT_CODEX_COMPOSER_SETTINGS,
@@ -34,6 +30,7 @@ import { clearBrowserTargetState } from '@/renderer/code-screen/browser/browser-
 import { ChangesPane } from '@/renderer/code-screen/changes-pane';
 import { ChatComposer } from '@/renderer/code-screen/chat-composer';
 import { CodexTabMenu } from '@/renderer/code-screen/codex-tab-menu';
+import { LayerToggle } from '@/renderer/code-screen/layer-toggle';
 import { SessionAlerts } from '@/renderer/code-screen/session-alerts';
 import { SessionTerminal } from '@/renderer/code-screen/session-terminal';
 import { SessionTranscript } from '@/renderer/code-screen/session-transcript';
@@ -123,59 +120,6 @@ function ResizableHandle({
     >
       <div className="absolute inset-y-0 -left-px w-[3px] bg-transparent transition-colors group-hover:bg-primary/30 group-active:bg-primary/50" />
     </div>
-  );
-}
-
-const LAYER_TABS: { id: CodeWorkspacePane; label: string; icon: typeof BotIcon }[] = [
-  { id: 'changes', label: 'Changes', icon: FileCodeIcon },
-  { id: 'codex', label: 'Codex', icon: BotIcon },
-  { id: 'browser', label: 'Browser', icon: GlobeIcon },
-  { id: 'terminal', label: 'Terminal', icon: TerminalIcon },
-];
-
-function LayerToggle({
-  activePaneId,
-  onChangePane,
-  codexMenu,
-}: {
-  activePaneId: CodeWorkspacePane;
-  onChangePane: (paneId: CodeWorkspacePane) => void;
-  codexMenu: React.ReactNode;
-}) {
-  return (
-    <LayoutGroup id="layer-toggle">
-      <div className="flex items-center gap-0.5 border-b border-border bg-muted/30 px-3 py-1.5">
-        {LAYER_TABS.map((tab) => {
-          const isActive = activePaneId === tab.id;
-          const TabIcon = tab.icon;
-
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => onChangePane(tab.id)}
-              className={cn(
-                'relative flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-                isActive
-                  ? 'text-foreground'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
-              {isActive ? (
-                <motion.div
-                  layoutId="layer-toggle-pill"
-                  className="absolute inset-0 z-0 rounded-md bg-background shadow-sm"
-                  transition={{ type: 'tween', duration: 0.1 }}
-                />
-              ) : null}
-              <TabIcon className="relative z-10 size-3" />
-              <span className="relative z-10">{tab.label}</span>
-              {tab.id === 'codex' ? <span className="relative z-10">{codexMenu}</span> : null}
-            </button>
-          );
-        })}
-      </div>
-    </LayoutGroup>
   );
 }
 

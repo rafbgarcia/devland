@@ -6,6 +6,7 @@ import { buildDiffCommentAnchor, parseUnifiedDiffDocument, projectDiffRows } fro
 import {
   buildDiffRenderExpansionItems,
   expandDiffGap,
+  getExpandedDiffHighlightLineFilters,
   getDiffExpansionGaps,
 } from './diff-expansion';
 import type { DiffFileContents } from './highlighter';
@@ -221,5 +222,36 @@ describe('diff-expansion', () => {
       endLine: 2,
       excerpt: ['one', 'two'],
     });
+  });
+
+  it('only requests syntax highlighting for revealed expanded context lines', () => {
+    const diff = [
+      'diff --git a/example.ts b/example.ts',
+      'index 1111111..2222222 100644',
+      '--- a/example.ts',
+      '+++ b/example.ts',
+      '@@ -3,1 +3,1 @@',
+      '-three',
+      '+THREE',
+      '',
+    ].join('\n');
+    const file = parseUnifiedDiffDocument(diff).files[0]!;
+    const rows = projectDiffRows(file);
+    const contents = createContents(['one', 'two', 'three', 'four']);
+    const gap = getDiffExpansionGaps(file, rows, contents)[0]!;
+    const expanded = expandDiffGap({}, gap, 'all');
+
+    assert.deepEqual(
+      getExpandedDiffHighlightLineFilters({
+        file,
+        rows,
+        contents,
+        expansionState: expanded,
+      }),
+      {
+        oldLineFilter: [],
+        newLineFilter: [0, 1],
+      },
+    );
   });
 });

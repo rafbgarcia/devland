@@ -393,6 +393,39 @@ export function getExpandedDiffRenderLineCount({
   }, baseCount - hiddenHunkHeaderCount);
 }
 
+export function getExpandedDiffHighlightLineFilters({
+  file,
+  rows,
+  contents,
+  expansionState = {},
+}: {
+  file: DiffFile;
+  rows: readonly DiffRow[];
+  contents: DiffFileContents | null;
+  expansionState?: DiffFileExpansionState | undefined;
+}) {
+  const lineSource = getLineSource(contents);
+  if (lineSource === null) {
+    return { oldLineFilter: [], newLineFilter: [] };
+  }
+
+  const visibleExpandedLineNumbers = [
+    ...new Set(
+      getDiffExpansionGaps(file, rows, contents, expansionState).flatMap((gap) => [
+        ...gap.topVisibleLineNumbers,
+        ...gap.bottomVisibleLineNumbers,
+      ]),
+    ),
+  ]
+    .map((lineNumber) => lineNumber - 1)
+    .filter((lineNumber) => lineNumber >= 0)
+    .sort((left, right) => left - right);
+
+  return lineSource.side === 'old'
+    ? { oldLineFilter: visibleExpandedLineNumbers, newLineFilter: [] }
+    : { oldLineFilter: [], newLineFilter: visibleExpandedLineNumbers };
+}
+
 export function expandDiffGap(
   currentState: DiffFileExpansionState,
   gap: Pick<DiffExpansionGap, 'id' | 'position' | 'totalLineCount'>,
