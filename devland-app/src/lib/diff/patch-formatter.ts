@@ -1,6 +1,5 @@
-import { projectDiffRows } from '@/lib/diff/project-rows';
 import { DiffSelection } from '@/lib/diff/selection';
-import type { DiffFile, DiffHunkHeader, DiffRow } from '@/lib/diff/types';
+import type { DiffFile, DiffHunk, DiffLine } from '@/lib/diff/types';
 
 type PatchLineSet = {
   lines: string[];
@@ -57,68 +56,33 @@ function pushAddedLine(set: PatchLineSet, content: string, noTrailingNewline: bo
   }
 }
 
-function skipLeadingUnchangedRow(set: PatchLineSet, row: Exclude<DiffRow, { kind: 'hunk' }>) {
-  switch (row.kind) {
-    case 'context':
-      set.oldStartOffset += 1;
-      set.newStartOffset += 1;
-      break;
-    case 'deleted':
-      set.oldStartOffset += 1;
-      set.newStartOffset += 1;
-      break;
-    case 'added':
-      break;
-    case 'modified':
-      set.oldStartOffset += 1;
-      set.newStartOffset += 1;
-      break;
-  }
-}
-
 function appendRow(
   file: DiffFile,
   selection: DiffSelection,
   set: PatchLineSet,
-  row: Exclude<DiffRow, { kind: 'hunk' }>,
+  line: DiffLine,
 ) {
-  switch (row.kind) {
+  switch (line.kind) {
     case 'context':
-      pushContextLine(set, row.content);
+      pushContextLine(set, line.content);
       break;
-    case 'deleted': {
-      const isSelected = selection.isSelected(row.data.originalDiffLineNumber);
+    case 'delete': {
+      const isSelected = selection.isSelected(line.originalDiffLineNumber);
 
       if (isSelected) {
-        pushDeletedLine(set, row.data.content, row.data.noTrailingNewline);
+        pushDeletedLine(set, line.content, line.noTrailingNewline);
       } else {
-        pushContextLine(set, row.data.content);
+        pushContextLine(set, line.content);
       }
       break;
     }
-    case 'added': {
-      const isSelected = selection.isSelected(row.data.originalDiffLineNumber);
+    case 'add': {
+      const isSelected = selection.isSelected(line.originalDiffLineNumber);
 
       if (isSelected) {
-        pushAddedLine(set, row.data.content, row.data.noTrailingNewline);
+        pushAddedLine(set, line.content, line.noTrailingNewline);
       } else if (file.status !== 'added' && file.status !== 'untracked') {
         // Unselected additions disappear from the patch.
-      }
-      break;
-    }
-    case 'modified': {
-      const beforeSelected = selection.isSelected(row.before.originalDiffLineNumber);
-      const afterSelected = selection.isSelected(row.after.originalDiffLineNumber);
-
-      if (beforeSelected && afterSelected) {
-        pushDeletedLine(set, row.before.content, row.before.noTrailingNewline);
-        pushAddedLine(set, row.after.content, row.after.noTrailingNewline);
-      } else if (!beforeSelected && !afterSelected) {
-        pushContextLine(set, row.before.content);
-      } else if (beforeSelected) {
-        pushDeletedLine(set, row.before.content, row.before.noTrailingNewline);
-      } else {
-        pushAddedLine(set, row.after.content, row.after.noTrailingNewline);
       }
       break;
     }
@@ -127,20 +91,12 @@ function appendRow(
 
 function formatHunkRows(
   file: DiffFile,
-  header: DiffHunkHeader,
-  rows: Array<Exclude<DiffRow, { kind: 'hunk' }>>,
+  hunk: DiffHunk,
   selection: DiffSelection,
 ) {
-  const patch = rows.reduce<PatchLineSet>(
-    (set, row) => {
-      const lineCountBefore = set.lines.length;
-
-      appendRow(file, selection, set, row);
-
-      if (lineCountBefore === set.lines.length && !set.hasSelectedChange) {
-        skipLeadingUnchangedRow(set, row);
-      }
-
+  const patch = hunk.lines.reduce<PatchLineSet>(
+    (set, line) => {
+      appendRow(file, selection, set, line);
       return set;
     },
     {
@@ -159,48 +115,25 @@ function formatHunkRows(
 
   return [
     formatHunkHeader(
-      header.oldStartLine + patch.oldStartOffset,
+      hunk.header.oldStartLine + patch.oldStartOffset,
       patch.oldCount,
-      header.newStartLine + patch.newStartOffset,
+      hunk.header.newStartLine + patch.newStartOffset,
       patch.newCount,
-      header.sectionHeading,
+      hunk.header.sectionHeading,
     ),
     ...patch.lines,
   ].join('\n');
 }
 
 export function formatPatchFromSelection(file: DiffFile, selection: DiffSelection) {
-  const rows = projectDiffRows(file);
   const patchSections: string[] = [];
-  let currentHeader: DiffHunkHeader | null = null;
-  let currentRows: Array<Exclude<DiffRow, { kind: 'hunk' }>> = [];
-
-  const flushHunk = () => {
-    if (currentHeader === null) {
-      return;
-    }
-
-    const patchSection = formatHunkRows(file, currentHeader, currentRows, selection);
+  for (const hunk of file.hunks) {
+    const patchSection = formatHunkRows(file, hunk, selection);
 
     if (patchSection !== null) {
       patchSections.push(patchSection);
     }
-
-    currentHeader = null;
-    currentRows = [];
-  };
-
-  for (const row of rows) {
-    if (row.kind === 'hunk') {
-      flushHunk();
-      currentHeader = row.header;
-      continue;
-    }
-
-    currentRows.push(row);
   }
-
-  flushHunk();
 
   if (patchSections.length === 0) {
     return null;

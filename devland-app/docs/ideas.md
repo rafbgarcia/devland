@@ -1,7 +1,13 @@
-- Terminal & Browser
-- Prompt request
+MLP
+- Onboarding: don't require `gh` CLI, handle
+  - Handle add repo
+  - PR and Issue tab must handle missing `gh` CLI themselves
+- Devapp ships only with Code tab
+- Extract PRs/Issues/Channels into extensions
+- Channels needs auth
+- Worktree branch naming
+- Prompt request extension:
+- Files changed ordered by change order: i.e. shows Codex order of changes
 - Open files with CMD + P (use diff viewer): readonly; comments for Codex session;
-- Index repos under `github.com/` for auto complete
 - Shortcuts: CMD+D duplicate current session on new tab, CMD+T create new worktree (configure worktree setup script, maybe `.devland/setup`)
-- One-click setup repo: e.g. `.devland/setup`
-- Plugin system
+- One-click setup repo `devland.json` "initialDevelopmentSetupCommand"

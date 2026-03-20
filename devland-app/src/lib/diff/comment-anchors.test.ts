@@ -4,7 +4,7 @@ import { describe, it } from 'node:test';
 import { buildDiffCommentAnchor, parseUnifiedDiffDocument, projectDiffRows } from '@/lib/diff';
 
 describe('buildDiffCommentAnchor', () => {
-  it('builds a multi-line anchor on the new side from modified rows', () => {
+  it('builds a multi-line anchor on the new side from unified added rows', () => {
     const file = parseUnifiedDiffDocument(`diff --git a/example.ts b/example.ts
 index 1111111..2222222 100644
 --- a/example.ts
@@ -15,7 +15,7 @@ index 1111111..2222222 100644
 +const a = 10;
 +const b = 20;
  const c = 3;`).files[0]!;
-    const rows = projectDiffRows(file).filter((row) => row.kind === 'modified');
+    const rows = projectDiffRows(file).filter((row) => row.kind === 'added');
     const anchor = buildDiffCommentAnchor(file, rows, 'new');
 
     assert.deepEqual(anchor, {

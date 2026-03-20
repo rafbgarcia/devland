@@ -1,5 +1,5 @@
 export type DiffFileKind = 'text' | 'binary' | 'image' | 'large-text' | 'unrenderable';
-export type DiffDisplayMode = 'unified';
+export type DiffDisplayMode = 'unified' | 'side-by-side';
 export type DiffSelectionSide = 'all' | 'old' | 'new';
 
 export type DiffFileStatus =

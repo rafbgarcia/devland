@@ -111,7 +111,7 @@ index 1111111..2222222 100644
 });
 
 describe('projectDiffRows', () => {
-  it('creates modified rows for paired add/delete lines and preserves context rows', () => {
+  it('keeps add/delete rows grouped in unified mode like GitHub Desktop', () => {
     const document = parseUnifiedDiffDocument(`diff --git a/src/example.ts b/src/example.ts
 index 1111111..2222222 100644
 --- a/src/example.ts
@@ -128,11 +128,11 @@ index 1111111..2222222 100644
 
     assert.deepEqual(
       rows.map((row) => row.kind),
-      ['hunk', 'context', 'modified', 'modified', 'context'],
+      ['hunk', 'context', 'deleted', 'deleted', 'added', 'added', 'context'],
     );
   });
 
-  it('keeps unmatched add/delete lines as standalone rows after pairing what it can', () => {
+  it('creates modified rows in side-by-side mode', () => {
     const document = parseUnifiedDiffDocument(`diff --git a/src/example.ts b/src/example.ts
 index 1111111..2222222 100644
 --- a/src/example.ts
@@ -142,7 +142,7 @@ index 1111111..2222222 100644
 +after one
 +after two`);
 
-    const rows = projectDiffRows(document.files[0]!);
+    const rows = projectDiffRows(document.files[0]!, 'side-by-side');
 
     assert.deepEqual(
       rows.map((row) => row.kind),

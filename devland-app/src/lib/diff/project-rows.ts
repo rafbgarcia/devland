@@ -1,4 +1,5 @@
 import type {
+  DiffDisplayMode,
   DiffChangedLine,
   DiffFile,
   DiffLine,
@@ -34,6 +35,7 @@ function flushModifiedCandidates(
   rows: DiffRow[],
   modifiedCandidates: ModifiedLineCandidate[],
   changeGroupStartLineNumber: number | null,
+  displayMode: DiffDisplayMode,
 ) {
   if (modifiedCandidates.length === 0 || changeGroupStartLineNumber === null) {
     return;
@@ -45,7 +47,9 @@ function flushModifiedCandidates(
   const deletedLines = modifiedCandidates
     .filter((candidate) => candidate.line.kind === 'delete')
     .map((candidate) => candidate.line);
-  const pairedLineCount = Math.min(addedLines.length, deletedLines.length);
+  const pairedLineCount = displayMode === 'side-by-side'
+    ? Math.min(addedLines.length, deletedLines.length)
+    : 0;
   const canIntraLineDiff = addedLines.length === deletedLines.length;
 
   for (let index = 0; index < pairedLineCount; index += 1) {
@@ -75,7 +79,10 @@ function flushModifiedCandidates(
   }
 }
 
-export function projectDiffRows(file: DiffFile): DiffRow[] {
+export function projectDiffRows(
+  file: DiffFile,
+  displayMode: DiffDisplayMode = 'unified',
+): DiffRow[] {
   const rows: DiffRow[] = [];
 
   for (const hunk of file.hunks) {
@@ -91,7 +98,7 @@ export function projectDiffRows(file: DiffFile): DiffRow[] {
 
     for (const line of hunk.lines) {
       if (line.kind === 'context') {
-        flushModifiedCandidates(rows, modifiedCandidates, changeGroupStartLineNumber);
+        flushModifiedCandidates(rows, modifiedCandidates, changeGroupStartLineNumber, displayMode);
         modifiedCandidates = [];
         changeGroupStartLineNumber = null;
 
@@ -116,7 +123,7 @@ export function projectDiffRows(file: DiffFile): DiffRow[] {
       modifiedCandidates.push({ line });
     }
 
-    flushModifiedCandidates(rows, modifiedCandidates, changeGroupStartLineNumber);
+    flushModifiedCandidates(rows, modifiedCandidates, changeGroupStartLineNumber, displayMode);
   }
 
   return rows;

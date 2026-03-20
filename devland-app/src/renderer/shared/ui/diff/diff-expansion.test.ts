@@ -114,11 +114,13 @@ describe('diff-expansion', () => {
       ),
       [
         { kind: 'collapsed-hunk', hidden: 2, row: 'hunk' },
-        { kind: 'row', row: 'modified' },
+        { kind: 'row', row: 'deleted' },
+        { kind: 'row', row: 'added' },
         { kind: 'expanded-context', line: 4, content: 'four' },
         { kind: 'expanded-context', line: 5, content: 'five' },
         { kind: 'expanded-context', line: 6, content: 'six' },
-        { kind: 'row', row: 'modified' },
+        { kind: 'row', row: 'deleted' },
+        { kind: 'row', row: 'added' },
         { kind: 'expansion-control', hidden: 2 },
       ],
     );
