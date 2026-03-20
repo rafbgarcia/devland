@@ -6,6 +6,7 @@ import {
   ChevronUpIcon,
   ChevronsUpDownIcon,
   FileCodeIcon,
+  MinusIcon,
   PlusIcon,
 } from 'lucide-react';
 
@@ -36,18 +37,17 @@ import {
 } from './diff-expansion';
 import type { DiffRenderFile } from './use-diff-render-files';
 
-const ROW_BASE_CLASS = 'font-mono text-[13px] leading-[22px]';
-const MARKER_CLASS = 'w-5 shrink-0 select-none text-center text-[12px]';
-const SELECTION_GUTTER_CLASS =
-  'flex w-7 shrink-0 items-center justify-center border-r border-border/30 cursor-pointer select-none';
+const ROW_HEIGHT_PX = 20;
+const ROW_BASE_CLASS = 'font-mono text-[12px] leading-[20px]';
+const MARKER_CLASS = 'w-5 shrink-0 select-none text-center text-[11px]';
 const LINE_NUMBER_BOX_CLASS =
-  'shrink-0 select-none border-r border-border/40 bg-muted/35 text-[12px] text-muted-foreground/75';
+  'shrink-0 select-none border-r border-border/40 bg-muted/35 text-[11px] text-muted-foreground/75';
 const LINE_NUMBER_BOX_DUAL_WIDTH_CLASS = 'w-[112px]';
 const LINE_NUMBER_INTERACTIVE_CLASS =
   'group/line-number flex h-full w-full items-stretch text-left';
 const LINE_NUMBER_CHECK_CLASS = 'flex w-5 shrink-0 items-center justify-center';
 const LINE_NUMBER_DUAL_VALUE_CLASS = 'flex-1 px-1.5 text-right tabular-nums';
-const LINE_NUMBER_CHANGED_HOVER_CLASS = 'hover:bg-primary/10 hover:text-primary/80';
+const LINE_NUMBER_CHANGED_HOVER_CLASS = 'hover:bg-blue-700/40 hover:text-white/60';
 
 type DiffCommentDraft = {
   side: DiffCommentSide;
@@ -159,8 +159,8 @@ function UnifiedLineNumberBox({
         LINE_NUMBER_BOX_CLASS,
         LINE_NUMBER_INTERACTIVE_CLASS,
         LINE_NUMBER_BOX_DUAL_WIDTH_CLASS,
-        selection.selectionType === 'all' && 'bg-primary/12 text-primary',
-        selection.selectionType === 'partial' && 'bg-primary/8 text-primary/70',
+        selection.selectionType === 'all' && 'bg-blue-700 text-white',
+        selection.selectionType === 'partial' && 'bg-blue-700/60 text-white/70',
         selection.selectionType === 'none' && (isChanged ? LINE_NUMBER_CHANGED_HOVER_CLASS : 'hover:bg-muted/60 hover:text-foreground/70'),
       )}
       aria-pressed={selection.selectionType !== 'none'}
@@ -278,7 +278,6 @@ function HunkRow({
   onExpandGap,
 }: {
   content: string;
-  selectionType?: DiffSelectionType | undefined;
   onToggleSelection?: (() => void) | undefined;
   expansionGap?: DiffExpansionGap | undefined;
   onExpandGap?: ((action: DiffExpansionAction) => void) | undefined;
@@ -314,7 +313,7 @@ function HunkRow({
               {expansionGap.canExpandDown ? (
                 <button
                   type="button"
-                  className="flex h-[22px] items-center justify-center hover:bg-muted/80 hover:text-foreground"
+                  className="flex h-[20px] items-center justify-center hover:bg-muted/80 hover:text-foreground"
                   onClick={(event) => {
                     event.stopPropagation();
                     onExpandGap?.('down');
@@ -327,7 +326,7 @@ function HunkRow({
               {expansionGap.canExpandUp ? (
                 <button
                   type="button"
-                  className="flex h-[22px] items-center justify-center hover:bg-muted/80 hover:text-foreground"
+                  className="flex h-[20px] items-center justify-center hover:bg-muted/80 hover:text-foreground"
                   onClick={(event) => {
                     event.stopPropagation();
                     onExpandGap?.('up');
@@ -377,13 +376,13 @@ function UnifiedLine({
     <div className="flex">
       <div
         className={cn(
-          'group/column min-w-0 flex-1',
+          'group/column flex-1',
           commentHighlighted && 'bg-amber-500/10 ring-1 ring-inset ring-amber-500/30',
           className,
         )}
         onMouseEnter={onCommentLaneEnter}
       >
-        <div className={cn('flex min-w-0', ROW_BASE_CLASS)}>
+        <div className={cn('flex', ROW_BASE_CLASS)}>
           <UnifiedLineNumberBox
             oldLineNumber={oldLineNumber}
             newLineNumber={newLineNumber}
@@ -391,8 +390,8 @@ function UnifiedLine({
             selection={selection}
           />
           <span className={MARKER_CLASS}>{marker}</span>
-          <span className="relative min-w-0 flex-1">
-            <span className="diff-syntax flex min-w-0 overflow-hidden whitespace-pre px-2 pr-8">
+          <span className="relative flex-1">
+            <span className="diff-syntax whitespace-pre px-2 pr-8">
               {content}
             </span>
             {commentButton ? (
@@ -425,7 +424,7 @@ function ExpansionControlRow({
               className={cn(
                 LINE_NUMBER_BOX_CLASS,
                 LINE_NUMBER_BOX_DUAL_WIDTH_CLASS,
-                'flex h-[22px] items-center justify-center hover:bg-muted/80 hover:text-foreground',
+                'flex h-[20px] items-center justify-center hover:bg-muted/80 hover:text-foreground',
               )}
             onClick={() => onExpand('all')}
             aria-label="Expand all"
@@ -440,7 +439,7 @@ function ExpansionControlRow({
                   className={cn(
                     LINE_NUMBER_BOX_CLASS,
                     LINE_NUMBER_BOX_DUAL_WIDTH_CLASS,
-                    'flex h-[22px] items-center justify-center hover:bg-muted/80 hover:text-foreground',
+                    'flex h-[20px] items-center justify-center hover:bg-muted/80 hover:text-foreground',
                   )}
                 onClick={() => onExpand('down')}
                 aria-label="Expand upward"
@@ -454,7 +453,7 @@ function ExpansionControlRow({
                   className={cn(
                     LINE_NUMBER_BOX_CLASS,
                     LINE_NUMBER_BOX_DUAL_WIDTH_CLASS,
-                    'flex h-[22px] items-center justify-center hover:bg-muted/80 hover:text-foreground',
+                    'flex h-[20px] items-center justify-center hover:bg-muted/80 hover:text-foreground',
                   )}
                 onClick={() => onExpand('up')}
                 aria-label="Expand downward"
@@ -472,65 +471,48 @@ function ExpansionControlRow({
   );
 }
 
-function ChangeGroupHandle({
+const HUNK_GUTTER_CLASS =
+  'flex w-7 shrink-0 items-center justify-center border-r border-border/30 select-none';
+
+function HunkSelectionGutter({
   selectionType,
-  handleHeightPx,
-  showHandle,
   onClick,
 }: {
   selectionType: DiffSelectionType;
-  handleHeightPx: number;
-  showHandle: boolean;
   onClick?: (() => void) | undefined;
 }) {
-  if (!showHandle) {
-    return null;
-  }
-
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick?.();
+      }}
       className={cn(
-        'absolute left-1 top-0 z-10 w-1.5 rounded-full',
-        selectionType === 'none' && 'bg-muted-foreground/25 hover:bg-muted-foreground/50',
-        selectionType === 'partial' && 'bg-primary/50 hover:bg-primary/70',
-        selectionType === 'all' && 'bg-primary hover:bg-primary/80',
+        HUNK_GUTTER_CLASS,
+        'cursor-pointer',
+        selectionType === 'all' && 'bg-blue-700 text-white',
+        selectionType === 'partial' && 'bg-blue-700/60 text-white/70',
+        selectionType === 'none' && 'text-muted-foreground/40 hover:bg-blue-700/40 hover:text-white/60',
       )}
-      style={{ height: handleHeightPx }}
       aria-label="Toggle change group selection"
-    />
+    >
+      {selectionType === 'partial' ? (
+        <MinusIcon className="size-3" />
+      ) : (
+        <CheckIcon
+          className={cn(
+            'size-3',
+            selectionType === 'none' ? 'opacity-0 group-hover:opacity-40' : 'opacity-100',
+          )}
+        />
+      )}
+    </button>
   );
 }
 
-function ChangedRowFrame({
-  children,
-  selectionType,
-  handleHeightPx,
-  showHandle,
-  onToggleSelection,
-}: {
-  children: ReactNode;
-  selectionType?: DiffSelectionType | undefined;
-  handleHeightPx?: number | undefined;
-  showHandle?: boolean | undefined;
-  onToggleSelection?: (() => void) | undefined;
-}) {
-  if (selectionType === undefined || handleHeightPx === undefined || showHandle === undefined) {
-    return <>{children}</>;
-  }
-
-  return (
-    <div className="relative overflow-visible">
-      <ChangeGroupHandle
-        selectionType={selectionType}
-        handleHeightPx={handleHeightPx}
-        showHandle={showHandle}
-        onClick={onToggleSelection}
-      />
-      {children}
-    </div>
-  );
+function EmptyHunkGutter() {
+  return <span className={HUNK_GUTTER_CLASS} />;
 }
 
 function UnifiedContextRow({
@@ -566,10 +548,6 @@ function UnifiedDeletedRow({
   file,
   row,
   oldSelection,
-  changeGroupSelectionType,
-  showChangeGroupHandle,
-  changeGroupHandleHeightPx,
-  onToggleChangeGroupSelection,
   beforeCommentButton,
   beforeCommentHighlighted = false,
   onBeforeCommentLaneEnter,
@@ -577,10 +555,6 @@ function UnifiedDeletedRow({
   file: DiffRenderFile;
   row: Extract<DiffRenderFile['rows'][number], { kind: 'deleted' }>;
   oldSelection?: LineSelectionProps | undefined;
-  changeGroupSelectionType?: DiffSelectionType | undefined;
-  showChangeGroupHandle?: boolean | undefined;
-  changeGroupHandleHeightPx?: number | undefined;
-  onToggleChangeGroupSelection?: (() => void) | undefined;
   beforeCommentButton?: ReactNode;
   beforeCommentHighlighted?: boolean;
   onBeforeCommentLaneEnter?: (() => void) | undefined;
@@ -588,25 +562,18 @@ function UnifiedDeletedRow({
   const syntaxTokens = getHighlightTokensForLine(row.data.lineNumber, file.syntaxTokens?.oldTokens);
 
   return (
-    <ChangedRowFrame
-      selectionType={changeGroupSelectionType}
-      showHandle={showChangeGroupHandle}
-      handleHeightPx={changeGroupHandleHeightPx}
-      onToggleSelection={onToggleChangeGroupSelection}
-    >
-      <UnifiedLine
-        oldLineNumber={row.data.lineNumber}
-        newLineNumber={null}
-        marker="-"
-        className="bg-rose-500/12"
-        isChanged
-        selection={oldSelection}
-        content={renderHighlightedText(row.data.content, [syntaxTokens])}
-        commentButton={beforeCommentButton}
-        commentHighlighted={beforeCommentHighlighted}
-        onCommentLaneEnter={onBeforeCommentLaneEnter}
-      />
-    </ChangedRowFrame>
+    <UnifiedLine
+      oldLineNumber={row.data.lineNumber}
+      newLineNumber={null}
+      marker="-"
+      className="bg-rose-500/12"
+      isChanged
+      selection={oldSelection}
+      content={renderHighlightedText(row.data.content, [syntaxTokens])}
+      commentButton={beforeCommentButton}
+      commentHighlighted={beforeCommentHighlighted}
+      onCommentLaneEnter={onBeforeCommentLaneEnter}
+    />
   );
 }
 
@@ -614,10 +581,6 @@ function UnifiedAddedRow({
   file,
   row,
   newSelection,
-  changeGroupSelectionType,
-  showChangeGroupHandle,
-  changeGroupHandleHeightPx,
-  onToggleChangeGroupSelection,
   afterCommentButton,
   afterCommentHighlighted = false,
   onAfterCommentLaneEnter,
@@ -625,10 +588,6 @@ function UnifiedAddedRow({
   file: DiffRenderFile;
   row: Extract<DiffRenderFile['rows'][number], { kind: 'added' }>;
   newSelection?: LineSelectionProps | undefined;
-  changeGroupSelectionType?: DiffSelectionType | undefined;
-  showChangeGroupHandle?: boolean | undefined;
-  changeGroupHandleHeightPx?: number | undefined;
-  onToggleChangeGroupSelection?: (() => void) | undefined;
   afterCommentButton?: ReactNode;
   afterCommentHighlighted?: boolean;
   onAfterCommentLaneEnter?: (() => void) | undefined;
@@ -636,25 +595,18 @@ function UnifiedAddedRow({
   const syntaxTokens = getHighlightTokensForLine(row.data.lineNumber, file.syntaxTokens?.newTokens);
 
   return (
-    <ChangedRowFrame
-      selectionType={changeGroupSelectionType}
-      showHandle={showChangeGroupHandle}
-      handleHeightPx={changeGroupHandleHeightPx}
-      onToggleSelection={onToggleChangeGroupSelection}
-    >
-      <UnifiedLine
-        oldLineNumber={null}
-        newLineNumber={row.data.lineNumber}
-        marker="+"
-        className="bg-emerald-500/12"
-        isChanged
-        selection={newSelection}
-        content={renderHighlightedText(row.data.content, [syntaxTokens])}
-        commentButton={afterCommentButton}
-        commentHighlighted={afterCommentHighlighted}
-        onCommentLaneEnter={onAfterCommentLaneEnter}
-      />
-    </ChangedRowFrame>
+    <UnifiedLine
+      oldLineNumber={null}
+      newLineNumber={row.data.lineNumber}
+      marker="+"
+      className="bg-emerald-500/12"
+      isChanged
+      selection={newSelection}
+      content={renderHighlightedText(row.data.content, [syntaxTokens])}
+      commentButton={afterCommentButton}
+      commentHighlighted={afterCommentHighlighted}
+      onCommentLaneEnter={onAfterCommentLaneEnter}
+    />
   );
 }
 
@@ -663,10 +615,6 @@ function UnifiedModifiedRow({
   row,
   oldSelection,
   newSelection,
-  changeGroupSelectionType,
-  showChangeGroupHandle,
-  changeGroupHandleHeightPx,
-  onToggleChangeGroupSelection,
   beforeCommentButton,
   afterCommentButton,
   beforeCommentHighlighted = false,
@@ -678,10 +626,6 @@ function UnifiedModifiedRow({
   row: Extract<DiffRenderFile['rows'][number], { kind: 'modified' }>;
   oldSelection?: LineSelectionProps | undefined;
   newSelection?: LineSelectionProps | undefined;
-  changeGroupSelectionType?: DiffSelectionType | undefined;
-  showChangeGroupHandle?: boolean | undefined;
-  changeGroupHandleHeightPx?: number | undefined;
-  onToggleChangeGroupSelection?: (() => void) | undefined;
   beforeCommentButton?: ReactNode;
   afterCommentButton?: ReactNode;
   beforeCommentHighlighted?: boolean;
@@ -696,59 +640,47 @@ function UnifiedModifiedRow({
     : null;
 
   return (
-    <ChangedRowFrame
-      selectionType={changeGroupSelectionType}
-      showHandle={showChangeGroupHandle}
-      handleHeightPx={changeGroupHandleHeightPx}
-      onToggleSelection={onToggleChangeGroupSelection}
-    >
-      <>
-        <UnifiedLine
-          oldLineNumber={row.before.lineNumber}
-          newLineNumber={null}
-          marker="-"
-          className="bg-rose-500/12"
-          isChanged
-          selection={oldSelection}
-          content={renderHighlightedText(row.before.content, [
-            beforeSyntaxTokens,
-            intraLineTokens?.before,
-          ])}
-          commentButton={beforeCommentButton}
-          commentHighlighted={beforeCommentHighlighted}
-          onCommentLaneEnter={onBeforeCommentLaneEnter}
-        />
-        <UnifiedLine
-          oldLineNumber={null}
-          newLineNumber={row.after.lineNumber}
-          marker="+"
-          className="bg-emerald-500/12"
-          isChanged
-          selection={newSelection}
-          content={renderHighlightedText(row.after.content, [
-            afterSyntaxTokens,
-            intraLineTokens?.after,
-          ])}
-          commentButton={afterCommentButton}
-          commentHighlighted={afterCommentHighlighted}
-          onCommentLaneEnter={onAfterCommentLaneEnter}
-        />
-      </>
-    </ChangedRowFrame>
+    <>
+      <UnifiedLine
+        oldLineNumber={row.before.lineNumber}
+        newLineNumber={null}
+        marker="-"
+        className="bg-rose-500/12"
+        isChanged
+        selection={oldSelection}
+        content={renderHighlightedText(row.before.content, [
+          beforeSyntaxTokens,
+          intraLineTokens?.before,
+        ])}
+        commentButton={beforeCommentButton}
+        commentHighlighted={beforeCommentHighlighted}
+        onCommentLaneEnter={onBeforeCommentLaneEnter}
+      />
+      <UnifiedLine
+        oldLineNumber={null}
+        newLineNumber={row.after.lineNumber}
+        marker="+"
+        className="bg-emerald-500/12"
+        isChanged
+        selection={newSelection}
+        content={renderHighlightedText(row.after.content, [
+          afterSyntaxTokens,
+          intraLineTokens?.after,
+        ])}
+        commentButton={afterCommentButton}
+        commentHighlighted={afterCommentHighlighted}
+        onCommentLaneEnter={onAfterCommentLaneEnter}
+      />
+    </>
   );
 }
 
 function DiffBodyRow({
   file,
   row,
-  selectionType,
-  changeGroupSelectionType,
-  showChangeGroupHandle,
-  changeGroupHandleHeightPx,
   oldSelection,
   newSelection,
   onToggleHunkSelection,
-  onToggleChangeGroupSelection,
   beforeCommentButton,
   afterCommentButton,
   beforeCommentHighlighted = false,
@@ -758,14 +690,9 @@ function DiffBodyRow({
 }: {
   file: DiffRenderFile;
   row: DiffRenderFile['rows'][number];
-  selectionType?: DiffSelectionType | undefined;
-  changeGroupSelectionType?: DiffSelectionType | undefined;
-  showChangeGroupHandle?: boolean | undefined;
-  changeGroupHandleHeightPx?: number | undefined;
   oldSelection?: LineSelectionProps | undefined;
   newSelection?: LineSelectionProps | undefined;
   onToggleHunkSelection?: ((hunkStartLineNumber: number) => void) | undefined;
-  onToggleChangeGroupSelection?: (() => void) | undefined;
   beforeCommentButton?: ReactNode;
   afterCommentButton?: ReactNode;
   beforeCommentHighlighted?: boolean;
@@ -778,9 +705,8 @@ function DiffBodyRow({
       return (
         <HunkRow
           content={row.content}
-          selectionType={selectionType}
           onToggleSelection={
-            selectionType !== undefined && onToggleHunkSelection
+            onToggleHunkSelection
               ? () => onToggleHunkSelection(row.originalStartLineNumber)
               : undefined
           }
@@ -804,10 +730,6 @@ function DiffBodyRow({
           file={file}
           row={row}
           oldSelection={oldSelection}
-          changeGroupSelectionType={changeGroupSelectionType}
-          showChangeGroupHandle={showChangeGroupHandle}
-          changeGroupHandleHeightPx={changeGroupHandleHeightPx}
-          onToggleChangeGroupSelection={onToggleChangeGroupSelection}
           beforeCommentButton={beforeCommentButton}
           beforeCommentHighlighted={beforeCommentHighlighted}
           onBeforeCommentLaneEnter={onBeforeCommentLaneEnter}
@@ -819,10 +741,6 @@ function DiffBodyRow({
           file={file}
           row={row}
           newSelection={newSelection}
-          changeGroupSelectionType={changeGroupSelectionType}
-          showChangeGroupHandle={showChangeGroupHandle}
-          changeGroupHandleHeightPx={changeGroupHandleHeightPx}
-          onToggleChangeGroupSelection={onToggleChangeGroupSelection}
           afterCommentButton={afterCommentButton}
           afterCommentHighlighted={afterCommentHighlighted}
           onAfterCommentLaneEnter={onAfterCommentLaneEnter}
@@ -835,10 +753,6 @@ function DiffBodyRow({
           row={row}
           oldSelection={oldSelection}
           newSelection={newSelection}
-          changeGroupSelectionType={changeGroupSelectionType}
-          showChangeGroupHandle={showChangeGroupHandle}
-          changeGroupHandleHeightPx={changeGroupHandleHeightPx}
-          onToggleChangeGroupSelection={onToggleChangeGroupSelection}
           beforeCommentButton={beforeCommentButton}
           afterCommentButton={afterCommentButton}
           beforeCommentHighlighted={beforeCommentHighlighted}
@@ -1000,7 +914,7 @@ export function DiffFileSection({
 
       const rect = scrollContainer.getBoundingClientRect();
       const edgeThresholdPx = 48;
-      const scrollStepPx = 22;
+      const scrollStepPx = ROW_HEIGHT_PX;
 
       if (event.clientY < rect.top + edgeThresholdPx) {
         scrollContainer.scrollTop -= scrollStepPx;
@@ -1189,19 +1103,6 @@ export function DiffFileSection({
     >
       {!hideHeader ? (
         <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-border bg-muted px-3 py-1.5">
-          {selectionType !== undefined ? (
-            <input
-              type="checkbox"
-              checked={selectionType === 'all'}
-              ref={(el) => {
-                if (el) {
-                  el.indeterminate = selectionType === 'partial';
-                }
-              }}
-              onChange={onToggleFileSelection}
-              className="shrink-0"
-            />
-          ) : null}
           <FileCodeIcon className="size-3.5 text-muted-foreground" />
           <span className="min-w-0 truncate text-xs font-medium">{file.path}</span>
           <span
@@ -1220,33 +1121,50 @@ export function DiffFileSection({
         </div>
       ) : null}
       <div className="overflow-x-auto">
-        <div className="min-w-[720px] overflow-y-hidden">
+        <div className="min-w-[720px] w-max">
           {renderItems.map((item, renderIndex) => {
+            const hasHunkGutter = getRowSelectionType !== undefined;
+
             if (item.kind === 'expansion-control') {
               return onExpandGap ? (
-                <div key={item.key}>
-                  <ExpansionControlRow
-                    gap={item.gap}
-                    onExpand={(action) => onExpandGap(item.gap, action)}
-                  />
+                <div key={item.key} className={cn(hasHunkGutter && 'flex')}>
+                  {hasHunkGutter ? <EmptyHunkGutter /> : null}
+                  <div className={cn(hasHunkGutter && 'min-w-0 flex-1')}>
+                    <ExpansionControlRow
+                      gap={item.gap}
+                      onExpand={(action) => onExpandGap(item.gap, action)}
+                    />
+                  </div>
                 </div>
               ) : null;
             }
 
             if (item.kind === 'collapsed-hunk') {
+              const hunkSelectionType = getHunkSelectionType?.(item.row.originalStartLineNumber);
               return (
-                <div key={item.key}>
-                  <HunkRow
-                    content={item.row.content}
-                    selectionType={getHunkSelectionType?.(item.row.originalStartLineNumber)}
-                    onToggleSelection={
-                      getHunkSelectionType !== undefined && onToggleHunkSelection
-                        ? () => onToggleHunkSelection(item.row.originalStartLineNumber)
-                        : undefined
-                    }
-                    expansionGap={item.gap}
-                    onExpandGap={onExpandGap ? (action) => onExpandGap(item.gap, action) : undefined}
-                  />
+                <div key={item.key} className={cn(hasHunkGutter && 'flex')}>
+                  {hasHunkGutter ? (
+                    hunkSelectionType !== undefined ? (
+                      <HunkSelectionGutter
+                        selectionType={hunkSelectionType}
+                        onClick={onToggleHunkSelection
+                          ? () => onToggleHunkSelection(item.row.originalStartLineNumber)
+                          : undefined}
+                      />
+                    ) : <EmptyHunkGutter />
+                  ) : null}
+                  <div className={cn(hasHunkGutter && 'min-w-0 flex-1')}>
+                    <HunkRow
+                      content={item.row.content}
+                      onToggleSelection={
+                        onToggleHunkSelection
+                          ? () => onToggleHunkSelection(item.row.originalStartLineNumber)
+                          : undefined
+                      }
+                      expansionGap={item.gap}
+                      onExpandGap={onExpandGap ? (action) => onExpandGap(item.gap, action) : undefined}
+                    />
+                  </div>
                 </div>
               );
             }
@@ -1265,67 +1183,75 @@ export function DiffFileSection({
               rowIndex !== null && (row.kind === 'added' || row.kind === 'modified')
                 ? getLineSelectionProps(row, rowIndex, 'new')
                 : undefined;
-            const changeGroupMetadataEntry =
-              row.kind === 'added' || row.kind === 'deleted' || row.kind === 'modified'
-                ? changeGroupMetadata.get(row.changeGroupStartLineNumber)
-                : undefined;
+
+            const isChangedRow = row.kind === 'added' || row.kind === 'deleted' || row.kind === 'modified';
+            const changeGroupMetadataEntry = isChangedRow
+              ? changeGroupMetadata.get(row.changeGroupStartLineNumber)
+              : undefined;
+            const isFirstInGroup = changeGroupMetadataEntry?.firstRenderIndex === renderIndex;
+
+            let hunkGutter: React.ReactNode = null;
+            if (hasHunkGutter) {
+              if (isChangedRow && isFirstInGroup && changeGroupMetadataEntry) {
+                hunkGutter = (
+                  <HunkSelectionGutter
+                    selectionType={changeGroupMetadataEntry.selectionType}
+                    onClick={onToggleHunkSelection
+                      ? () => onToggleHunkSelection(row.changeGroupStartLineNumber)
+                      : undefined}
+                  />
+                );
+              } else {
+                hunkGutter = <EmptyHunkGutter />;
+              }
+            }
 
             return (
-              <div key={item.key}>
-                <DiffBodyRow
-                  file={file}
-                  row={row}
-                  selectionType={undefined}
-                  changeGroupSelectionType={changeGroupMetadataEntry?.selectionType}
-                  showChangeGroupHandle={changeGroupMetadataEntry?.firstRenderIndex === renderIndex}
-                  changeGroupHandleHeightPx={changeGroupMetadataEntry
-                    ? changeGroupMetadataEntry.renderLineCount * 22
-                    : undefined}
-                  oldSelection={oldSelection}
-                  newSelection={newSelection}
-                  onToggleHunkSelection={onToggleHunkSelection}
-                  onToggleChangeGroupSelection={
-                    row.kind === 'added' || row.kind === 'deleted' || row.kind === 'modified'
-                      ? onToggleHunkSelection
-                        ? () => onToggleHunkSelection(row.changeGroupStartLineNumber)
-                        : undefined
-                      : undefined
-                  }
-                  beforeCommentButton={getCommentButton('old', row, renderIndex)}
-                  afterCommentButton={getCommentButton('new', row, renderIndex)}
-                  onBeforeCommentLaneEnter={() => handleExtendCommentSelection('old', renderIndex)}
-                  onAfterCommentLaneEnter={() => handleExtendCommentSelection('new', renderIndex)}
-                  beforeCommentHighlighted={
-                    commentDraft !== null &&
-                    commentDraft.side === 'old' &&
-                    commentRange !== null &&
-                    renderIndex >= commentRange.from &&
-                    renderIndex <= commentRange.to &&
-                    getCommentableLineNumber(row, 'old') !== null
-                  }
-                  afterCommentHighlighted={
-                    commentDraft !== null &&
-                    commentDraft.side === 'new' &&
-                    commentRange !== null &&
-                    renderIndex >= commentRange.from &&
-                    renderIndex <= commentRange.to &&
-                    getCommentableLineNumber(row, 'new') !== null
-                  }
-                />
-                {showComposer && commentDraft ? (
-                  <InlineCommentComposer
-                    body={commentDraft.body}
-                    error={commentDraft.error}
-                    isSubmitting={commentDraft.isSubmitting}
-                    onBodyChange={(body) =>
-                      setCommentDraft((current) => current === null ? null : { ...current, body })
+              <div key={item.key} className={cn(hasHunkGutter && 'flex')}>
+                {hunkGutter}
+                <div className={cn(hasHunkGutter && 'min-w-0 flex-1')}>
+                  <DiffBodyRow
+                    file={file}
+                    row={row}
+                    oldSelection={oldSelection}
+                    newSelection={newSelection}
+                    onToggleHunkSelection={onToggleHunkSelection}
+                    beforeCommentButton={getCommentButton('old', row, renderIndex)}
+                    afterCommentButton={getCommentButton('new', row, renderIndex)}
+                    onBeforeCommentLaneEnter={() => handleExtendCommentSelection('old', renderIndex)}
+                    onAfterCommentLaneEnter={() => handleExtendCommentSelection('new', renderIndex)}
+                    beforeCommentHighlighted={
+                      commentDraft !== null &&
+                      commentDraft.side === 'old' &&
+                      commentRange !== null &&
+                      renderIndex >= commentRange.from &&
+                      renderIndex <= commentRange.to &&
+                      getCommentableLineNumber(row, 'old') !== null
                     }
-                    onCancel={() => setCommentDraft(null)}
-                    onSubmit={() => {
-                      void handleSubmitComment();
-                    }}
+                    afterCommentHighlighted={
+                      commentDraft !== null &&
+                      commentDraft.side === 'new' &&
+                      commentRange !== null &&
+                      renderIndex >= commentRange.from &&
+                      renderIndex <= commentRange.to &&
+                      getCommentableLineNumber(row, 'new') !== null
+                    }
                   />
-                ) : null}
+                  {showComposer && commentDraft ? (
+                    <InlineCommentComposer
+                      body={commentDraft.body}
+                      error={commentDraft.error}
+                      isSubmitting={commentDraft.isSubmitting}
+                      onBodyChange={(body) =>
+                        setCommentDraft((current) => current === null ? null : { ...current, body })
+                      }
+                      onCancel={() => setCommentDraft(null)}
+                      onSubmit={() => {
+                        void handleSubmitComment();
+                      }}
+                    />
+                  ) : null}
+                </div>
               </div>
             );
           })}

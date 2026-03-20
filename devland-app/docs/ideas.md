@@ -11,3 +11,11 @@ MLP
 - Open files with CMD + P (use diff viewer): readonly; comments for Codex session;
 - Shortcuts: CMD+D duplicate current session on new tab, CMD+T create new worktree (configure worktree setup script, maybe `.devland/setup`)
 - One-click setup repo `devland.json` "initialDevelopmentSetupCommand"
+
+
+TODO:
+Diff viewer
+- column for line-staging vs chunk-staging
+- remove icon from file path
+- solid color
+- double-click open on editor (Editor user preference)

@@ -14,12 +14,6 @@ import {
 import { ChangesHistoryDropdown } from '@/renderer/code-screen/changes-history-dropdown';
 import { CommitComposer } from '@/renderer/code-screen/commit-composer';
 import { RelativeTime } from '@/renderer/shared/ui/relative-time';
-import {
-  Alert,
-  AlertAction,
-  AlertDescription,
-  AlertTitle,
-} from '@/shadcn/components/ui/alert';
 import { Button } from '@/shadcn/components/ui/button';
 import {
   Tooltip,
@@ -35,42 +29,37 @@ function HistorySnapshotBanner({
   onRestoreBranchState: () => void;
 }) {
   return (
-    <div className="border-b border-border px-3 pb-3">
-      <Alert>
-        <GitCommitHorizontalIcon />
-        <AlertAction>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="icon"
-                type="button"
-                variant="ghost"
-                aria-label="Back to current branch state"
-                onClick={onRestoreBranchState}
-              >
-                <Undo2Icon />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Back to current branch state</TooltipContent>
-          </Tooltip>
-        </AlertAction>
-        <AlertTitle>History snapshot</AlertTitle>
-        <AlertDescription className="pr-10">
-          <div className="mt-0.5 text-sm font-medium text-foreground">
+    <div className="border-b border-border px-3 py-2">
+      <div className="flex items-start gap-2.5 rounded-md border border-border/60 bg-muted/40 px-3 py-2.5">
+        <GitCommitHorizontalIcon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-xs font-medium text-foreground">
             {commit.title || commit.shortSha}
-          </div>
-          {commit.body ? (
-            <p className="mt-1 whitespace-pre-line text-xs leading-5">
-              {commit.body}
-            </p>
-          ) : null}
-          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+          </p>
+          <div className="mt-1 flex items-center gap-1.5 text-[10px] text-muted-foreground">
             <span className="font-mono">{commit.shortSha}</span>
-            <span>{commit.authorName}</span>
+            <span className="text-border">·</span>
+            <span className="truncate">{commit.authorName}</span>
+            <span className="text-border">·</span>
             <RelativeTime value={commit.authorDate} />
           </div>
-        </AlertDescription>
-      </Alert>
+        </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="icon"
+              type="button"
+              variant="ghost"
+              className="size-6 shrink-0"
+              aria-label="Back to working tree"
+              onClick={onRestoreBranchState}
+            >
+              <Undo2Icon className="size-3.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Back to working tree</TooltipContent>
+        </Tooltip>
+      </div>
     </div>
   );
 }
