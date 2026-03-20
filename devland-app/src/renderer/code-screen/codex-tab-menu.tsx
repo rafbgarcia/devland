@@ -160,18 +160,17 @@ function ThreadsSubmenu({
                       }}
                       className={cn(
                         'group relative w-full rounded-md px-2.5 py-1.5 text-left transition-colors',
-                        isCurrent ? 'bg-primary/8' : 'hover:bg-muted/50',
+                        isCurrent
+                          ? 'bg-primary/10 ring-1 ring-primary/20'
+                          : 'hover:bg-muted/50',
                       )}
                     >
-                      {isCurrent ? (
-                        <div className="absolute left-0 top-1/2 h-3.5 w-[2px] -translate-y-1/2 rounded-full bg-primary" />
-                      ) : null}
                       <div className="flex items-center gap-2">
                         <p
                           className={cn(
                             'min-w-0 flex-1 truncate text-xs',
                             isCurrent
-                              ? 'font-medium text-foreground'
+                              ? 'font-medium text-primary'
                               : 'text-foreground/80 group-hover:text-foreground',
                           )}
                         >

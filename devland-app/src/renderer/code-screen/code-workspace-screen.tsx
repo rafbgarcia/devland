@@ -18,6 +18,7 @@ import {
   TerminalIcon,
   XIcon,
 } from 'lucide-react';
+import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
 
 import {
   DEFAULT_CODEX_COMPOSER_SETTINGS,
@@ -125,6 +126,13 @@ function ResizableHandle({
   );
 }
 
+const LAYER_TABS: { id: CodeWorkspacePane; label: string; icon: typeof BotIcon }[] = [
+  { id: 'changes', label: 'Changes', icon: FileCodeIcon },
+  { id: 'codex', label: 'Codex', icon: BotIcon },
+  { id: 'browser', label: 'Browser', icon: GlobeIcon },
+  { id: 'terminal', label: 'Terminal', icon: TerminalIcon },
+];
+
 function LayerToggle({
   activePaneId,
   onChangePane,
@@ -135,61 +143,39 @@ function LayerToggle({
   codexMenu: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-0.5 border-b border-border bg-muted/30 px-3 py-1.5">
-      <button
-        type="button"
-        onClick={() => onChangePane('changes')}
-        className={cn(
-          'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-          activePaneId === 'changes'
-            ? 'bg-background text-foreground shadow-sm'
-            : 'text-muted-foreground hover:text-foreground',
-        )}
-      >
-        <FileCodeIcon className="size-3" />
-        Changes
-      </button>
-      <button
-        type="button"
-        onClick={() => onChangePane('codex')}
-        className={cn(
-          'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-          activePaneId === 'codex'
-            ? 'bg-background text-foreground shadow-sm'
-            : 'text-muted-foreground hover:text-foreground',
-        )}
-      >
-        <BotIcon className="size-3" />
-        Codex
-        {codexMenu}
-      </button>
-      <button
-        type="button"
-        onClick={() => onChangePane('browser')}
-        className={cn(
-          'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-          activePaneId === 'browser'
-            ? 'bg-background text-foreground shadow-sm'
-            : 'text-muted-foreground hover:text-foreground',
-        )}
-      >
-        <GlobeIcon className="size-3" />
-        Browser
-      </button>
-      <button
-        type="button"
-        onClick={() => onChangePane('terminal')}
-        className={cn(
-          'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-          activePaneId === 'terminal'
-            ? 'bg-background text-foreground shadow-sm'
-            : 'text-muted-foreground hover:text-foreground',
-        )}
-      >
-        <TerminalIcon className="size-3" />
-        Terminal
-      </button>
-    </div>
+    <LayoutGroup id="layer-toggle">
+      <div className="flex items-center gap-0.5 border-b border-border bg-muted/30 px-3 py-1.5">
+        {LAYER_TABS.map((tab) => {
+          const isActive = activePaneId === tab.id;
+          const TabIcon = tab.icon;
+
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => onChangePane(tab.id)}
+              className={cn(
+                'relative flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+                isActive
+                  ? 'text-foreground'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {isActive ? (
+                <motion.div
+                  layoutId="layer-toggle-pill"
+                  className="absolute inset-0 z-0 rounded-md bg-background shadow-sm"
+                  transition={{ type: 'tween', duration: 0.1 }}
+                />
+              ) : null}
+              <TabIcon className="relative z-10 size-3" />
+              <span className="relative z-10">{tab.label}</span>
+              {tab.id === 'codex' ? <span className="relative z-10">{codexMenu}</span> : null}
+            </button>
+          );
+        })}
+      </div>
+    </LayoutGroup>
   );
 }
 
@@ -623,24 +609,39 @@ export function CodeWorkspaceScreen({
                     }
                   />
 
-                  <div className="relative min-h-0 flex-1 overflow-auto">
-                    {activePaneId === 'changes' ? (
-                      viewport
-                    ) : activePaneId === 'browser' ? (
-                      <BrowserPanel key={activeTarget.id} targetId={activeTarget.id} />
-                    ) : activePaneId === 'terminal' ? (
-                      <SessionTerminal
-                        key={activeTarget.id}
-                        sessionId={activeTarget.id}
-                        cwd={activeTarget.cwd}
-                      />
-                    ) : (
-                      <SessionTranscript
-                        sessionState={sessionState}
-                        targetLabel={activeTargetLabel}
-                        onCreateSession={handleAddCurrentBranchSession}
-                      />
-                    )}
+                  <div className="relative min-h-0 flex-1 overflow-hidden">
+                    <AnimatePresence mode="wait" initial={false}>
+                      <motion.div
+                        key={activePaneId}
+                        initial={{ opacity: 0, scale: 0.99 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.99 }}
+                        transition={{ duration: 0.1 }}
+                        className="h-full origin-center overflow-auto"
+                      >
+                        {activePaneId === 'changes' ? (
+                          viewport
+                        ) : activePaneId === 'browser' ? (
+                          <BrowserPanel key={activeTarget.id} targetId={activeTarget.id} />
+                        ) : activePaneId === 'terminal' ? (
+                          <SessionTerminal
+                            key={activeTarget.id}
+                            sessionId={activeTarget.id}
+                            cwd={activeTarget.cwd}
+                          />
+                        ) : (
+                          <SessionTranscript
+                            sessionState={sessionState}
+                            targetLabel={activeTargetLabel}
+                            onCreateSession={handleAddCurrentBranchSession}
+                            onSendSuggestion={(prompt) => {
+                              void handleSendPrompt({ prompt, settings: composerSettings, attachments: [] });
+                              rememberActivePane('codex');
+                            }}
+                          />
+                        )}
+                      </motion.div>
+                    </AnimatePresence>
                   </div>
 
                   <div

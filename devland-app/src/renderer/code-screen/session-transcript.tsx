@@ -34,7 +34,6 @@ import {
   type SessionTimelineRow,
   type SessionTimelineToolEntry,
 } from '@/renderer/code-screen/session-timeline';
-import { Button } from '@/shadcn/components/ui/button';
 import { cn } from '@/shadcn/lib/utils';
 
 const MAX_COLLAPSED_TOOL_ENTRIES = 3;
@@ -291,14 +290,84 @@ function TimelineRowView({ row }: { row: SessionTimelineRow }) {
   );
 }
 
+const SUGGESTION_PROMPTS = [
+  { label: 'Code review branch ', prompt: 'Code review the changes on this branch against the base branch.' },
+  { label: 'Summarize branch changes', prompt: 'Review the changes on this branch against the base branch and output a markdown summary of user-facing changes.' },
+  { label: 'Address Github PR review', prompt: 'Use gh CLI to fetch open PR comments for this branch. Investigate the codebase and address the relevant code reviews.' },
+  { label: 'Address Github CI test failures', prompt: 'Check the .github workflows. Use gh CLI to fetch the latest test workflow for the current branch and address the issues.' },
+];
+
+function EmptyState({
+  targetLabel,
+  onSendSuggestion,
+}: {
+  targetLabel: string;
+  onSendSuggestion: ((prompt: string) => void) | undefined;
+}) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center px-8">
+      <div className="flex max-w-md flex-col items-center gap-6">
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: 'easeOut' }}
+          className="text-center"
+        >
+          <p className="mb-1.5 text-xs font-medium tracking-widest uppercase text-muted-foreground/50">
+            Branch
+          </p>
+          <h2 className="display-face text-2xl text-foreground/90">
+            {targetLabel}
+          </h2>
+        </motion.div>
+
+        {onSendSuggestion !== undefined ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.4, delay: 0.15, ease: 'easeOut' }}
+            className="flex flex-wrap justify-center gap-2"
+          >
+            {SUGGESTION_PROMPTS.map((suggestion) => (
+              <button
+                key={suggestion.label}
+                type="button"
+                onClick={() => onSendSuggestion(suggestion.prompt)}
+                className="rounded-lg border border-border/60 bg-muted/30 px-3 py-1.5 text-xs text-muted-foreground transition-all hover:border-primary/30 hover:bg-muted/60 hover:text-foreground"
+              >
+                {suggestion.label}
+              </button>
+            ))}
+          </motion.div>
+        ) : null}
+
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.4, delay: 0.3, ease: 'easeOut' }}
+          className="text-[11px] text-muted-foreground/40"
+        >
+          <kbd className="rounded border border-border/40 bg-muted/30 px-1 py-0.5 font-sans text-[10px]">⌘</kbd>
+          {' '}
+          <kbd className="rounded border border-border/40 bg-muted/30 px-1 py-0.5 font-sans text-[10px]">N</kbd>
+          {' '}
+          <span>to reset session</span>
+        </motion.p>
+      </div>
+    </div>
+  );
+}
+
 export const SessionTranscript = memo(function SessionTranscript({
   sessionState,
   targetLabel,
   onCreateSession,
+  onSendSuggestion,
 }: {
   sessionState: CodexSessionState;
   targetLabel: string;
   onCreateSession: () => void;
+  onSendSuggestion?: (prompt: string) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const timelineRootRef = useRef<HTMLDivElement>(null);
@@ -405,26 +474,10 @@ export const SessionTranscript = memo(function SessionTranscript({
 
   if (!hasConversation) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 px-6">
-        <div className="flex size-10 items-center justify-center rounded-full bg-muted/50 text-muted-foreground">
-          <BotIcon className="size-5" />
-        </div>
-        <div className="text-center">
-          <p className="text-sm font-medium text-foreground">Ready for {targetLabel}</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Send a message to start working on this target.
-          </p>
-        </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="mt-1"
-          onClick={onCreateSession}
-        >
-          New session
-        </Button>
-      </div>
+      <EmptyState
+        targetLabel={targetLabel}
+        onSendSuggestion={onSendSuggestion}
+      />
     );
   }
 

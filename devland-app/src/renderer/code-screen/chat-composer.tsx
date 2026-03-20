@@ -179,7 +179,7 @@ export const ChatComposer = memo(function ChatComposer({
   const fileInputId = useId();
 
   const isInputDisabled = isRunning || isSending;
-  const placeholder = 'BUILD';
+  const placeholder = 'You know the rules and so do I... "@file" searches on the active project, "@/file" searches on all projects';
   const tagMenuQuery = tagTrigger?.query.trim() ?? '';
   const isTagMenuOpen = tagTrigger !== null && tagMenuQuery.length > 0;
   const openAttachment =
@@ -599,7 +599,7 @@ export const ChatComposer = memo(function ChatComposer({
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={isInputDisabled}
-            className="my-auto ml-1 flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+            className="ml-1 flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
             aria-label="Attach images"
           >
             <ImagePlusIcon className="size-[18px]" />
