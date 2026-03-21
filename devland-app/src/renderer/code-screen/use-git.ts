@@ -27,6 +27,10 @@ type GitAsyncCacheValue<T> = {
 
 const GIT_ASYNC_CACHE_LIMIT = 12;
 
+const gitBranchesCache = new Map<string, GitAsyncCacheValue<GitBranch[]>>();
+const gitDefaultBranchCache = new Map<string, GitAsyncCacheValue<string>>();
+const gitStatusCache = new Map<string, GitAsyncCacheValue<GitStatus>>();
+
 const createLoadingGitAsyncState = <T>(repoPath: string): ScopedAsyncState<T> => ({
   repoPath,
   status: 'loading',
@@ -81,28 +85,25 @@ function useCoalescedGitAsyncState<T>({
   load,
   errorMessage,
   metricsKey,
+  cache,
 }: {
   repoPath: string;
   load: (repoPath: string) => Promise<T>;
   errorMessage: string;
   metricsKey: GitAsyncMetricKey;
+  cache: Map<string, GitAsyncCacheValue<T>>;
 }) {
-  const [state, setState] = useState<ScopedAsyncState<T>>({
-    repoPath,
-    status: 'loading',
-    data: null,
-    error: null,
-    refreshVersion: 0,
-  });
+  const [state, setState] = useState<ScopedAsyncState<T>>(
+    () => getCachedGitAsyncState(repoPath, cache),
+  );
   const fetchIdRef = useRef(0);
-  const cacheRef = useRef<Map<string, GitAsyncCacheValue<T>>>(new Map());
   const runner = useMemo(() => createCoalescedTaskRunner(), [repoPath]);
 
   const fetchValue = useCallback(async () => {
     return runner.run(async () => {
       const currentRepoPath = repoPath;
       const fetchId = ++fetchIdRef.current;
-      const cachedState = getFromLruCache(cacheRef.current, currentRepoPath);
+      const cachedState = getFromLruCache(cache, currentRepoPath);
       incrementDevPerformanceCounter(`${metricsKey}Started`);
 
       setState(
@@ -129,7 +130,7 @@ function useCoalescedGitAsyncState<T>({
           refreshVersion: (cachedState?.refreshVersion ?? 0) + 1,
         };
         setLruCacheValue(
-          cacheRef.current,
+          cache,
           currentRepoPath,
           nextCacheState,
           GIT_ASYNC_CACHE_LIMIT,
@@ -171,15 +172,15 @@ function useCoalescedGitAsyncState<T>({
   }, [errorMessage, load, metricsKey, repoPath, runner]);
 
   useEffect(() => {
-    setState(getCachedGitAsyncState(repoPath, cacheRef.current));
+    setState(getCachedGitAsyncState(repoPath, cache));
     void fetchValue();
-  }, [fetchValue]);
+  }, [cache, fetchValue, repoPath]);
 
   return {
     ...getVisibleGitAsyncState(
       repoPath,
       state,
-      getFromLruCache(cacheRef.current, repoPath),
+      getFromLruCache(cache, repoPath),
     ),
     refetch: fetchValue,
   };
@@ -196,6 +197,7 @@ export function useGitBranches(repoPath: string) {
     load: loadBranches,
     errorMessage: 'Failed to load branches.',
     metricsKey: 'gitBranchesFetch',
+    cache: gitBranchesCache,
   });
 }
 
@@ -210,6 +212,7 @@ export function useGitDefaultBranch(repoPath: string) {
     load: loadDefaultBranch,
     errorMessage: 'Failed to load default branch.',
     metricsKey: 'gitDefaultBranchFetch',
+    cache: gitDefaultBranchCache,
   });
 }
 
@@ -224,6 +227,7 @@ export function useGitStatus(repoPath: string) {
     load: loadStatus,
     errorMessage: 'Failed to load status.',
     metricsKey: 'gitStatusFetch',
+    cache: gitStatusCache,
   });
 }
 

@@ -39,4 +39,29 @@ describe('getVisibleGitAsyncState', () => {
       refreshVersion: 1,
     });
   });
+
+  it('reuses cached data for a different active repo path when available', () => {
+    const visibleState = getVisibleGitAsyncState(
+      '/repo/root',
+      {
+        repoPath: '/repo/other',
+        status: 'loading',
+        data: null,
+        error: null,
+        refreshVersion: 0,
+      },
+      {
+        data: { branch: 'main' },
+        refreshVersion: 4,
+      },
+    );
+
+    assert.deepEqual(visibleState, {
+      repoPath: '/repo/root',
+      status: 'ready',
+      data: { branch: 'main' },
+      error: null,
+      refreshVersion: 4,
+    });
+  });
 });
