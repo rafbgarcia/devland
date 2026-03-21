@@ -80,7 +80,6 @@ export const RUN_EXTENSION_COMMAND_CHANNEL = 'app:run-extension-command';
 
 export const PROJECT_VIEW_TABS = [
   'code',
-  'issues',
 ] as const;
 
 export const ProjectViewTabSchema = z.enum(PROJECT_VIEW_TABS);

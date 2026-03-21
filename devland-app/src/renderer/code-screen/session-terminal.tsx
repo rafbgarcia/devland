@@ -301,7 +301,7 @@ export function SessionTerminal({
         <div className="devland-terminal-shell h-full min-h-[320px] overflow-hidden rounded-xl border border-border/70 bg-card/90 shadow-sm">
           <div
             ref={mountRef}
-            className="devland-terminal h-full w-full px-3 py-2.5"
+            className="devland-terminal h-full w-full"
             style={{ minHeight: FALLBACK_TERMINAL_HEIGHT }}
           />
         </div>

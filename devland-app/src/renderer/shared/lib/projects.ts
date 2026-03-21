@@ -7,10 +7,7 @@ import {
 } from '@/ipc/contracts';
 
 export type ProjectTabRouteTo =
-  | '/projects/$repoId/code'
-  | '/projects/$repoId/issues';
-
-export type ProjectIssueDetailPath = `/projects/${string}/issues/${number}`;
+  '/projects/$repoId/code';
 
 export type ProjectExtensionTabId = `extension:${string}`;
 
@@ -24,7 +21,6 @@ const GITHUB_PULL_REQUESTS_EXTENSION_ID = 'gh-prs';
 
 const PROJECT_TAB_ROUTE_BY_VALUE: Record<ProjectViewTab, ProjectTabRouteTo> = {
   code: '/projects/$repoId/code',
-  issues: '/projects/$repoId/issues',
 };
 
 export const isAbsoluteProjectPath = (value: string): boolean =>
@@ -152,8 +148,6 @@ export const getProjectTabIdFromRouteMatch = ({
   switch (fullPath) {
     case '/projects/$repoId/code':
       return 'code';
-    case '/projects/$repoId/issues':
-      return 'issues';
     case '/projects/$repoId/extensions/$extensionId':
       return extensionId ? toProjectExtensionTabId(extensionId) : DEFAULT_PROJECT_VIEW_TAB;
     default:
@@ -228,9 +222,3 @@ export const getAdjacentProjectTabRepoId = (
 
   return repos[adjacentRepoIndex]?.id ?? null;
 };
-
-export const getProjectIssueDetailPath = (
-  repoId: string,
-  issueNumber: number,
-): ProjectIssueDetailPath =>
-  `/projects/${encodeURIComponent(repoId)}/issues/${issueNumber}`;

@@ -4,7 +4,7 @@ MLP
   - Handle add repo
     - Read remote repo's `devland.json` to install extensions for remote repos
     - Show README
-- PR and Issue tab must handle missing `gh` CLI themselves
+
 - `devland.json` "suggestedPrompts"
 - Extract PRs/Issues/Channels into extensions
 - Channels needs auth
@@ -15,5 +15,7 @@ MLP
   - Shortcuts: CMD+D duplicate current session on new tab, CMD+T create new worktree (configure worktree setup script, maybe `.devland/setup`)
 
 TODO:
-Diff viewer
-- double-click open on editor (Editor user preference)
+- Files changed double-click open on editor (Editor user preference)
+- Check if PR and Issue tab must handle missing `gh` CLI themselves
+- Extract out packages/devland-sdk/src/gh-issues.ts and packages/devland-sdk/src/gh-prs.ts to their respective extension code, that shouldn't live in the sdk
+-

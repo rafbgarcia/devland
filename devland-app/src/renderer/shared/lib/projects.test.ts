@@ -11,9 +11,9 @@ import {
 describe('getProjectTabRoute', () => {
   it('builds built-in routes', () => {
     assert.deepEqual(
-      getProjectTabRoute('devland', 'issues'),
+      getProjectTabRoute('devland', 'code'),
       {
-        to: '/projects/$repoId/issues',
+        to: '/projects/$repoId/code',
         params: { repoId: 'devland' },
       },
     );
@@ -46,9 +46,9 @@ describe('getProjectTabIdFromRouteMatch', () => {
   it('parses built-in tabs from matched routes', () => {
     assert.equal(
       getProjectTabIdFromRouteMatch({
-        fullPath: '/projects/$repoId/issues',
+        fullPath: '/projects/$repoId/code',
       }),
-      'issues',
+      'code',
     );
   });
 

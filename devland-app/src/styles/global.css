@@ -167,6 +167,7 @@
 
 .devland-terminal .xterm {
   height: 100%;
+  padding: var(--spacing-3);
 }
 
 .devland-terminal .xterm-screen {

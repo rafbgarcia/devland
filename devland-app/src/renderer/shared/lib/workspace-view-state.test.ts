@@ -53,7 +53,7 @@ describe('sanitizeWorkspaceSession', () => {
             activeCodePaneId: 'not-a-pane',
           },
           '': {
-            activeTabId: 'issues',
+            activeTabId: 'code',
           },
         },
       }),

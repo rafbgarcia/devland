@@ -52,7 +52,6 @@ import { cn } from '@/shadcn/lib/utils';
 
 const VIEW_TABS = [
   { value: 'code', label: 'Code', icon: CodeIcon },
-  { value: 'issues', label: 'Issues', icon: MessageSquareDotIcon },
 ] as const satisfies ReadonlyArray<{
   value: ProjectViewTab;
   label: string;

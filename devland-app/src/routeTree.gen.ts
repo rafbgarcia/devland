@@ -14,7 +14,6 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProjectsIndexRouteImport } from './routes/projects.index'
 import { Route as ProjectsRepoIdRouteImport } from './routes/projects.$repoId'
 import { Route as ProjectsRepoIdIndexRouteImport } from './routes/projects.$repoId.index'
-import { Route as ProjectsRepoIdIssuesRouteImport } from './routes/projects.$repoId.issues'
 import { Route as ProjectsRepoIdCodeRouteImport } from './routes/projects.$repoId.code'
 import { Route as ProjectsRepoIdExtensionsExtensionIdRouteImport } from './routes/projects.$repoId.extensions.$extensionId'
 
@@ -43,11 +42,6 @@ const ProjectsRepoIdIndexRoute = ProjectsRepoIdIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ProjectsRepoIdRoute,
 } as any)
-const ProjectsRepoIdIssuesRoute = ProjectsRepoIdIssuesRouteImport.update({
-  id: '/issues',
-  path: '/issues',
-  getParentRoute: () => ProjectsRepoIdRoute,
-} as any)
 const ProjectsRepoIdCodeRoute = ProjectsRepoIdCodeRouteImport.update({
   id: '/code',
   path: '/code',
@@ -66,7 +60,6 @@ export interface FileRoutesByFullPath {
   '/projects/$repoId': typeof ProjectsRepoIdRouteWithChildren
   '/projects/': typeof ProjectsIndexRoute
   '/projects/$repoId/code': typeof ProjectsRepoIdCodeRoute
-  '/projects/$repoId/issues': typeof ProjectsRepoIdIssuesRoute
   '/projects/$repoId/': typeof ProjectsRepoIdIndexRoute
   '/projects/$repoId/extensions/$extensionId': typeof ProjectsRepoIdExtensionsExtensionIdRoute
 }
@@ -75,7 +68,6 @@ export interface FileRoutesByTo {
   '/onboarding-prerequisites': typeof OnboardingPrerequisitesRoute
   '/projects': typeof ProjectsIndexRoute
   '/projects/$repoId/code': typeof ProjectsRepoIdCodeRoute
-  '/projects/$repoId/issues': typeof ProjectsRepoIdIssuesRoute
   '/projects/$repoId': typeof ProjectsRepoIdIndexRoute
   '/projects/$repoId/extensions/$extensionId': typeof ProjectsRepoIdExtensionsExtensionIdRoute
 }
@@ -86,7 +78,6 @@ export interface FileRoutesById {
   '/projects/$repoId': typeof ProjectsRepoIdRouteWithChildren
   '/projects/': typeof ProjectsIndexRoute
   '/projects/$repoId/code': typeof ProjectsRepoIdCodeRoute
-  '/projects/$repoId/issues': typeof ProjectsRepoIdIssuesRoute
   '/projects/$repoId/': typeof ProjectsRepoIdIndexRoute
   '/projects/$repoId/extensions/$extensionId': typeof ProjectsRepoIdExtensionsExtensionIdRoute
 }
@@ -98,7 +89,6 @@ export interface FileRouteTypes {
     | '/projects/$repoId'
     | '/projects/'
     | '/projects/$repoId/code'
-    | '/projects/$repoId/issues'
     | '/projects/$repoId/'
     | '/projects/$repoId/extensions/$extensionId'
   fileRoutesByTo: FileRoutesByTo
@@ -107,7 +97,6 @@ export interface FileRouteTypes {
     | '/onboarding-prerequisites'
     | '/projects'
     | '/projects/$repoId/code'
-    | '/projects/$repoId/issues'
     | '/projects/$repoId'
     | '/projects/$repoId/extensions/$extensionId'
   id:
@@ -117,7 +106,6 @@ export interface FileRouteTypes {
     | '/projects/$repoId'
     | '/projects/'
     | '/projects/$repoId/code'
-    | '/projects/$repoId/issues'
     | '/projects/$repoId/'
     | '/projects/$repoId/extensions/$extensionId'
   fileRoutesById: FileRoutesById
@@ -166,13 +154,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsRepoIdIndexRouteImport
       parentRoute: typeof ProjectsRepoIdRoute
     }
-    '/projects/$repoId/issues': {
-      id: '/projects/$repoId/issues'
-      path: '/issues'
-      fullPath: '/projects/$repoId/issues'
-      preLoaderRoute: typeof ProjectsRepoIdIssuesRouteImport
-      parentRoute: typeof ProjectsRepoIdRoute
-    }
     '/projects/$repoId/code': {
       id: '/projects/$repoId/code'
       path: '/code'
@@ -192,14 +173,12 @@ declare module '@tanstack/react-router' {
 
 interface ProjectsRepoIdRouteChildren {
   ProjectsRepoIdCodeRoute: typeof ProjectsRepoIdCodeRoute
-  ProjectsRepoIdIssuesRoute: typeof ProjectsRepoIdIssuesRoute
   ProjectsRepoIdIndexRoute: typeof ProjectsRepoIdIndexRoute
   ProjectsRepoIdExtensionsExtensionIdRoute: typeof ProjectsRepoIdExtensionsExtensionIdRoute
 }
 
 const ProjectsRepoIdRouteChildren: ProjectsRepoIdRouteChildren = {
   ProjectsRepoIdCodeRoute: ProjectsRepoIdCodeRoute,
-  ProjectsRepoIdIssuesRoute: ProjectsRepoIdIssuesRoute,
   ProjectsRepoIdIndexRoute: ProjectsRepoIdIndexRoute,
   ProjectsRepoIdExtensionsExtensionIdRoute:
     ProjectsRepoIdExtensionsExtensionIdRoute,
