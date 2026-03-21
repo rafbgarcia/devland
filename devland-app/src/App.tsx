@@ -1,6 +1,5 @@
 import './styles/global.css';
 
-import { ConvexProvider } from 'convex/react';
 import {
   createHashHistory,
   createRouter,
@@ -10,7 +9,6 @@ import { Provider as JotaiProvider } from 'jotai';
 
 import { appJotaiStore } from '@/renderer/shared/lib/jotai-store';
 import { TooltipProvider } from '@/shadcn/components/ui/tooltip';
-import { convex } from '@/renderer/shared/lib/convex';
 
 import { routeTree } from './routeTree.gen';
 
@@ -33,11 +31,9 @@ declare module '@tanstack/react-router' {
 export function App() {
   return (
     <JotaiProvider store={appJotaiStore}>
-      <ConvexProvider client={convex}>
-        <TooltipProvider>
-          <RouterProvider router={router} />
-        </TooltipProvider>
-      </ConvexProvider>
+      <TooltipProvider>
+        <RouterProvider router={router} />
+      </TooltipProvider>
     </JotaiProvider>
   );
 }

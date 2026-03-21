@@ -3,13 +3,13 @@ import {
   GitPullRequestIcon,
 } from 'lucide-react';
 
-import type { ProjectPullRequestFeedItem } from '@/ipc/contracts';
+import type { ProjectPullRequestFeedItem } from '@devlandapp/sdk';
+
 import {
   ProjectFeedItemFrame,
 } from '@/renderer/shared/ui/project-feed/project-feed';
 import { cn } from '@/shadcn/lib/utils';
 
-import { PrReviewButton } from './pr-review-button';
 import { PullRequestDiffStats } from './pull-request-diff-stats';
 
 export function PullRequestFeedItem({
@@ -53,13 +53,6 @@ export function PullRequestFeedItem({
               <span className="font-normal text-muted-foreground">(#{item.number})</span>
             </span>
           </span>
-        }
-        sublineExtra={
-          <PrReviewButton
-            size="xs"
-            pr={item}
-            className="opacity-0 group-hover/pr:opacity-100"
-          />
         }
         sublineAside={
           <PullRequestDiffStats

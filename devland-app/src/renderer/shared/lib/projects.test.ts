@@ -4,15 +4,16 @@ import { describe, it } from 'node:test';
 import {
   getProjectTabIdFromRouteMatch,
   getProjectTabRoute,
+  resolveProjectTabId,
   toProjectExtensionTabId,
 } from '@/renderer/shared/lib/projects';
 
 describe('getProjectTabRoute', () => {
   it('builds built-in routes', () => {
     assert.deepEqual(
-      getProjectTabRoute('devland', 'pull-requests'),
+      getProjectTabRoute('devland', 'issues'),
       {
-        to: '/projects/$repoId/pull-requests',
+        to: '/projects/$repoId/issues',
         params: { repoId: 'devland' },
       },
     );
@@ -32,13 +33,22 @@ describe('getProjectTabRoute', () => {
   });
 });
 
+describe('resolveProjectTabId', () => {
+  it('maps the legacy pull requests tab id to the gh-prs extension tab id', () => {
+    assert.equal(
+      resolveProjectTabId('pull-requests'),
+      toProjectExtensionTabId('gh-prs'),
+    );
+  });
+});
+
 describe('getProjectTabIdFromRouteMatch', () => {
   it('parses built-in tabs from matched routes', () => {
     assert.equal(
       getProjectTabIdFromRouteMatch({
-        fullPath: '/projects/$repoId/pull-requests',
+        fullPath: '/projects/$repoId/issues',
       }),
-      'pull-requests',
+      'issues',
     );
   });
 

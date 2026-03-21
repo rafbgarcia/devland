@@ -19,7 +19,6 @@ const READDIR_CONCURRENCY = 32;
 const GIT_LIST_MAX_BUFFER_BYTES = 16 * 1024 * 1024;
 const IGNORED_DIRECTORY_NAMES = new Set([
   '.git',
-  '.convex',
   '.next',
   '.turbo',
   '.cache',

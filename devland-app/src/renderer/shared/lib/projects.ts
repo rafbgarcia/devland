@@ -8,13 +8,9 @@ import {
 
 export type ProjectTabRouteTo =
   | '/projects/$repoId/code'
-  | '/projects/$repoId/pull-requests'
-  | '/projects/$repoId/issues'
-  | '/projects/$repoId/channels';
+  | '/projects/$repoId/issues';
 
 export type ProjectIssueDetailPath = `/projects/${string}/issues/${number}`;
-
-export type ProjectPullRequestDetailPath = `/projects/${string}/pull-requests/${number}`;
 
 export type ProjectExtensionTabId = `extension:${string}`;
 
@@ -23,12 +19,12 @@ export type ProjectTabId = ProjectViewTab | ProjectExtensionTabId;
 const GITHUB_REPO_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const PROJECT_VIEW_TAB_SET = new Set<string>(PROJECT_VIEW_TABS);
 const EXTENSION_TAB_ID_PREFIX = 'extension:';
+const LEGACY_PULL_REQUESTS_TAB_ID = 'pull-requests';
+const GITHUB_PULL_REQUESTS_EXTENSION_ID = 'gh-prs';
 
 const PROJECT_TAB_ROUTE_BY_VALUE: Record<ProjectViewTab, ProjectTabRouteTo> = {
   code: '/projects/$repoId/code',
-  'pull-requests': '/projects/$repoId/pull-requests',
   issues: '/projects/$repoId/issues',
-  channels: '/projects/$repoId/channels',
 };
 
 export const isAbsoluteProjectPath = (value: string): boolean =>
@@ -128,6 +124,10 @@ export const resolveProjectTabId = (
   fallbackTabId: ProjectTabId = DEFAULT_PROJECT_VIEW_TAB,
 ): ProjectTabId => {
   if (value !== undefined && value !== null) {
+    if (value === LEGACY_PULL_REQUESTS_TAB_ID) {
+      return toProjectExtensionTabId(GITHUB_PULL_REQUESTS_EXTENSION_ID);
+    }
+
     if (isProjectViewTab(value)) {
       return value;
     }
@@ -152,12 +152,8 @@ export const getProjectTabIdFromRouteMatch = ({
   switch (fullPath) {
     case '/projects/$repoId/code':
       return 'code';
-    case '/projects/$repoId/pull-requests':
-      return 'pull-requests';
     case '/projects/$repoId/issues':
       return 'issues';
-    case '/projects/$repoId/channels':
-      return 'channels';
     case '/projects/$repoId/extensions/$extensionId':
       return extensionId ? toProjectExtensionTabId(extensionId) : DEFAULT_PROJECT_VIEW_TAB;
     default:
@@ -238,9 +234,3 @@ export const getProjectIssueDetailPath = (
   issueNumber: number,
 ): ProjectIssueDetailPath =>
   `/projects/${encodeURIComponent(repoId)}/issues/${issueNumber}`;
-
-export const getProjectPullRequestDetailPath = (
-  repoId: string,
-  pullRequestNumber: number,
-): ProjectPullRequestDetailPath =>
-  `/projects/${encodeURIComponent(repoId)}/pull-requests/${pullRequestNumber}`;

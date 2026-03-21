@@ -54,9 +54,7 @@ const developmentContentSecurityPolicy = [
   "img-src 'self' data: https://*.githubusercontent.com",
   "font-src 'self' data:",
   `frame-src 'self' ${DEVLAND_EXTENSION_PROTOCOL}: http://127.0.0.1:* http://localhost:* https:`,
-  `connect-src 'self' https://*.convex.cloud https://*.convex.site wss://*.convex.cloud ${devServerOrigin} ${
-    devServerOrigin?.replace(/^http/, 'ws') ?? ''
-  }`,
+  `connect-src 'self' ${devServerOrigin} ${devServerOrigin?.replace(/^http/, 'ws') ?? ''}`,
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

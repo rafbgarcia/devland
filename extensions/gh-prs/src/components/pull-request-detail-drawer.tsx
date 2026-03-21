@@ -4,14 +4,14 @@ import {
   GitPullRequestIcon,
 } from 'lucide-react';
 
-import type { ProjectPullRequestFeedItem } from '@/ipc/contracts';
+import type { ProjectPullRequestFeedItem } from '@devlandapp/sdk';
+
+import { RelativeTime } from '@/renderer/shared/ui/relative-time';
 import { getAuthorLogin } from '@/renderer/shared/lib/github-view';
 import { SlidingDetailDrawer } from '@/renderer/shared/ui/sliding-detail-drawer';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shadcn/components/ui/avatar';
 import { Badge } from '@/shadcn/components/ui/badge';
-import { RelativeTime } from '@/renderer/shared/ui/relative-time';
 
-import { PrReviewButton } from './pr-review-button';
 import { PullRequestDiffStats } from './pull-request-diff-stats';
 
 function PullRequestDetailContent({
@@ -42,7 +42,7 @@ function PullRequestDetailContent({
               <ExternalLinkIcon className="size-3 shrink-0 text-muted-foreground transition-colors group-hover/title:text-foreground" />
             </a>
           </div>
-          <div className="flex flex-col shrink-0 items-center gap-2">
+          <div className="flex shrink-0 flex-col items-center gap-2">
             {pr.labels.length > 0 && (
               <div className="flex flex-wrap gap-1">
                 {pr.labels.map((label) => (
@@ -67,10 +67,6 @@ function PullRequestDetailContent({
               deletions={pr.deletions}
             />
           </div>
-        </div>
-
-        <div>
-          <PrReviewButton pr={pr} />
         </div>
       </div>
 

@@ -14,10 +14,8 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProjectsIndexRouteImport } from './routes/projects.index'
 import { Route as ProjectsRepoIdRouteImport } from './routes/projects.$repoId'
 import { Route as ProjectsRepoIdIndexRouteImport } from './routes/projects.$repoId.index'
-import { Route as ProjectsRepoIdPullRequestsRouteImport } from './routes/projects.$repoId.pull-requests'
 import { Route as ProjectsRepoIdIssuesRouteImport } from './routes/projects.$repoId.issues'
 import { Route as ProjectsRepoIdCodeRouteImport } from './routes/projects.$repoId.code'
-import { Route as ProjectsRepoIdChannelsRouteImport } from './routes/projects.$repoId.channels'
 import { Route as ProjectsRepoIdExtensionsExtensionIdRouteImport } from './routes/projects.$repoId.extensions.$extensionId'
 
 const OnboardingPrerequisitesRoute = OnboardingPrerequisitesRouteImport.update({
@@ -45,12 +43,6 @@ const ProjectsRepoIdIndexRoute = ProjectsRepoIdIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ProjectsRepoIdRoute,
 } as any)
-const ProjectsRepoIdPullRequestsRoute =
-  ProjectsRepoIdPullRequestsRouteImport.update({
-    id: '/pull-requests',
-    path: '/pull-requests',
-    getParentRoute: () => ProjectsRepoIdRoute,
-  } as any)
 const ProjectsRepoIdIssuesRoute = ProjectsRepoIdIssuesRouteImport.update({
   id: '/issues',
   path: '/issues',
@@ -59,11 +51,6 @@ const ProjectsRepoIdIssuesRoute = ProjectsRepoIdIssuesRouteImport.update({
 const ProjectsRepoIdCodeRoute = ProjectsRepoIdCodeRouteImport.update({
   id: '/code',
   path: '/code',
-  getParentRoute: () => ProjectsRepoIdRoute,
-} as any)
-const ProjectsRepoIdChannelsRoute = ProjectsRepoIdChannelsRouteImport.update({
-  id: '/channels',
-  path: '/channels',
   getParentRoute: () => ProjectsRepoIdRoute,
 } as any)
 const ProjectsRepoIdExtensionsExtensionIdRoute =
@@ -78,10 +65,8 @@ export interface FileRoutesByFullPath {
   '/onboarding-prerequisites': typeof OnboardingPrerequisitesRoute
   '/projects/$repoId': typeof ProjectsRepoIdRouteWithChildren
   '/projects/': typeof ProjectsIndexRoute
-  '/projects/$repoId/channels': typeof ProjectsRepoIdChannelsRoute
   '/projects/$repoId/code': typeof ProjectsRepoIdCodeRoute
   '/projects/$repoId/issues': typeof ProjectsRepoIdIssuesRoute
-  '/projects/$repoId/pull-requests': typeof ProjectsRepoIdPullRequestsRoute
   '/projects/$repoId/': typeof ProjectsRepoIdIndexRoute
   '/projects/$repoId/extensions/$extensionId': typeof ProjectsRepoIdExtensionsExtensionIdRoute
 }
@@ -89,10 +74,8 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/onboarding-prerequisites': typeof OnboardingPrerequisitesRoute
   '/projects': typeof ProjectsIndexRoute
-  '/projects/$repoId/channels': typeof ProjectsRepoIdChannelsRoute
   '/projects/$repoId/code': typeof ProjectsRepoIdCodeRoute
   '/projects/$repoId/issues': typeof ProjectsRepoIdIssuesRoute
-  '/projects/$repoId/pull-requests': typeof ProjectsRepoIdPullRequestsRoute
   '/projects/$repoId': typeof ProjectsRepoIdIndexRoute
   '/projects/$repoId/extensions/$extensionId': typeof ProjectsRepoIdExtensionsExtensionIdRoute
 }
@@ -102,10 +85,8 @@ export interface FileRoutesById {
   '/onboarding-prerequisites': typeof OnboardingPrerequisitesRoute
   '/projects/$repoId': typeof ProjectsRepoIdRouteWithChildren
   '/projects/': typeof ProjectsIndexRoute
-  '/projects/$repoId/channels': typeof ProjectsRepoIdChannelsRoute
   '/projects/$repoId/code': typeof ProjectsRepoIdCodeRoute
   '/projects/$repoId/issues': typeof ProjectsRepoIdIssuesRoute
-  '/projects/$repoId/pull-requests': typeof ProjectsRepoIdPullRequestsRoute
   '/projects/$repoId/': typeof ProjectsRepoIdIndexRoute
   '/projects/$repoId/extensions/$extensionId': typeof ProjectsRepoIdExtensionsExtensionIdRoute
 }
@@ -116,10 +97,8 @@ export interface FileRouteTypes {
     | '/onboarding-prerequisites'
     | '/projects/$repoId'
     | '/projects/'
-    | '/projects/$repoId/channels'
     | '/projects/$repoId/code'
     | '/projects/$repoId/issues'
-    | '/projects/$repoId/pull-requests'
     | '/projects/$repoId/'
     | '/projects/$repoId/extensions/$extensionId'
   fileRoutesByTo: FileRoutesByTo
@@ -127,10 +106,8 @@ export interface FileRouteTypes {
     | '/'
     | '/onboarding-prerequisites'
     | '/projects'
-    | '/projects/$repoId/channels'
     | '/projects/$repoId/code'
     | '/projects/$repoId/issues'
-    | '/projects/$repoId/pull-requests'
     | '/projects/$repoId'
     | '/projects/$repoId/extensions/$extensionId'
   id:
@@ -139,10 +116,8 @@ export interface FileRouteTypes {
     | '/onboarding-prerequisites'
     | '/projects/$repoId'
     | '/projects/'
-    | '/projects/$repoId/channels'
     | '/projects/$repoId/code'
     | '/projects/$repoId/issues'
-    | '/projects/$repoId/pull-requests'
     | '/projects/$repoId/'
     | '/projects/$repoId/extensions/$extensionId'
   fileRoutesById: FileRoutesById
@@ -191,13 +166,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsRepoIdIndexRouteImport
       parentRoute: typeof ProjectsRepoIdRoute
     }
-    '/projects/$repoId/pull-requests': {
-      id: '/projects/$repoId/pull-requests'
-      path: '/pull-requests'
-      fullPath: '/projects/$repoId/pull-requests'
-      preLoaderRoute: typeof ProjectsRepoIdPullRequestsRouteImport
-      parentRoute: typeof ProjectsRepoIdRoute
-    }
     '/projects/$repoId/issues': {
       id: '/projects/$repoId/issues'
       path: '/issues'
@@ -212,13 +180,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsRepoIdCodeRouteImport
       parentRoute: typeof ProjectsRepoIdRoute
     }
-    '/projects/$repoId/channels': {
-      id: '/projects/$repoId/channels'
-      path: '/channels'
-      fullPath: '/projects/$repoId/channels'
-      preLoaderRoute: typeof ProjectsRepoIdChannelsRouteImport
-      parentRoute: typeof ProjectsRepoIdRoute
-    }
     '/projects/$repoId/extensions/$extensionId': {
       id: '/projects/$repoId/extensions/$extensionId'
       path: '/extensions/$extensionId'
@@ -230,19 +191,15 @@ declare module '@tanstack/react-router' {
 }
 
 interface ProjectsRepoIdRouteChildren {
-  ProjectsRepoIdChannelsRoute: typeof ProjectsRepoIdChannelsRoute
   ProjectsRepoIdCodeRoute: typeof ProjectsRepoIdCodeRoute
   ProjectsRepoIdIssuesRoute: typeof ProjectsRepoIdIssuesRoute
-  ProjectsRepoIdPullRequestsRoute: typeof ProjectsRepoIdPullRequestsRoute
   ProjectsRepoIdIndexRoute: typeof ProjectsRepoIdIndexRoute
   ProjectsRepoIdExtensionsExtensionIdRoute: typeof ProjectsRepoIdExtensionsExtensionIdRoute
 }
 
 const ProjectsRepoIdRouteChildren: ProjectsRepoIdRouteChildren = {
-  ProjectsRepoIdChannelsRoute: ProjectsRepoIdChannelsRoute,
   ProjectsRepoIdCodeRoute: ProjectsRepoIdCodeRoute,
   ProjectsRepoIdIssuesRoute: ProjectsRepoIdIssuesRoute,
-  ProjectsRepoIdPullRequestsRoute: ProjectsRepoIdPullRequestsRoute,
   ProjectsRepoIdIndexRoute: ProjectsRepoIdIndexRoute,
   ProjectsRepoIdExtensionsExtensionIdRoute:
     ProjectsRepoIdExtensionsExtensionIdRoute,

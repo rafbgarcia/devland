@@ -33,7 +33,7 @@ describe('sanitizeWorkspaceSession', () => {
         activeRepoId: 'devland',
         repoViewById: {
           devland: {
-            activeTabId: 'pull-requests',
+            activeTabId: toProjectExtensionTabId('gh-prs'),
             activeCodeTargetId: 'target-1',
             activeCodePaneId: 'terminal',
           },
@@ -116,7 +116,11 @@ describe('areWorkspaceSessionsEqual', () => {
   it('compares nested repo view state', () => {
     const left = rememberCodePane(
       rememberCodeTarget(
-        rememberProjectTab(DEFAULT_WORKSPACE_SESSION, 'devland', 'pull-requests'),
+        rememberProjectTab(
+          DEFAULT_WORKSPACE_SESSION,
+          'devland',
+          toProjectExtensionTabId('gh-prs'),
+        ),
         'devland',
         'target-1',
       ),

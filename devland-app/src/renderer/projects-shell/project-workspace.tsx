@@ -5,7 +5,6 @@ import {
   CodeIcon,
   FolderOpenIcon,
   GitPullRequestArrowIcon,
-  HashIcon,
   MessageSquareDotIcon,
   PlusIcon,
   XIcon,
@@ -53,13 +52,7 @@ import { cn } from '@/shadcn/lib/utils';
 
 const VIEW_TABS = [
   { value: 'code', label: 'Code', icon: CodeIcon },
-  {
-    value: 'pull-requests',
-    label: 'Pull requests',
-    icon: GitPullRequestArrowIcon,
-  },
   { value: 'issues', label: 'Issues', icon: MessageSquareDotIcon },
-  { value: 'channels', label: 'Channels', icon: HashIcon },
 ] as const satisfies ReadonlyArray<{
   value: ProjectViewTab;
   label: string;
@@ -242,7 +235,6 @@ export function ProjectWorkspace({
       return typeof extensionId === 'string' ? extensionId : null;
     })(),
   });
-  const activeView = isProjectViewTab(activeTabId) ? activeTabId : 'code';
   const repoViewByIdRef = useRef(session.repoViewById);
 
   const tabs: ProjectWorkspaceTab[] = [
@@ -444,9 +436,7 @@ export function ProjectWorkspace({
         <div
           className={cn(
             'flex-1',
-            !isProjectViewTab(activeTabId) || activeView === 'channels'
-              ? 'min-h-0 overflow-hidden'
-              : 'overflow-y-auto',
+            !isProjectViewTab(activeTabId) ? 'min-h-0 overflow-hidden' : 'overflow-y-auto',
           )}
         >
           {children}
