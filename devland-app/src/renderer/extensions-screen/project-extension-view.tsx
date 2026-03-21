@@ -16,12 +16,15 @@ import {
   GhPrsSyncReviewRefsInputSchema,
   GhPrsGeneratePrReviewInputSchema,
   CreateGitHubPrReviewThreadInputSchema,
+  GhIssuesHostMethods,
+  GhIssuesGetIssueFeedInputSchema,
 } from '@devlandapp/sdk';
 import {
   AlertCircleIcon,
   DownloadIcon,
   ExternalLinkIcon,
   GitPullRequestArrowIcon,
+  MessageSquareDotIcon,
   PuzzleIcon,
   RefreshCwIcon,
 } from 'lucide-react';
@@ -44,6 +47,7 @@ import { Spinner } from '@/shadcn/components/ui/spinner';
 
 const EXTENSION_ICON_BY_NAME = {
   'git-pull-request': GitPullRequestArrowIcon,
+  'gh-issue': MessageSquareDotIcon,
 } as const;
 
 const buildExtensionContext = (
@@ -253,6 +257,15 @@ export function ProjectExtensionView({
 
                     return { path };
                   });
+                }
+                case GhIssuesHostMethods.getIssueFeed: {
+                  const input = GhIssuesGetIssueFeedInputSchema.parse(request.input);
+
+                  return window.electronAPI.getProjectIssues(
+                    input.owner,
+                    input.name,
+                    input.skipCache,
+                  );
                 }
                 default:
                   throw new Error(`Unsupported extension host method: ${request.method}`);

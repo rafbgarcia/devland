@@ -191,3 +191,4 @@ export function createDevlandClient() {
 }
 
 export * from './gh-prs.js';
+export * from './gh-issues.js';

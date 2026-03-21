@@ -68,6 +68,7 @@ type ProjectWorkspaceTab = {
 
 const EXTENSION_ICON_BY_NAME = {
   'git-pull-request': GitPullRequestArrowIcon,
+  'gh-issue': MessageSquareDotIcon,
 } as const;
 
 export function AddProjectDialog({

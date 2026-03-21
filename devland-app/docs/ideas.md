@@ -3,7 +3,8 @@ MLP
   - don't require `gh` CLI, handle
   - Handle add repo
     - Read remote repo's `devland.json` to install extensions for remote repos
-  - PR and Issue tab must handle missing `gh` CLI themselves
+    - Show README
+- PR and Issue tab must handle missing `gh` CLI themselves
 - `devland.json` "suggestedPrompts"
 - Extract PRs/Issues/Channels into extensions
 - Channels needs auth

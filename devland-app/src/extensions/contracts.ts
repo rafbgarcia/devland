@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const ExtensionIconSchema = z.enum(['git-pull-request']);
+export const ExtensionIconSchema = z.enum(['git-pull-request', 'gh-issue']);
 export type ExtensionIcon = z.infer<typeof ExtensionIconSchema>;
 
 const PortSchema = z
