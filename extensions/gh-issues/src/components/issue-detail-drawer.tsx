@@ -1,11 +1,11 @@
 import { ExternalLinkIcon } from 'lucide-react';
 
-import type { ProjectIssueFeedItem } from '@/issues/contracts';
-import { RelativeTime } from '@/renderer/shared/ui/relative-time';
-import { getAuthorLogin } from '@/renderer/shared/lib/github-view';
-import { SlidingDetailDrawer } from '@/renderer/shared/ui/sliding-detail-drawer';
-import { Avatar, AvatarFallback, AvatarImage } from '@/shadcn/components/ui/avatar';
-import { Badge } from '@/shadcn/components/ui/badge';
+import { RelativeTime } from '@/components/relative-time';
+import { SlidingDetailDrawer } from '@/components/sliding-detail-drawer';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { getAuthorLogin } from '@/lib/github';
+import type { ProjectIssueFeedItem } from '@/types/issues';
 
 function IssueDetailContent({ issue }: { issue: ProjectIssueFeedItem }) {
   return (

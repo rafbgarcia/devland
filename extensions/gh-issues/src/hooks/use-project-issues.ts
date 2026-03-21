@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { DevlandRepoContext } from '@devlandapp/sdk';
 
-import { getProjectIssues } from '@/issues/api';
-import type { ProjectIssueFeed } from '@/issues/contracts';
+import { getProjectIssues } from '@/api/issues';
+import type { ProjectIssueFeed } from '@/types/issues';
 
 type ProjectIssuesState =
   | { status: 'loading'; data: null; error: null }

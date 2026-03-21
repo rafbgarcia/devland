@@ -4,15 +4,16 @@ import { MessageSquareDotIcon } from 'lucide-react';
 
 import type { DevlandRepoContext } from '@devlandapp/sdk';
 
-import type { ProjectIssueFeed } from '@/issues/contracts';
 import {
   ProjectFeedScaffold,
   type ProjectFeedDefinition,
-} from '@/renderer/shared/ui/project-feed/project-feed';
-
-import { IssueDetailDrawer } from './issue-detail-drawer';
+} from '@/components/project-feed';
+import { useProjectIssues } from '@/hooks/use-project-issues';
+import type { ProjectIssueFeed } from '@/types/issues';
+import {
+  IssueDetailDrawer,
+} from './issue-detail-drawer';
 import { IssueFeedItem } from './issue-feed-item';
-import { useProjectIssues } from './use-project-issues';
 
 export function ProjectIssuesView({
   repo,

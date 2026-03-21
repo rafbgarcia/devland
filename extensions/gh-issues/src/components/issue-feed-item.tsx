@@ -1,8 +1,6 @@
-import type { ProjectIssueFeedItem } from '@/issues/contracts';
-import {
-  ProjectFeedItemFrame,
-} from '@/renderer/shared/ui/project-feed/project-feed';
-import { cn } from '@/shadcn/lib/utils';
+import { ProjectFeedItemFrame } from '@/components/project-feed';
+import { cn } from '@/lib/utils';
+import type { ProjectIssueFeedItem } from '@/types/issues';
 
 export function IssueFeedItem({
   item,

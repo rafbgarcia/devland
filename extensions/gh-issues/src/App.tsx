@@ -2,11 +2,10 @@ import { useEffect, useState } from 'react';
 
 import type { DevlandRepoContext } from '@devlandapp/sdk';
 
-import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';
-import { Spinner } from '@/shadcn/components/ui/spinner';
-
-import { ProjectIssuesView } from './components/project-issues-view';
-import { getExtensionContext } from './lib/devland';
+import { ProjectIssuesView } from '@/components/project-issues-view';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Spinner } from '@/components/ui/spinner';
+import { getExtensionContext } from '@/lib/devland';
 
 type AppState =
   | { status: 'loading'; repo: null; error: null }

@@ -2,7 +2,7 @@ import { useEffect, type ReactNode } from 'react';
 
 import { AnimatePresence, motion } from 'motion/react';
 
-import { DrawerCloseButton } from '@/renderer/shared/ui/drawer-close-button';
+import { DrawerCloseButton } from './drawer-close-button';
 
 export function SlidingDetailDrawer({
   open,

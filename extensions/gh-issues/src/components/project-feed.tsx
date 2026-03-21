@@ -2,33 +2,33 @@ import type { ReactNode } from 'react';
 
 import { GithubIcon, MessageSquareIcon, RefreshCwIcon } from 'lucide-react';
 
-import type { GitHubUserWithAvatar } from '@/issues/contracts';
-import { getAuthorLogin, getUniqueCommentAuthors } from '@/renderer/shared/lib/github-view';
-import { RelativeTime } from '@/renderer/shared/ui/relative-time';
-import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';
+import { RelativeTime } from '@/components/relative-time';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Avatar,
   AvatarFallback,
   AvatarGroup,
   AvatarGroupCount,
   AvatarImage,
-} from '@/shadcn/components/ui/avatar';
-import { Badge } from '@/shadcn/components/ui/badge';
+} from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import {
   Empty,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from '@/shadcn/components/ui/empty';
-import { Separator } from '@/shadcn/components/ui/separator';
-import { Spinner } from '@/shadcn/components/ui/spinner';
+} from '@/components/ui/empty';
+import { Separator } from '@/components/ui/separator';
+import { Spinner } from '@/components/ui/spinner';
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from '@/shadcn/components/ui/tooltip';
-import { cn } from '@/shadcn/lib/utils';
+} from '@/components/ui/tooltip';
+import { getAuthorLogin, getUniqueCommentAuthors } from '@/lib/github';
+import { cn } from '@/lib/utils';
+import type { GitHubUserWithAvatar } from '@/types/issues';
 
 const VISIBLE_AUTHORS_LIMIT = 3;
 
