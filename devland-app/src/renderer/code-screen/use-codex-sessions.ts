@@ -43,6 +43,7 @@ function createSessionStateAtom(sessionId: string) {
 }
 
 const sessionStateAtoms = new Map<string, ReturnType<typeof createSessionStateAtom>>();
+const pendingPromptChains = new Map<string, Promise<void>>();
 
 function readSessionState(
   liveStates: Record<string, CodexSessionState>,
@@ -250,7 +251,15 @@ export function useCodexSessionActions() {
   const resetSessionState = useSetAtom(resetSessionStateAtom);
   const restoreResumedThread = useSetAtom(restoreResumedThreadAtom);
 
-  const sendPrompt = async (sessionId: string, cwd: string, submission: CodexPromptSubmission) => {
+  const sendPrompt = async (
+    sessionId: string,
+    cwd: string,
+    submission: CodexPromptSubmission,
+    options?: {
+      beforeSend?: () => Promise<void>;
+      background?: boolean;
+    },
+  ) => {
     const previous = appJotaiStore.get(getSessionStateAtom(sessionId));
     const transcriptBootstrap =
       previous.threadId && previous.messages.length > 0
@@ -282,24 +291,44 @@ export function useCodexSessionActions() {
       })),
     });
 
-    try {
-      await window.electronAPI.sendCodexSessionPrompt({
-        sessionId,
-        cwd,
-        prompt: submission.prompt,
-        settings: submission.settings,
-        attachments: submission.attachments,
-        resumeThreadId: previous.threadId,
-        transcriptBootstrap,
+    const previousChain = pendingPromptChains.get(sessionId) ?? Promise.resolve();
+    const nextChain = previousChain
+      .catch(() => {})
+      .then(async () => {
+        try {
+          await options?.beforeSend?.();
+          await window.electronAPI.sendCodexSessionPrompt({
+            sessionId,
+            cwd,
+            prompt: submission.prompt,
+            settings: submission.settings,
+            attachments: submission.attachments,
+            resumeThreadId: previous.threadId,
+            transcriptBootstrap,
+          });
+        } catch (error) {
+          registerSessionFailure({
+            sessionId,
+            message:
+              error instanceof Error ? error.message : 'Failed to start Codex session.',
+          });
+          throw error;
+        }
+      })
+      .finally(() => {
+        if (pendingPromptChains.get(sessionId) === nextChain) {
+          pendingPromptChains.delete(sessionId);
+        }
       });
-    } catch (error) {
-      registerSessionFailure({
-        sessionId,
-        message:
-          error instanceof Error ? error.message : 'Failed to start Codex session.',
-      });
-      throw error;
+
+    pendingPromptChains.set(sessionId, nextChain);
+
+    if (options?.background) {
+      void nextChain.catch(() => {});
+      return;
     }
+
+    await nextChain;
   };
 
   const interruptSession = async (sessionId: string) => {
@@ -307,11 +336,13 @@ export function useCodexSessionActions() {
   };
 
   const stopSession = async (sessionId: string) => {
+    pendingPromptChains.delete(sessionId);
     await window.electronAPI.stopCodexSession(sessionId);
     removeSessionState(sessionId);
   };
 
   const resetSession = async (sessionId: string) => {
+    pendingPromptChains.delete(sessionId);
     await window.electronAPI.stopCodexSession(sessionId);
     resetSessionState(sessionId);
   };

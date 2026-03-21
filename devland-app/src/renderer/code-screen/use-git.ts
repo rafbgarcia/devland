@@ -9,10 +9,32 @@ type AsyncState<T> =
   | { status: 'ready'; data: T; error: null }
   | { status: 'error'; data: null; error: string };
 
+type ScopedAsyncState<T> = AsyncState<T> & {
+  repoPath: string;
+  refreshVersion: number;
+};
+
 type GitAsyncMetricKey =
   | 'gitBranchesFetch'
   | 'gitDefaultBranchFetch'
   | 'gitStatusFetch';
+
+export function getVisibleGitAsyncState<T>(
+  repoPath: string,
+  state: ScopedAsyncState<T>,
+): ScopedAsyncState<T> {
+  if (state.repoPath === repoPath) {
+    return state;
+  }
+
+  return {
+    repoPath,
+    status: 'loading',
+    data: null,
+    error: null,
+    refreshVersion: 0,
+  };
+}
 
 function useCoalescedGitAsyncState<T>({
   repoPath,
@@ -25,17 +47,19 @@ function useCoalescedGitAsyncState<T>({
   errorMessage: string;
   metricsKey: GitAsyncMetricKey;
 }) {
-  const [state, setState] = useState<AsyncState<T>>({
+  const [state, setState] = useState<ScopedAsyncState<T>>({
+    repoPath,
     status: 'loading',
     data: null,
     error: null,
+    refreshVersion: 0,
   });
-  const [refreshVersion, setRefreshVersion] = useState(0);
   const fetchIdRef = useRef(0);
   const runner = useMemo(() => createCoalescedTaskRunner(), [repoPath]);
 
   const fetchValue = useCallback(async () => {
     return runner.run(async () => {
+      const currentRepoPath = repoPath;
       const fetchId = ++fetchIdRef.current;
       incrementDevPerformanceCounter(`${metricsKey}Started`);
 
@@ -46,17 +70,25 @@ function useCoalescedGitAsyncState<T>({
           return;
         }
 
-        setState({ status: 'ready', data: value, error: null });
-        setRefreshVersion((current) => current + 1);
+        setState((current) => ({
+          repoPath: currentRepoPath,
+          status: 'ready',
+          data: value,
+          error: null,
+          refreshVersion:
+            current.repoPath === currentRepoPath ? current.refreshVersion + 1 : 1,
+        }));
       } catch (error) {
         if (fetchIdRef.current !== fetchId) {
           return;
         }
 
         setState({
+          repoPath: currentRepoPath,
           status: 'error',
           data: null,
           error: error instanceof Error ? error.message : errorMessage,
+          refreshVersion: 0,
         });
       } finally {
         incrementDevPerformanceCounter(`${metricsKey}Completed`);
@@ -65,12 +97,17 @@ function useCoalescedGitAsyncState<T>({
   }, [errorMessage, load, metricsKey, repoPath, runner]);
 
   useEffect(() => {
-    setState({ status: 'loading', data: null, error: null });
-    setRefreshVersion(0);
+    setState({
+      repoPath,
+      status: 'loading',
+      data: null,
+      error: null,
+      refreshVersion: 0,
+    });
     void fetchValue();
   }, [fetchValue]);
 
-  return { ...state, refetch: fetchValue, refreshVersion };
+  return { ...getVisibleGitAsyncState(repoPath, state), refetch: fetchValue };
 }
 
 export function useGitBranches(repoPath: string) {

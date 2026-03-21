@@ -35,7 +35,10 @@ export const GET_GIT_WORKING_TREE_DIFF_CHANNEL = 'app:get-git-working-tree-diff'
 export const CHECKOUT_GIT_BRANCH_CHANNEL = 'app:checkout-git-branch';
 export const GET_GIT_FILE_DIFF_CHANNEL = 'app:get-git-file-diff';
 export const CREATE_GIT_WORKTREE_CHANNEL = 'app:create-git-worktree';
-export const PROMOTE_GIT_WORKTREE_BRANCH_CHANNEL = 'app:promote-git-worktree-branch';
+export const SUGGEST_GIT_WORKTREE_BRANCH_NAME_CHANNEL = 'app:suggest-git-worktree-branch-name';
+export const CREATE_GIT_BRANCH_CHANNEL = 'app:create-git-branch';
+export const CHECK_GIT_WORKTREE_REMOVAL_CHANNEL = 'app:check-git-worktree-removal';
+export const REMOVE_GIT_WORKTREE_CHANNEL = 'app:remove-git-worktree';
 export const COMMIT_WORKING_TREE_SELECTION_CHANNEL = 'app:commit-working-tree-selection';
 export const GENERATE_PR_REVIEW_CHANNEL = 'app:generate-pr-review';
 export const SYNC_REPO_REVIEW_REFS_CHANNEL = 'app:sync-repo-review-refs';
@@ -348,15 +351,32 @@ export type CodeTarget = z.infer<typeof CodeTargetSchema>;
 
 export const CreateGitWorktreeResultSchema = z.object({
   cwd: z.string().min(1),
-  branch: z.string().min(1),
+  initialTitle: z.string().min(1),
   worktreeSetupCommand: z.string().min(1).optional(),
 });
 export type CreateGitWorktreeResult = z.infer<typeof CreateGitWorktreeResultSchema>;
 
-export const PromoteGitWorktreeBranchResultSchema = z.object({
+export const SuggestGitWorktreeBranchNameResultSchema = z.object({
   branch: z.string().min(1),
 });
-export type PromoteGitWorktreeBranchResult = z.infer<typeof PromoteGitWorktreeBranchResultSchema>;
+export type SuggestGitWorktreeBranchNameResult = z.infer<typeof SuggestGitWorktreeBranchNameResultSchema>;
+
+export const RemoveGitWorktreeReasonSchema = z.enum([
+  'dirty',
+  'unreferenced-detached-head',
+]);
+export type RemoveGitWorktreeReason = z.infer<typeof RemoveGitWorktreeReasonSchema>;
+
+export const CheckGitWorktreeRemovalResultSchema = z.discriminatedUnion('status', [
+  z.object({
+    status: z.literal('safe'),
+  }),
+  z.object({
+    status: z.literal('confirmation-required'),
+    reasons: z.array(RemoveGitWorktreeReasonSchema).min(1),
+  }),
+]);
+export type CheckGitWorktreeRemovalResult = z.infer<typeof CheckGitWorktreeRemovalResultSchema>;
 
 export const CommitWorkingTreeSelectionFileSchema = z.object({
   path: z.string().min(1),
@@ -725,11 +745,20 @@ export interface ElectronApi {
   checkoutGitBranch: (repoPath: string, branchName: string) => Promise<void>;
   getGitFileDiff: (repoPath: string, filePath: string) => Promise<string>;
   createGitWorktree: (repoPath: string, baseBranch: string) => Promise<CreateGitWorktreeResult>;
-  promoteGitWorktreeBranch: (
+  suggestGitWorktreeBranchName: (
     repoPath: string,
-    currentBranch: string,
     prompt: string,
-  ) => Promise<PromoteGitWorktreeBranchResult>;
+  ) => Promise<SuggestGitWorktreeBranchNameResult>;
+  createGitBranch: (repoPath: string, branchName: string) => Promise<void>;
+  checkGitWorktreeRemoval: (
+    repoPath: string,
+    worktreePath: string,
+  ) => Promise<CheckGitWorktreeRemovalResult>;
+  removeGitWorktree: (
+    repoPath: string,
+    worktreePath: string,
+    force?: boolean,
+  ) => Promise<void>;
   commitWorkingTreeSelection: (
     input: CommitWorkingTreeSelectionInput,
   ) => Promise<CommitWorkingTreeSelectionResult>;

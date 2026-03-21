@@ -10,12 +10,13 @@ import {
   CodeChangesMetaSchema,
   CommitWorkingTreeSelectionInputSchema,
   CommitWorkingTreeSelectionResultSchema,
+  CheckGitWorktreeRemovalResultSchema,
   CreateGitWorktreeResultSchema,
   GitBranchHistorySchema,
   PrDiffMetaResultSchema,
-  PromoteGitWorktreeBranchResultSchema,
   RepoDetailsSchema,
   type CodeChangesMeta,
+  type CheckGitWorktreeRemovalResult,
   type CommitWorkingTreeSelectionInput,
   type CommitWorkingTreeSelectionResult,
   type CodexTurnDiff,
@@ -26,7 +27,7 @@ import {
   type GitStatus,
   type PrDiffMeta,
   type PrDiffMetaResult,
-  type PromoteGitWorktreeBranchResult,
+  type RemoveGitWorktreeReason,
   type RepoDetails,
 } from '../ipc/contracts';
 import { parseUnifiedDiffDocument } from '../lib/diff';
@@ -322,11 +323,20 @@ const parseGitStatusEntries = (statusOutput: string) => {
   return files;
 };
 
-const CODEX_WORKTREE_BRANCH_PREFIX = 'codex';
-const TEMPORARY_WORKTREE_BRANCH_PATTERN = /^codex\/[0-9a-f]{8}$/;
+const DETACHED_WORKTREE_TITLE = '<branch name tbd>';
 
-const sanitizeBranchForDirectory = (branchName: string): string =>
-  branchName.replace(/[\\/]+/g, '-');
+const sanitizeRefForDirectory = (value: string): string => {
+  const normalized = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48);
+
+  return normalized || 'detached';
+};
+
+const buildDetachedWorktreeDirectoryName = (baseRef: string): string =>
+  `${sanitizeRefForDirectory(baseRef === 'HEAD' ? 'detached' : baseRef)}-${randomBytes(4).toString('hex')}`;
 
 const buildWorktreeBasePath = (repoPath: string): string =>
   path.join(
@@ -350,26 +360,42 @@ const branchExists = async (repoPath: string, branchName: string): Promise<boole
   }
 };
 
-const createTemporaryWorktreeBranchName = async (repoPath: string): Promise<string> => {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    const candidate = `${CODEX_WORKTREE_BRANCH_PREFIX}/${randomBytes(4).toString('hex')}`;
+export const normalizeGitBranchNameCandidate = (value: string): string => {
+  const segments = value
+    .trim()
+    .replace(/^codex\//i, '')
+    .toLowerCase()
+    .split('/')
+    .map((segment) =>
+      segment
+        .replace(/[^a-z0-9-]+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 48),
+    )
+    .filter((segment) => segment.length > 0);
 
-    if (!(await branchExists(repoPath, candidate))) {
-      return candidate;
-    }
-  }
-
-  throw new Error('Could not allocate a temporary worktree branch name.');
+  return segments.join('/');
 };
 
-const slugifyBranchName = (value: string): string => {
-  const slug = value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 48);
+export const buildFallbackGitBranchName = (value: string): string =>
+  normalizeGitBranchNameCandidate(value) || 'update';
 
-  return slug || 'task';
+const isValidGitBranchName = async (
+  repoPath: string,
+  branchName: string,
+): Promise<boolean> => {
+  try {
+    await execFileAsync(
+      'git',
+      ['-C', repoPath, 'check-ref-format', '--branch', branchName],
+      getGitReadOnlyExecOptions(),
+    );
+
+    return true;
+  } catch {
+    return false;
+  }
 };
 
 const resolveUniqueBranchName = async (
@@ -380,7 +406,7 @@ const resolveUniqueBranchName = async (
     return branchName;
   }
 
-  for (let suffix = 1; suffix <= 100; suffix += 1) {
+  for (let suffix = 2; suffix <= 100; suffix += 1) {
     const candidate = `${branchName}-${suffix}`;
 
     if (!(await branchExists(repoPath, candidate))) {
@@ -389,6 +415,25 @@ const resolveUniqueBranchName = async (
   }
 
   throw new Error('Could not allocate a unique promoted worktree branch name.');
+};
+
+export const resolveGitWorktreeBranchName = async (
+  repoPath: string,
+  candidateBranchName: string,
+  fallbackSource: string,
+): Promise<string> => {
+  const fallbackBranchName = buildFallbackGitBranchName(fallbackSource);
+  const normalizedCandidate = normalizeGitBranchNameCandidate(candidateBranchName);
+  const desiredBranchName =
+    normalizedCandidate.length > 0 && (await isValidGitBranchName(repoPath, normalizedCandidate))
+      ? normalizedCandidate
+      : fallbackBranchName;
+
+  if (!(await isValidGitBranchName(repoPath, desiredBranchName))) {
+    throw new Error('Could not derive a valid Git branch name.');
+  }
+
+  return resolveUniqueBranchName(repoPath, desiredBranchName);
 };
 
 export const getGitBranches = async (repoPath: string): Promise<GitBranch[]> => {
@@ -474,6 +519,17 @@ export const checkoutGitBranch = async (
   await execFileAsync(
     'git',
     ['-C', repoPath, 'checkout', branchName],
+    getGitExecOptions(),
+  );
+};
+
+export const createGitBranch = async (
+  repoPath: string,
+  branchName: string,
+): Promise<void> => {
+  await execFileAsync(
+    'git',
+    ['-C', repoPath, 'switch', '-c', branchName],
     getGitExecOptions(),
   );
 };
@@ -771,50 +827,83 @@ export const createGitWorktree = async (
   repoPath: string,
   baseBranch: string,
 ): Promise<CreateGitWorktreeResult> => {
-  const branch = await createTemporaryWorktreeBranchName(repoPath);
   const basePath = buildWorktreeBasePath(repoPath);
-  const directoryName = sanitizeBranchForDirectory(branch);
+  const directoryName = buildDetachedWorktreeDirectoryName(baseBranch);
   const targetPath = path.join(basePath, directoryName);
 
   mkdirSync(basePath, { recursive: true });
 
   await execFileAsync(
     'git',
-    ['-C', repoPath, 'worktree', 'add', '-b', branch, targetPath, baseBranch],
+    ['-C', repoPath, 'worktree', 'add', '--detach', targetPath, baseBranch],
     getGitExecOptions(),
   );
 
   return CreateGitWorktreeResultSchema.parse({
     cwd: targetPath,
-    branch,
+    initialTitle: DETACHED_WORKTREE_TITLE,
   });
 };
 
-export const promoteGitWorktreeBranch = async (
-  repoPath: string,
-  currentBranch: string,
-  prompt: string,
-): Promise<PromoteGitWorktreeBranchResult> => {
-  if (!TEMPORARY_WORKTREE_BRANCH_PATTERN.test(currentBranch)) {
-    return PromoteGitWorktreeBranchResultSchema.parse({
-      branch: currentBranch,
+const getRemoveGitWorktreeReasons = async (
+  worktreePath: string,
+): Promise<RemoveGitWorktreeReason[]> => {
+  const reasons: RemoveGitWorktreeReason[] = [];
+  const status = await getGitStatus(worktreePath);
+
+  if (status.files.length > 0) {
+    reasons.push('dirty');
+  }
+
+  if (status.branch === 'HEAD' && status.headRevision !== null) {
+    const { stdout } = await execFileAsync(
+      'git',
+      [
+        '-C', worktreePath,
+        'for-each-ref',
+        '--contains', status.headRevision,
+        '--format=%(refname)',
+        'refs/heads',
+        'refs/remotes',
+      ],
+      getGitReadOnlyExecOptions(),
+    );
+
+    if (stdout.trim().length === 0) {
+      reasons.push('unreferenced-detached-head');
+    }
+  }
+
+  return reasons;
+};
+
+export const checkGitWorktreeRemoval = async (
+  worktreePath: string,
+): Promise<CheckGitWorktreeRemovalResult> => {
+  const reasons = await getRemoveGitWorktreeReasons(worktreePath);
+
+  if (reasons.length > 0) {
+    return CheckGitWorktreeRemovalResultSchema.parse({
+      status: 'confirmation-required',
+      reasons,
     });
   }
 
-  const desiredBaseBranch = `${CODEX_WORKTREE_BRANCH_PREFIX}/${slugifyBranchName(prompt)}`;
-  const nextBranch = await resolveUniqueBranchName(repoPath, desiredBaseBranch);
-
-  if (nextBranch !== currentBranch) {
-    await execFileAsync(
-      'git',
-      ['-C', repoPath, 'branch', '-m', nextBranch],
-      getGitExecOptions(),
-    );
-  }
-
-  return PromoteGitWorktreeBranchResultSchema.parse({
-    branch: nextBranch,
+  return CheckGitWorktreeRemovalResultSchema.parse({
+    status: 'safe',
   });
+};
+
+export const removeGitWorktree = async (
+  repoPath: string,
+  worktreePath: string,
+  force = false,
+): Promise<void> => {
+  await execFileAsync(
+    'git',
+    ['-C', repoPath, 'worktree', 'remove', ...(force ? ['--force'] : []), worktreePath],
+    getGitExecOptions(),
+  );
 };
 
 const hasHeadCommit = async (repoPath: string): Promise<boolean> => {

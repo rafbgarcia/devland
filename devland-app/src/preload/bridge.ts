@@ -25,9 +25,12 @@ import {
   CHECKOUT_GIT_BRANCH_CHANNEL,
   GET_GIT_FILE_DIFF_CHANNEL,
   CREATE_GIT_WORKTREE_CHANNEL,
+  SUGGEST_GIT_WORKTREE_BRANCH_NAME_CHANNEL,
+  CREATE_GIT_BRANCH_CHANNEL,
+  CHECK_GIT_WORKTREE_REMOVAL_CHANNEL,
+  REMOVE_GIT_WORKTREE_CHANNEL,
   COMMIT_WORKING_TREE_SELECTION_CHANNEL,
   CREATE_GITHUB_PR_REVIEW_THREAD_CHANNEL,
-  PROMOTE_GIT_WORKTREE_BRANCH_CHANNEL,
   GENERATE_PR_REVIEW_CHANNEL,
   SYNC_REPO_REVIEW_REFS_CHANNEL,
   GET_PR_DIFF_META_CHANNEL,
@@ -139,13 +142,14 @@ export const electronApi: ElectronApi = {
     ipcRenderer.invoke(GET_GIT_FILE_DIFF_CHANNEL, repoPath, filePath),
   createGitWorktree: (repoPath, baseBranch) =>
     ipcRenderer.invoke(CREATE_GIT_WORKTREE_CHANNEL, repoPath, baseBranch),
-  promoteGitWorktreeBranch: (repoPath, currentBranch, prompt) =>
-    ipcRenderer.invoke(
-      PROMOTE_GIT_WORKTREE_BRANCH_CHANNEL,
-      repoPath,
-      currentBranch,
-      prompt,
-    ),
+  suggestGitWorktreeBranchName: (repoPath, prompt) =>
+    ipcRenderer.invoke(SUGGEST_GIT_WORKTREE_BRANCH_NAME_CHANNEL, repoPath, prompt),
+  createGitBranch: (repoPath, branchName) =>
+    ipcRenderer.invoke(CREATE_GIT_BRANCH_CHANNEL, repoPath, branchName),
+  checkGitWorktreeRemoval: (repoPath, worktreePath) =>
+    ipcRenderer.invoke(CHECK_GIT_WORKTREE_REMOVAL_CHANNEL, repoPath, worktreePath),
+  removeGitWorktree: (repoPath, worktreePath, force) =>
+    ipcRenderer.invoke(REMOVE_GIT_WORKTREE_CHANNEL, repoPath, worktreePath, force),
   commitWorkingTreeSelection: (input) =>
     ipcRenderer.invoke(COMMIT_WORKING_TREE_SELECTION_CHANNEL, input),
   generatePrReview: (repoPath, prNumber, title) =>

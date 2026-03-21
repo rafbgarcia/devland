@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
@@ -13,10 +13,13 @@ import {
   parseUnifiedDiffDocument,
 } from '@/lib/diff';
 import {
+  checkGitWorktreeRemoval,
   commitWorkingTreeSelection,
+  createGitWorktree,
   getGitBranchHistory,
   getGitStatus,
   getGitWorkingTreeDiff,
+  removeGitWorktree,
 } from '@/main-process/git';
 
 const execFileAsync = promisify(execFile);
@@ -26,6 +29,20 @@ async function execGit(cwd: string, args: string[]) {
     timeout: 15000,
     windowsHide: true,
   });
+}
+
+async function createCommittedRepo() {
+  const repoPath = mkdtempSync(path.join(tmpdir(), 'devland-git-test-'));
+
+  await execGit(repoPath, ['init']);
+  await execGit(repoPath, ['config', 'user.name', 'Devland Test']);
+  await execGit(repoPath, ['config', 'user.email', 'devland@example.com']);
+  writeFileSync(path.join(repoPath, 'tracked.txt'), 'tracked\n', 'utf8');
+  await execGit(repoPath, ['add', 'tracked.txt']);
+  await execGit(repoPath, ['commit', '-m', 'Initial commit']);
+  await execGit(repoPath, ['branch', '-M', 'main']);
+
+  return repoPath;
 }
 
 describe('commitWorkingTreeSelection', () => {
@@ -276,6 +293,109 @@ describe('getGitStatus', () => {
       assert.deepEqual(diffPaths, ['dist/assets/bundle.js', 'dist/index.html']);
     } finally {
       rmSync(repoPath, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('createGitWorktree', () => {
+  it('creates a detached worktree without creating a branch ref', async () => {
+    const repoPath = await createCommittedRepo();
+
+    try {
+      const result = await createGitWorktree(repoPath, 'main');
+      const worktreeStatus = await getGitStatus(result.cwd);
+      const branches = (await execGit(repoPath, ['branch', '--format=%(refname:short)'])).stdout
+        .trim()
+        .split('\n')
+        .filter(Boolean);
+
+      assert.equal(result.initialTitle, '<branch name tbd>');
+      assert.equal(worktreeStatus.branch, 'HEAD');
+      assert.deepEqual(branches, ['main']);
+
+      await removeGitWorktree(repoPath, result.cwd, true);
+    } finally {
+      rmSync(repoPath, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('checkGitWorktreeRemoval', () => {
+  it('reports a clean detached worktree as safe', async () => {
+    const repoPath = await createCommittedRepo();
+    const worktreePath = path.join(repoPath, '..', 'worktree-clean');
+
+    try {
+      await execGit(repoPath, ['worktree', 'add', '--detach', worktreePath, 'main']);
+
+      const result = await checkGitWorktreeRemoval(worktreePath);
+
+      assert.deepEqual(result, { status: 'safe' });
+    } finally {
+      rmSync(repoPath, { recursive: true, force: true });
+      rmSync(worktreePath, { recursive: true, force: true });
+    }
+  });
+
+  it('removes a clean detached worktree', async () => {
+    const repoPath = await createCommittedRepo();
+    const worktreePath = path.join(repoPath, '..', 'worktree-clean');
+
+    try {
+      await execGit(repoPath, ['worktree', 'add', '--detach', worktreePath, 'main']);
+
+      await removeGitWorktree(repoPath, worktreePath);
+      assert.equal(existsSync(worktreePath), false);
+    } finally {
+      rmSync(repoPath, { recursive: true, force: true });
+      rmSync(worktreePath, { recursive: true, force: true });
+    }
+  });
+
+  it('requires confirmation before removing a dirty detached worktree', async () => {
+    const repoPath = await createCommittedRepo();
+    const worktreePath = path.join(repoPath, '..', 'worktree-dirty');
+
+    try {
+      await execGit(repoPath, ['worktree', 'add', '--detach', worktreePath, 'main']);
+      writeFileSync(path.join(worktreePath, 'tracked.txt'), 'changed\n', 'utf8');
+
+      const preflight = await checkGitWorktreeRemoval(worktreePath);
+
+      assert.deepEqual(preflight, {
+        status: 'confirmation-required',
+        reasons: ['dirty'],
+      });
+
+      await removeGitWorktree(repoPath, worktreePath, true);
+      assert.equal(existsSync(worktreePath), false);
+    } finally {
+      rmSync(repoPath, { recursive: true, force: true });
+      rmSync(worktreePath, { recursive: true, force: true });
+    }
+  });
+
+  it('requires confirmation before removing detached commits that are not on any branch', async () => {
+    const repoPath = await createCommittedRepo();
+    const worktreePath = path.join(repoPath, '..', 'worktree-detached-commit');
+
+    try {
+      await execGit(repoPath, ['worktree', 'add', '--detach', worktreePath, 'main']);
+      writeFileSync(path.join(worktreePath, 'tracked.txt'), 'tracked\nnext\n', 'utf8');
+      await execGit(worktreePath, ['commit', '-am', 'Detached commit']);
+
+      const preflight = await checkGitWorktreeRemoval(worktreePath);
+
+      assert.deepEqual(preflight, {
+        status: 'confirmation-required',
+        reasons: ['unreferenced-detached-head'],
+      });
+
+      await removeGitWorktree(repoPath, worktreePath, true);
+      assert.equal(existsSync(worktreePath), false);
+    } finally {
+      rmSync(repoPath, { recursive: true, force: true });
+      rmSync(worktreePath, { recursive: true, force: true });
     }
   });
 });

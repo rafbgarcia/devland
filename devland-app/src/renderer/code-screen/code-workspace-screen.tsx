@@ -24,6 +24,7 @@ import {
 import {
   type CodeTarget,
   type CodeWorkspacePane,
+  type RemoveGitWorktreeReason,
 } from '@/ipc/contracts';
 import { BrowserPanel } from '@/renderer/code-screen/browser/browser-panel';
 import { clearBrowserTargetState } from '@/renderer/code-screen/browser/browser-target-state';
@@ -44,6 +45,11 @@ import {
   useGitStatus,
 } from '@/renderer/code-screen/use-git';
 import {
+  getWorktreeTargetTitle,
+  getWorktreePromptText,
+  shouldBootstrapDetachedWorktreeBranch,
+} from '@/renderer/code-screen/worktree-session';
+import {
   getGitStatusRefreshRequestForCodexEvent,
   requestGitStatusRefresh,
   subscribeToGitStatusRefresh,
@@ -56,14 +62,28 @@ import {
 } from '@/renderer/shared/lib/workspace-view-state';
 import { useWorkspaceSession } from '@/renderer/projects-shell/use-workspace-session';
 import { useRepos } from '@/renderer/projects-shell/use-repos';
+import { Button } from '@/shadcn/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/shadcn/components/ui/dialog';
 import { Tabs } from '@/shadcn/components/ui/tabs';
 import { cn } from '@/shadcn/lib/utils';
 
-const TEMPORARY_WORKTREE_BRANCH_PATTERN = /^codex\/[0-9a-f]{8}$/;
 const SESSION_TARGET_TITLE_PATTERN = /^Session\s+(\d+)$/;
 const SIDEBAR_MIN_WIDTH = 200;
 const SIDEBAR_MAX_WIDTH = 500;
 const SIDEBAR_DEFAULT_WIDTH = 280;
+
+type PendingWorktreeRemoval = {
+  target: CodeTarget;
+  wasActive: boolean;
+  reasons: RemoveGitWorktreeReason[];
+};
 
 function formatCodeTargetLabel(target: CodeTarget, rootBranch: string) {
   if (target.kind === 'root') {
@@ -131,6 +151,8 @@ export function CodeWorkspaceScreen({
   repoPath: string;
 }) {
   const [isCreatingWorktree, setIsCreatingWorktree] = useState(false);
+  const [pendingWorktreeRemoval, setPendingWorktreeRemoval] = useState<PendingWorktreeRemoval | null>(null);
+  const [isRemovingWorktree, setIsRemovingWorktree] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
   const [composerSettingsByTargetId, setComposerSettingsByTargetId] = useState<
     Record<string, CodexComposerSettings>
@@ -150,6 +172,7 @@ export function CodeWorkspaceScreen({
     addCurrentBranchSession,
     addWorktreeTarget,
     removeTarget,
+    restoreTarget,
     updateTarget,
   } = useCodeTargets(repoId, repoPath, rememberedTargetId);
   const sessionState = useCodexSessionState(activeTarget.id);
@@ -261,45 +284,54 @@ export function CodeWorkspaceScreen({
     }));
   }, [activeTarget.id]);
 
-  const handleSendPrompt = useCallback(async (submission: CodexPromptSubmission) => {
-    const branchPromotionPrompt =
-      submission.prompt.trim().length > 0
-        ? submission.prompt
-        : submission.attachments.map((attachment) => attachment.name).join(', ') || 'update';
-
-    if (
-      activeTarget.kind === 'worktree' &&
-      sessionState.messages.length === 0 &&
-      TEMPORARY_WORKTREE_BRANCH_PATTERN.test(activeTarget.title)
-    ) {
-      const promotion = await window.electronAPI.promoteGitWorktreeBranch(
-        activeTarget.cwd,
-        activeTarget.title,
-        branchPromotionPrompt,
-      );
-
-      if (promotion.branch !== activeTarget.title) {
-        updateTarget(activeTarget.id, (target) => ({
-          ...target,
-          title: promotion.branch,
-        }));
-        await Promise.all([
-          rootStatusState.refetch(),
-          statusState.refetch(),
-          defaultBranchState.refetch(),
-        ]);
-      }
+  const bootstrapDetachedWorktreeBranch = useCallback(async (submission: CodexPromptSubmission) => {
+    if (activeTarget.kind !== 'worktree') {
+      return;
     }
 
-    await sendPrompt(activeTarget.id, activeTarget.cwd, submission);
+    const suggestion = await window.electronAPI.suggestGitWorktreeBranchName(
+      activeTarget.cwd,
+      getWorktreePromptText(submission),
+    );
+
+    await window.electronAPI.createGitBranch(activeTarget.cwd, suggestion.branch);
+    updateTarget(activeTarget.id, (target) => ({
+      ...target,
+      title: suggestion.branch,
+    }));
+    await Promise.all([
+      statusState.refetch(),
+      defaultBranchState.refetch(),
+    ]);
   }, [
     activeTarget,
     defaultBranchState,
-    rootStatusState,
-    sendPrompt,
-    sessionState.messages.length,
     statusState,
     updateTarget,
+  ]);
+
+  const handleSendPrompt = useCallback(async (submission: CodexPromptSubmission) => {
+    const shouldBootstrapBranch = shouldBootstrapDetachedWorktreeBranch(
+      activeTarget,
+      sessionState.messages.length,
+    );
+
+    await sendPrompt(
+      activeTarget.id,
+      activeTarget.cwd,
+      submission,
+      shouldBootstrapBranch
+        ? {
+            background: true,
+            beforeSend: () => bootstrapDetachedWorktreeBranch(submission),
+          }
+        : undefined,
+    );
+  }, [
+    activeTarget,
+    bootstrapDetachedWorktreeBranch,
+    sendPrompt,
+    sessionState.messages.length,
   ]);
 
   const handleCreateWorktree = async () => {
@@ -307,7 +339,7 @@ export function CodeWorkspaceScreen({
 
     try {
       const result = await window.electronAPI.createGitWorktree(repoPath, activeBranch);
-      const target = addWorktreeTarget(result.cwd, result.branch);
+      const target = addWorktreeTarget(result.cwd, result.initialTitle);
 
       rememberActiveTarget(target.id);
 
@@ -327,6 +359,63 @@ export function CodeWorkspaceScreen({
     }
   };
 
+  const removeTargetFromUi = useCallback((target: CodeTarget, wasActive: boolean) => {
+    removeTarget(target.id);
+
+    if (wasActive) {
+      rememberActiveTarget(rootTarget.id);
+    }
+  }, [
+    rememberActiveTarget,
+    removeTarget,
+    rootTarget.id,
+  ]);
+
+  const restoreTargetInUi = useCallback((target: CodeTarget, wasActive: boolean) => {
+    restoreTarget(target);
+
+    if (wasActive) {
+      rememberActiveTarget(target.id);
+    }
+  }, [
+    rememberActiveTarget,
+    restoreTarget,
+  ]);
+
+  const disposeTargetResources = useCallback(async (target: CodeTarget) => {
+    await stopSession(target.id);
+    await window.electronAPI.closeTerminalSession(target.id);
+    await window.electronAPI.disposeBrowserView(target.id);
+    clearBrowserTargetState(target.id);
+  }, [stopSession]);
+
+  const removeClosedWorktree = useCallback(async (
+    target: CodeTarget,
+    wasActive: boolean,
+    force: boolean,
+  ) => {
+    let worktreeRemoved = false;
+
+    try {
+      await window.electronAPI.closeTerminalSession(target.id);
+      await window.electronAPI.disposeBrowserView(target.id);
+      clearBrowserTargetState(target.id);
+      await window.electronAPI.removeGitWorktree(repoPath, target.cwd, force);
+      worktreeRemoved = true;
+      await stopSession(target.id);
+    } catch (error) {
+      console.error('Failed to remove worktree:', error);
+
+      if (!worktreeRemoved) {
+        restoreTargetInUi(target, wasActive);
+      }
+    }
+  }, [
+    repoPath,
+    restoreTargetInUi,
+    stopSession,
+  ]);
+
   const handleRemoveTarget = useCallback(async (targetId: string) => {
     const target = targets.find((candidate) => candidate.id === targetId);
 
@@ -334,22 +423,93 @@ export function CodeWorkspaceScreen({
       return;
     }
 
-    await stopSession(target.id);
-    await window.electronAPI.closeTerminalSession(target.id);
-    await window.electronAPI.disposeBrowserView(target.id);
-    clearBrowserTargetState(target.id);
-    removeTarget(target.id);
+    const wasActive = activeTargetId === target.id;
 
-    if (activeTargetId === target.id) {
-      rememberActiveTarget(rootTarget.id);
+    if (target.kind !== 'worktree') {
+      removeTargetFromUi(target, wasActive);
+      void disposeTargetResources(target).catch((error) => {
+        console.error('Failed to close target:', error);
+        restoreTargetInUi(target, wasActive);
+      });
+      return;
     }
+
+    void (async () => {
+      try {
+        const removal = await window.electronAPI.checkGitWorktreeRemoval(
+          repoPath,
+          target.cwd,
+        );
+
+        if (removal.status === 'confirmation-required') {
+          setPendingWorktreeRemoval({
+            target,
+            wasActive,
+            reasons: removal.reasons,
+          });
+          return;
+        }
+
+        removeTargetFromUi(target, wasActive);
+        await removeClosedWorktree(target, wasActive, false);
+      } catch (error) {
+        console.error('Failed to remove worktree:', error);
+      }
+    })();
   }, [
     activeTargetId,
-    rememberActiveTarget,
-    removeTarget,
-    rootTarget.id,
-    stopSession,
+    disposeTargetResources,
+    removeClosedWorktree,
+    removeTargetFromUi,
+    repoPath,
     targets,
+  ]);
+
+  const handleConfirmWorktreeRemoval = useCallback(async () => {
+    if (pendingWorktreeRemoval === null) {
+      return;
+    }
+
+    const { target, wasActive } = pendingWorktreeRemoval;
+
+    setIsRemovingWorktree(true);
+    setPendingWorktreeRemoval(null);
+    removeTargetFromUi(target, wasActive);
+
+    void (async () => {
+      try {
+        await removeClosedWorktree(target, wasActive, true);
+      } finally {
+        setIsRemovingWorktree(false);
+      }
+    })();
+  }, [
+    removeClosedWorktree,
+    pendingWorktreeRemoval,
+    removeTargetFromUi,
+  ]);
+
+  useEffect(() => {
+    if (activeTarget.kind !== 'worktree' || statusState.status !== 'ready') {
+      return;
+    }
+
+    const nextTitle = getWorktreeTargetTitle(statusState.data.branch);
+
+    if (activeTarget.title === nextTitle) {
+      return;
+    }
+
+    updateTarget(activeTarget.id, (target) => ({
+      ...target,
+      title: nextTitle,
+    }));
+  }, [
+    activeTarget.id,
+    activeTarget.kind,
+    activeTarget.title,
+    statusState,
+    updateTarget,
   ]);
 
   const handleSidebarResize = useCallback((deltaX: number) => {
@@ -381,22 +541,16 @@ export function CodeWorkspaceScreen({
       2,
     );
 
-    await sendPrompt(
-      activeTarget.id,
-      activeTarget.cwd,
-      {
-        prompt: `Process this anchored diff comment.\n\nContext:\n\`\`\`json\n${payload}\n\`\`\`\n\nUser comment:\n${body}`,
-        settings: composerSettings,
-        attachments: [],
-      },
-    );
+    await handleSendPrompt({
+      prompt: `Process this anchored diff comment.\n\nContext:\n\`\`\`json\n${payload}\n\`\`\`\n\nUser comment:\n${body}`,
+      settings: composerSettings,
+      attachments: [],
+    });
     rememberActivePane('codex');
   }, [
-    activeTarget.cwd,
-    activeTarget.id,
     composerSettings,
+    handleSendPrompt,
     rememberActivePane,
-    sendPrompt,
   ]);
 
   useEffect(() => {
@@ -416,8 +570,26 @@ export function CodeWorkspaceScreen({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeTarget.id, interruptSession, resetSession, sessionState.status]);
 
-  const isRunning = sessionState.status === 'running';
+  const isRunning =
+    sessionState.status === 'connecting' || sessionState.status === 'running';
   const activeTargetLabel = targetLabels[activeTarget.id] ?? activeTarget.title;
+  const pendingWorktreeRemovalDescription = useMemo(() => {
+    if (pendingWorktreeRemoval === null) {
+      return '';
+    }
+
+    const messages: string[] = [];
+
+    if (pendingWorktreeRemoval.reasons.includes('dirty')) {
+      messages.push('This worktree has modified or untracked files that will be discarded.');
+    }
+
+    if (pendingWorktreeRemoval.reasons.includes('unreferenced-detached-head')) {
+      messages.push('Its detached HEAD contains commits that are not referenced by any branch and may become unreachable.');
+    }
+
+    return messages.join(' ');
+  }, [pendingWorktreeRemoval]);
   const handleActiveTargetChange = useCallback(
     (targetId: string) => {
       rememberActiveTarget(targetId);
@@ -431,7 +603,49 @@ export function CodeWorkspaceScreen({
   }, [addCurrentBranchSession, rememberActiveTarget]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <>
+      <Dialog
+        open={pendingWorktreeRemoval !== null}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen && !isRemovingWorktree) {
+            setPendingWorktreeRemoval(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove worktree?</DialogTitle>
+            <DialogDescription>
+              {pendingWorktreeRemoval === null
+                ? ''
+                : `Removing ${pendingWorktreeRemoval.target.title} will delete the git worktree. ${pendingWorktreeRemovalDescription}`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setPendingWorktreeRemoval(null)}
+              disabled={isRemovingWorktree}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => void handleConfirmWorktreeRemoval()}
+              disabled={isRemovingWorktree}
+            >
+              {isRemovingWorktree ? (
+                <LoaderCircleIcon data-icon="inline-start" className="animate-spin" />
+              ) : null}
+              Remove worktree
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <div className="flex h-full min-h-0 flex-col">
       <Tabs className="gap-0" value={activeTargetId} onValueChange={handleActiveTargetChange}>
         <div className="flex items-center gap-1 border-b border-border bg-muted/20 px-2 py-1.5">
           <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
@@ -637,6 +851,7 @@ export function CodeWorkspaceScreen({
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </>
   );
 }

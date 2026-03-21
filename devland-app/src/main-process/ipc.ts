@@ -27,9 +27,12 @@ import {
   CHECKOUT_GIT_BRANCH_CHANNEL,
   GET_GIT_FILE_DIFF_CHANNEL,
   CREATE_GIT_WORKTREE_CHANNEL,
+  SUGGEST_GIT_WORKTREE_BRANCH_NAME_CHANNEL,
+  CREATE_GIT_BRANCH_CHANNEL,
+  CHECK_GIT_WORKTREE_REMOVAL_CHANNEL,
+  REMOVE_GIT_WORKTREE_CHANNEL,
   COMMIT_WORKING_TREE_SELECTION_CHANNEL,
   CREATE_GITHUB_PR_REVIEW_THREAD_CHANNEL,
-  PROMOTE_GIT_WORKTREE_BRANCH_CHANNEL,
   GENERATE_PR_REVIEW_CHANNEL,
   SYNC_REPO_REVIEW_REFS_CHANNEL,
   GET_PR_DIFF_META_CHANNEL,
@@ -73,6 +76,7 @@ import { targetBrowserManager } from './browser/target-browser-manager';
 import { codexAppServerManager } from './codex-app-server';
 import { searchCodexPaths } from './codex-path-search';
 import { codexExecutable } from './codex-cli';
+import { suggestGitWorktreeBranchName } from './codex-use-cases/worktree-branch-name';
 import { generatePrReview } from './codex-use-cases/pr-review';
 import { ghExecutable } from './gh-cli';
 import { createGitHubPrReviewThread } from './gh-review-comments';
@@ -83,6 +87,8 @@ import { getRepoExtensions, installRepoExtension } from './extensions/repo-exten
 import { runExtensionCommand } from './extensions/runtime';
 import {
   checkoutGitBranch,
+  checkGitWorktreeRemoval,
+  createGitBranch,
   createGitWorktree,
   cloneGithubRepo,
   commitWorkingTreeSelection,
@@ -101,7 +107,7 @@ import {
   getGithubRepoDetails,
   getPrDiff,
   getPrDiffMeta,
-  promoteGitWorktreeBranch,
+  removeGitWorktree,
   syncRepoReviewRefs,
   getWorkingTreeFileText,
   validateLocalGitRepository,
@@ -246,6 +252,11 @@ export const registerAppIpcHandlers = (
       checkoutGitBranch(repoPath, branchName),
   );
   ipcMain.handle(
+    CREATE_GIT_BRANCH_CHANNEL,
+    (_event, repoPath: string, branchName: string) =>
+      createGitBranch(repoPath, branchName),
+  );
+  ipcMain.handle(
     GET_GIT_FILE_DIFF_CHANNEL,
     (_event, repoPath: string, filePath: string) =>
       getGitFileDiff(repoPath, filePath),
@@ -263,9 +274,24 @@ export const registerAppIpcHandlers = (
     },
   );
   ipcMain.handle(
-    PROMOTE_GIT_WORKTREE_BRANCH_CHANNEL,
-    (_event, repoPath: string, currentBranch: string, prompt: string) =>
-      promoteGitWorktreeBranch(repoPath, currentBranch, prompt),
+    SUGGEST_GIT_WORKTREE_BRANCH_NAME_CHANNEL,
+    (_event, repoPath: string, prompt: string) => {
+      if (codexExecutable === null) {
+        throw new Error('Codex CLI is not installed.');
+      }
+
+      return suggestGitWorktreeBranchName(codexExecutable, repoPath, prompt);
+    },
+  );
+  ipcMain.handle(
+    CHECK_GIT_WORKTREE_REMOVAL_CHANNEL,
+    (_event, _repoPath: string, worktreePath: string) =>
+      checkGitWorktreeRemoval(worktreePath),
+  );
+  ipcMain.handle(
+    REMOVE_GIT_WORKTREE_CHANNEL,
+    (_event, repoPath: string, worktreePath: string, force = false) =>
+      removeGitWorktree(repoPath, worktreePath, force),
   );
   ipcMain.handle(
     COMMIT_WORKING_TREE_SELECTION_CHANNEL,

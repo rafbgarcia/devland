@@ -28,6 +28,7 @@ import ReactMarkdown from 'react-markdown';
 import { useVirtualizer, type VirtualItem } from '@tanstack/react-virtual';
 
 import type { CodexSessionState } from '@/renderer/code-screen/codex-session-state';
+import { DETACHED_WORKTREE_TARGET_TITLE } from '@/renderer/code-screen/worktree-session';
 import {
   deriveSessionTimelineRows,
   estimateSessionTimelineRowHeight,
@@ -304,6 +305,11 @@ function EmptyState({
   targetLabel: string;
   onSendSuggestion: ((prompt: string) => void) | undefined;
 }) {
+  const resolvedTargetLabel =
+    targetLabel === DETACHED_WORKTREE_TARGET_TITLE
+      ? 'Branch will be created after the first message'
+      : targetLabel;
+
   return (
     <div className="flex h-full flex-col items-center justify-center px-8">
       <div className="flex max-w-md flex-col items-center gap-6">
@@ -317,7 +323,7 @@ function EmptyState({
             Branch
           </p>
           <h2 className="display-face text-2xl text-foreground/90">
-            {targetLabel}
+            {resolvedTargetLabel}
           </h2>
         </motion.div>
 

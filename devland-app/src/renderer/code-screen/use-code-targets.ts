@@ -159,6 +159,26 @@ export function useCodeTargets(
     [repoId, updateCodeTargets],
   );
 
+  const restoreTarget = useCallback(
+    (targetToRestore: CodeTarget) => {
+      updateCodeTargets((current) => {
+        const targetsForRepo = current[repoId] ?? [];
+
+        if (targetsForRepo.some((target) => target.id === targetToRestore.id)) {
+          return current;
+        }
+
+        return {
+          ...current,
+          [repoId]: [...targetsForRepo, targetToRestore].sort((left, right) =>
+            left.createdAt.localeCompare(right.createdAt),
+          ),
+        };
+      });
+    },
+    [repoId, updateCodeTargets],
+  );
+
   const updateTarget = useCallback(
     (targetId: string, updater: (target: CodeTarget) => CodeTarget) => {
       updateCodeTargets((current) => {
@@ -181,6 +201,7 @@ export function useCodeTargets(
     addCurrentBranchSession,
     addWorktreeTarget,
     removeTarget,
+    restoreTarget,
     updateTarget,
   };
 }
