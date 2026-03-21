@@ -4,6 +4,10 @@ import type {
   CodexSessionState,
   CodexTranscriptEntry,
 } from '@/renderer/code-screen/codex-session-state';
+import {
+  buildCollapsedProposedPlanPreviewMarkdown,
+  parseProposedPlanMessage,
+} from '@/renderer/code-screen/proposed-plan';
 
 export type SessionTimelineToolEntry = {
   id: string;
@@ -25,6 +29,15 @@ export type SessionTimelineRow =
       kind: 'message';
       message: CodexChatMessage;
       isStreaming: boolean;
+    }
+  | {
+      id: string;
+      kind: 'proposed-plan';
+      message: CodexChatMessage;
+      before: string | null;
+      after: string | null;
+      planMarkdown: string;
+      isLatest: boolean;
     }
   | {
       id: string;
@@ -123,6 +136,23 @@ export function deriveSessionTimelineRows(sessionState: CodexSessionState): Sess
         continue;
       }
 
+      if (entry.message.role === 'assistant') {
+        const proposedPlan = parseProposedPlanMessage(entry.message.text);
+
+        if (proposedPlan) {
+          rows.push({
+            id: entry.id,
+            kind: 'proposed-plan',
+            message: entry.message,
+            before: proposedPlan.before,
+            after: proposedPlan.after,
+            planMarkdown: proposedPlan.planMarkdown,
+            isLatest: sessionState.latestProposedPlan?.messageId === entry.message.id,
+          });
+          continue;
+        }
+      }
+
       rows.push({
         id: entry.id,
         kind: 'message',
@@ -208,6 +238,16 @@ export function estimateSessionTimelineRowHeight(
 
   if (row.kind === 'working') {
     return 42;
+  }
+
+  if (row.kind === 'proposed-plan') {
+    const charsPerLine = estimateCharsPerLineForAssistant(viewportWidthPx);
+    const preview = buildCollapsedProposedPlanPreviewMarkdown(row.planMarkdown, { maxLines: 6 });
+    const previewLines = estimateWrappedLineCount(preview, charsPerLine);
+    const beforeLines = row.before ? estimateWrappedLineCount(row.before, charsPerLine) : 0;
+    const afterLines = row.after ? estimateWrappedLineCount(row.after, charsPerLine) : 0;
+
+    return 184 + previewLines * 22 + (beforeLines + afterLines) * 24 + (row.isLatest ? 24 : 0);
   }
 
   if (row.message.role === 'user') {

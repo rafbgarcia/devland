@@ -31,6 +31,7 @@ const createSubmission = (
     reasoningEffort: 'medium',
     runtimeMode: 'full-access',
     fastMode: false,
+    interactionMode: 'default',
   },
   attachments: [],
   ...overrides,

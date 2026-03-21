@@ -8,6 +8,7 @@ import type {
 } from '@/ipc/contracts';
 import type { CodexChatImageAttachment } from '@/lib/codex-chat';
 import { isToolLifecycleItemType } from '@/lib/codex-session-items';
+import { parseProposedPlanMessage, proposedPlanTitle } from '@/renderer/code-screen/proposed-plan';
 
 const MAX_PERSISTED_SESSION_MESSAGES = 60;
 const MAX_PERSISTED_DIFF_PATCH_CHARS = 24_000;
@@ -67,12 +68,21 @@ export type ActiveCodexPlan = {
   plan: CodexPlanStep[];
 };
 
+export type ProposedCodexPlan = {
+  messageId: string;
+  turnId: string | null;
+  createdAt: string;
+  title: string | null;
+  planMarkdown: string;
+};
+
 export type CodexSessionState = {
   status: CodexSessionStatus;
   threadId: string | null;
   turnId: string | null;
   currentTurnStartedAt: string | null;
   activePlan: ActiveCodexPlan | null;
+  latestProposedPlan: ProposedCodexPlan | null;
   transcriptEntries: CodexTranscriptEntry[];
   messages: CodexChatMessage[];
   currentTurnEntries: CodexTranscriptEntry[];
@@ -84,6 +94,7 @@ export type CodexSessionState = {
 export type CodexSessionSnapshot = {
   threadId: string | null;
   activePlan?: ActiveCodexPlan | null;
+  latestProposedPlan?: ProposedCodexPlan | null;
   transcriptEntries?: CodexTranscriptEntry[];
   messages: CodexChatMessage[];
   updatedAt: string;
@@ -95,6 +106,7 @@ export const DEFAULT_SESSION_STATE: CodexSessionState = {
   turnId: null,
   currentTurnStartedAt: null,
   activePlan: null,
+  latestProposedPlan: null,
   transcriptEntries: [],
   messages: [],
   currentTurnEntries: [],
@@ -419,6 +431,41 @@ function deriveTranscriptEntriesFromMessages(messages: CodexChatMessage[]): Code
   return entries;
 }
 
+function findLatestProposedPlan(
+  entries: ReadonlyArray<CodexTranscriptEntry>,
+): ProposedCodexPlan | null {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
+
+    if (!entry || entry.kind !== 'message' || entry.message.role !== 'assistant') {
+      continue;
+    }
+
+    const parsedPlan = parseProposedPlanMessage(entry.message.text);
+
+    if (!parsedPlan) {
+      continue;
+    }
+
+    return {
+      messageId: entry.message.id,
+      turnId: entry.message.turnId,
+      createdAt: entry.message.createdAt,
+      title: proposedPlanTitle(parsedPlan.planMarkdown),
+      planMarkdown: parsedPlan.planMarkdown,
+    };
+  }
+
+  return null;
+}
+
+function deriveLatestProposedPlan(state: Pick<CodexSessionState, 'transcriptEntries' | 'currentTurnEntries'>) {
+  return findLatestProposedPlan([
+    ...state.transcriptEntries,
+    ...state.currentTurnEntries,
+  ]);
+}
+
 function normalizeMessage(message: CodexChatMessage): CodexChatMessage {
   return {
     ...message,
@@ -450,12 +497,14 @@ export function hydrateResumedCodexThreadState(thread: CodexResumedThread): Code
     diff: null,
     activities: [],
   }));
+  const transcriptEntries = messages.map(createMessageEntry);
 
   return {
     ...DEFAULT_SESSION_STATE,
     status: 'ready',
     threadId: thread.threadId,
-    transcriptEntries: messages.map(createMessageEntry),
+    latestProposedPlan: findLatestProposedPlan(transcriptEntries),
+    transcriptEntries,
     messages,
   };
 }
@@ -465,8 +514,8 @@ export function applyCodexSessionEvent(
   event: CodexSessionEvent,
 ): CodexSessionState {
   switch (event.type) {
-    case 'state':
-      return {
+    case 'state': {
+      const nextState = {
         ...previous,
         status: event.status,
         threadId: event.threadId ?? previous.threadId,
@@ -487,8 +536,14 @@ export function applyCodexSessionEvent(
               : previous.activePlan,
         error: event.status === 'error' ? event.message ?? previous.error : null,
       };
-    case 'assistant-delta':
       return {
+        ...nextState,
+        latestProposedPlan: deriveLatestProposedPlan(nextState),
+      };
+    }
+    case 'assistant-delta':
+      {
+        const nextState = {
         ...previous,
         currentTurnEntries: appendAssistantDeltaEntry(previous.currentTurnEntries, {
           sessionId: event.sessionId,
@@ -497,6 +552,11 @@ export function applyCodexSessionEvent(
           text: event.text,
         }),
       };
+        return {
+          ...nextState,
+          latestProposedPlan: deriveLatestProposedPlan(nextState),
+        };
+      }
     case 'turn-plan-updated':
       return {
         ...previous,
@@ -511,7 +571,8 @@ export function applyCodexSessionEvent(
         return previous;
       }
 
-      return {
+      {
+        const nextState = {
         ...previous,
         currentTurnEntries: appendActivityEntry(previous.currentTurnEntries, {
           sessionId: event.sessionId,
@@ -526,6 +587,11 @@ export function applyCodexSessionEvent(
           },
         }),
       };
+        return {
+          ...nextState,
+          latestProposedPlan: deriveLatestProposedPlan(nextState),
+        };
+      }
     case 'approval-requested':
       return {
         ...previous,
@@ -568,6 +634,7 @@ export function applyCodexSessionEvent(
       };
     case 'turn-completed': {
       const completedAt = event.completedAt ?? new Date().toISOString();
+      const nextStatus: CodexSessionStatus = event.status === 'failed' ? 'error' : 'ready';
       const completedEntries = finalizeTurnEntries(previous.currentTurnEntries, {
         sessionId: event.sessionId,
         turnId: event.turnId ?? null,
@@ -583,16 +650,22 @@ export function applyCodexSessionEvent(
         event.turnId ?? null,
       );
 
-      return {
+      {
+        const nextState = {
         ...previous,
         turnId: null,
         currentTurnStartedAt: null,
-        status: event.status === 'failed' ? 'error' : 'ready',
+        status: nextStatus,
         error: event.status === 'failed' ? event.error ?? previous.error : null,
         transcriptEntries,
         messages,
         currentTurnEntries: [],
       };
+        return {
+          ...nextState,
+          latestProposedPlan: deriveLatestProposedPlan(nextState),
+        };
+      }
     }
   }
 }
@@ -612,6 +685,7 @@ export function toCodexSessionSnapshot(state: CodexSessionState): CodexSessionSn
   return {
     threadId: state.threadId,
     activePlan: state.activePlan,
+    latestProposedPlan: state.latestProposedPlan,
     transcriptEntries,
     messages,
     updatedAt: new Date().toISOString(),
@@ -633,6 +707,7 @@ export function hydrateCodexSessionState(snapshot: CodexSessionSnapshot | null):
     ...DEFAULT_SESSION_STATE,
     threadId: snapshot.threadId,
     activePlan: snapshot.activePlan ?? null,
+    latestProposedPlan: snapshot.latestProposedPlan ?? findLatestProposedPlan(transcriptEntries),
     transcriptEntries,
     messages:
       snapshot.transcriptEntries && snapshot.transcriptEntries.length > 0

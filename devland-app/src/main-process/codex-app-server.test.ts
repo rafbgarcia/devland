@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  buildCodexCollaborationMode,
   buildCodexThreadOpenParams,
   buildCodexInitializeParams,
   buildCodexTurnStartParams,
@@ -96,6 +97,7 @@ describe('buildCodexThreadOpenParams', () => {
           reasoningEffort: 'high',
           fastMode: true,
           runtimeMode: 'full-access',
+          interactionMode: 'default',
         },
       }),
       {
@@ -122,6 +124,7 @@ describe('buildCodexTurnStartParams', () => {
           reasoningEffort: 'xhigh',
           fastMode: true,
           runtimeMode: 'approval-required',
+          interactionMode: 'default',
         },
         attachments: [
           {
@@ -141,6 +144,11 @@ describe('buildCodexTurnStartParams', () => {
         ],
         model: 'gpt-5.4',
         effort: 'xhigh',
+        collaborationMode: buildCodexCollaborationMode({
+          interactionMode: 'default',
+          model: 'gpt-5.4',
+          reasoningEffort: 'xhigh',
+        }),
         serviceTier: 'fast',
       },
     );
@@ -156,6 +164,7 @@ describe('buildCodexTurnStartParams', () => {
           reasoningEffort: 'medium',
           fastMode: false,
           runtimeMode: 'approval-required',
+          interactionMode: 'default',
         },
         attachments: [
           {
@@ -172,6 +181,39 @@ describe('buildCodexTurnStartParams', () => {
         input: [{ type: 'image', url: 'data:image/png;base64,xyz' }],
         model: 'gpt-5.3-codex',
         effort: 'medium',
+        collaborationMode: buildCodexCollaborationMode({
+          interactionMode: 'default',
+          model: 'gpt-5.3-codex',
+          reasoningEffort: 'medium',
+        }),
+      },
+    );
+  });
+
+  it('passes plan mode as Codex collaboration mode on turn/start', () => {
+    assert.deepEqual(
+      buildCodexTurnStartParams({
+        threadId: 'thread-3',
+        prompt: 'Plan the implementation',
+        settings: {
+          model: 'gpt-5.3-codex',
+          reasoningEffort: 'high',
+          fastMode: false,
+          runtimeMode: 'approval-required',
+          interactionMode: 'plan',
+        },
+        attachments: [],
+      }),
+      {
+        threadId: 'thread-3',
+        input: [{ type: 'text', text: 'Plan the implementation', text_elements: [] }],
+        model: 'gpt-5.3-codex',
+        effort: 'high',
+        collaborationMode: buildCodexCollaborationMode({
+          interactionMode: 'plan',
+          model: 'gpt-5.3-codex',
+          reasoningEffort: 'high',
+        }),
       },
     );
   });

@@ -15,6 +15,7 @@ import type {
 import type {
   CodexComposerSettings,
   CodexImageAttachmentInput,
+  CodexInteractionMode,
   CodexRuntimeMode,
 } from '@/lib/codex-chat';
 import {
@@ -105,6 +106,30 @@ type JsonRpcNotification = {
 
 const REQUEST_TIMEOUT_MS = 20_000;
 
+const CODEX_PLAN_MODE_DEVELOPER_INSTRUCTIONS = `<collaboration_mode># Plan Mode
+
+You are in Plan Mode until new developer instructions explicitly switch modes.
+
+Plan Mode is for exploration, clarification, and producing a decision-complete implementation plan. Do not make repo-tracked changes in this mode.
+
+Use \`request_user_input\` for meaningful product or implementation decisions that cannot be resolved from the repo. Explore first, ask second.
+
+When the plan is ready, output exactly one \`<proposed_plan>\` block containing Markdown only. The plan must be decision complete and include:
+
+* A clear title
+* A brief summary
+* Implementation changes or interfaces to update
+* Test coverage and verification scenarios
+* Assumptions and defaults chosen
+
+Do not implement the plan in the same turn.</collaboration_mode>`;
+
+const CODEX_DEFAULT_MODE_DEVELOPER_INSTRUCTIONS = `<collaboration_mode># Default Mode
+
+You are in Default mode. Any previous plan-mode instructions are no longer active.
+
+Execute the user's request directly when it is safe to do so. Use \`request_user_input\` only when a high-impact decision cannot be resolved from local context and making an assumption would be risky.</collaboration_mode>`;
+
 export const buildCodexInitializeParams = () => ({
   clientInfo: {
     name: 'devland',
@@ -175,6 +200,31 @@ export const mapCodexRuntimeMode = (runtimeMode: CodexRuntimeMode) => {
   };
 };
 
+export function buildCodexCollaborationMode(input: {
+  interactionMode: CodexInteractionMode;
+  model: string;
+  reasoningEffort: string;
+}): {
+  mode: CodexInteractionMode;
+  settings: {
+    model: string;
+    reasoning_effort: string;
+    developer_instructions: string;
+  };
+} {
+  return {
+    mode: input.interactionMode,
+    settings: {
+      model: input.model,
+      reasoning_effort: input.reasoningEffort,
+      developer_instructions:
+        input.interactionMode === 'plan'
+          ? CODEX_PLAN_MODE_DEVELOPER_INSTRUCTIONS
+          : CODEX_DEFAULT_MODE_DEVELOPER_INSTRUCTIONS,
+    },
+  };
+}
+
 export const buildCodexThreadOpenParams = ({
   cwd,
   settings,
@@ -231,6 +281,11 @@ export const buildCodexTurnStartParams = ({
     input,
     model: settings.model,
     effort: settings.reasoningEffort,
+    collaborationMode: buildCodexCollaborationMode({
+      interactionMode: settings.interactionMode,
+      model: settings.model,
+      reasoningEffort: settings.reasoningEffort,
+    }),
     ...(settings.fastMode ? { serviceTier: 'fast' as const } : {}),
   };
 };

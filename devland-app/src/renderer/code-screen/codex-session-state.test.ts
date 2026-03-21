@@ -30,7 +30,25 @@ describe('applyCodexSessionEvent', () => {
         { step: 'Render the pinned plan', status: 'inProgress' },
       ],
     });
+    assert.equal(state.latestProposedPlan, null);
     assert.equal(state.currentTurnEntries.length, 0);
+  });
+
+  it('tracks the latest proposed plan from assistant messages', () => {
+    const state = applyCodexSessionEvent(DEFAULT_SESSION_STATE, {
+      type: 'assistant-delta',
+      sessionId: 'session-1',
+      itemId: 'assistant-item-1',
+      text: '<proposed_plan>\n# Ship plan mode\n\n## Summary\n\n- Add the toggle\n</proposed_plan>',
+    });
+
+    assert.deepEqual(state.latestProposedPlan, {
+      messageId: 'session-1:assistant:assistant-item-1',
+      turnId: null,
+      createdAt: state.latestProposedPlan?.createdAt ?? '',
+      title: 'Ship plan mode',
+      planMarkdown: '# Ship plan mode\n\n## Summary\n\n- Add the toggle',
+    });
   });
 
   it('ignores non-tool lifecycle activities', () => {
@@ -275,5 +293,61 @@ describe('Codex session snapshot persistence', () => {
     assert.deepEqual(hydratedState.activePlan, state.activePlan);
     assert.equal(hydratedState.threadId, 'thread-1');
     assert.equal(hydratedState.messages[0]?.text, 'Plan is ready.');
+  });
+
+  it('preserves the latest proposed plan across snapshot hydration', () => {
+    const state = {
+      ...DEFAULT_SESSION_STATE,
+      threadId: 'thread-1',
+      status: 'ready' as const,
+      latestProposedPlan: {
+        messageId: 'assistant-1',
+        turnId: 'turn-1',
+        createdAt: '2026-03-21T12:00:00.000Z',
+        title: 'Ship plan mode',
+        planMarkdown: '# Ship plan mode\n\n- Add the toggle',
+      },
+      messages: [
+        {
+          id: 'assistant-1',
+          role: 'assistant' as const,
+          text: '<proposed_plan>\n# Ship plan mode\n\n- Add the toggle\n</proposed_plan>',
+          attachments: [],
+          createdAt: '2026-03-21T12:00:00.000Z',
+          completedAt: '2026-03-21T12:00:01.000Z',
+          turnId: 'turn-1',
+          itemId: null,
+          diff: null,
+          activities: [],
+        },
+      ],
+      transcriptEntries: [
+        {
+          id: 'assistant-1',
+          kind: 'message' as const,
+          message: {
+            id: 'assistant-1',
+            role: 'assistant' as const,
+            text: '<proposed_plan>\n# Ship plan mode\n\n- Add the toggle\n</proposed_plan>',
+            attachments: [],
+            createdAt: '2026-03-21T12:00:00.000Z',
+            completedAt: '2026-03-21T12:00:01.000Z',
+            turnId: 'turn-1',
+            itemId: null,
+            diff: null,
+            activities: [],
+          },
+        },
+      ],
+    };
+
+    const snapshot = toCodexSessionSnapshot(state);
+
+    assert.ok(snapshot);
+    assert.deepEqual(snapshot.latestProposedPlan, state.latestProposedPlan);
+
+    const hydratedState = hydrateCodexSessionState(snapshot);
+
+    assert.deepEqual(hydratedState.latestProposedPlan, state.latestProposedPlan);
   });
 });

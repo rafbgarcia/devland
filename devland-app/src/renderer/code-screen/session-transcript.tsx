@@ -35,6 +35,7 @@ import {
   type SessionTimelineRow,
   type SessionTimelineToolEntry,
 } from '@/renderer/code-screen/session-timeline';
+import { ProposedPlanCard } from '@/renderer/code-screen/proposed-plan-card';
 import { cn } from '@/shadcn/lib/utils';
 
 const MAX_COLLAPSED_TOOL_ENTRIES = 3;
@@ -79,10 +80,8 @@ function toolEntryIcon(entry: SessionTimelineToolEntry) {
 
 const AssistantMarkdown = memo(function AssistantMarkdown({
   text,
-  isStreaming = false,
 }: {
   text: string;
-  isStreaming?: boolean;
 }) {
   return (
     <div className="min-w-0">
@@ -242,10 +241,8 @@ const UserMessageRow = memo(function UserMessageRow({
 
 const AssistantMessageRow = memo(function AssistantMessageRow({
   text,
-  isStreaming = false,
 }: {
   text: string;
-  isStreaming?: boolean;
 }) {
   return (
     <div className="flex gap-2.5 py-1.5">
@@ -255,7 +252,6 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
       <div className="min-w-0 flex-1 pt-0.5">
         <AssistantMarkdown
           text={text.trim().length > 0 ? text : '(empty response)'}
-          isStreaming={isStreaming}
         />
       </div>
     </div>
@@ -273,7 +269,13 @@ const WorkingRow = memo(function WorkingRow() {
   );
 });
 
-function TimelineRowView({ row }: { row: SessionTimelineRow }) {
+function TimelineRowView({
+  row,
+  onImplementPlan,
+}: {
+  row: SessionTimelineRow;
+  onImplementPlan?: ((planMarkdown: string) => void) | undefined;
+}) {
   if (row.kind === 'work') {
     return <ToolGroupRow entries={row.entries} />;
   }
@@ -282,14 +284,49 @@ function TimelineRowView({ row }: { row: SessionTimelineRow }) {
     return <WorkingRow />;
   }
 
+  if (row.kind === 'proposed-plan') {
+    return <ProposedPlanRow row={row} onImplementPlan={onImplementPlan} />;
+  }
+
   if (row.message.role === 'user') {
     return <UserMessageRow text={row.message.text} attachments={row.message.attachments} />;
   }
 
   return (
-    <AssistantMessageRow text={row.message.text} isStreaming={row.isStreaming} />
+    <AssistantMessageRow text={row.message.text} />
   );
 }
+
+const ProposedPlanRow = memo(function ProposedPlanRow({
+  row,
+  onImplementPlan,
+}: {
+  row: Extract<SessionTimelineRow, { kind: 'proposed-plan' }>;
+  onImplementPlan?: ((planMarkdown: string) => void) | undefined;
+}) {
+  return (
+    <div className="flex gap-2.5 py-2">
+      <div className="mt-1 flex size-5 shrink-0 items-center justify-center rounded-md bg-muted/50 text-muted-foreground/60">
+        <BotIcon className="size-3" />
+      </div>
+
+      <div className="min-w-0 flex-1 pt-0.5">
+        <div className="flex flex-col gap-3">
+          {row.before ? <AssistantMarkdown text={row.before} /> : null}
+
+          <ProposedPlanCard
+            planMarkdown={row.planMarkdown}
+            {...(row.isLatest ? {} : { title: null })}
+            canImplement={row.isLatest && onImplementPlan !== undefined}
+            onImplement={row.isLatest ? () => onImplementPlan?.(row.planMarkdown) : undefined}
+          />
+
+          {row.after ? <AssistantMarkdown text={row.after} /> : null}
+        </div>
+      </div>
+    </div>
+  );
+});
 
 const SUGGESTION_PROMPTS = [
   { label: 'Code review branch ', prompt: 'Code review the changes on this branch against the base branch.' },
@@ -367,13 +404,13 @@ function EmptyState({
 export const SessionTranscript = memo(function SessionTranscript({
   sessionState,
   targetLabel,
-  onCreateSession,
   onSendSuggestion,
+  onImplementPlan,
 }: {
   sessionState: CodexSessionState;
   targetLabel: string;
-  onCreateSession: () => void;
   onSendSuggestion?: (prompt: string) => void;
+  onImplementPlan?: (planMarkdown: string) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const timelineRootRef = useRef<HTMLDivElement>(null);
@@ -511,16 +548,16 @@ export const SessionTranscript = memo(function SessionTranscript({
                   className="absolute left-0 top-0 w-full"
                   style={{ transform: `translateY(${virtualRow.start}px)` }}
                 >
-                  <TimelineRowView row={row} />
-                </div>
-              );
-            })}
+              <TimelineRowView row={row} onImplementPlan={onImplementPlan} />
+            </div>
+          );
+        })}
           </div>
         ) : null}
 
         {nonVirtualizedRows.map((row) => (
           <div key={`tail-row:${row.id}`}>
-            <TimelineRowView row={row} />
+            <TimelineRowView row={row} onImplementPlan={onImplementPlan} />
           </div>
         ))}
       </div>

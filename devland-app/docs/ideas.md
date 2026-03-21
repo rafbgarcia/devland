@@ -17,4 +17,4 @@ MLP
 TODO:
 - Files changed double-click open on editor (Editor user preference)
 - Check if PR and Issue tab must handle missing `gh` CLI themselves
--
+- Codex scroll, follow up messages

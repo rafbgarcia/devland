@@ -41,6 +41,7 @@ import {
 import { CodexTabMenu } from '@/renderer/code-screen/codex-tab-menu';
 import { LayerToggle } from '@/renderer/code-screen/layer-toggle';
 import { LivePlanDock } from '@/renderer/code-screen/live-plan-dock';
+import { buildPlanImplementationPrompt } from '@/renderer/code-screen/proposed-plan';
 import { SessionAlerts } from '@/renderer/code-screen/session-alerts';
 import { SessionTerminal } from '@/renderer/code-screen/session-terminal';
 import { SessionTranscript } from '@/renderer/code-screen/session-transcript';
@@ -424,6 +425,17 @@ export function CodeWorkspaceScreen({
     sessionState.messages.length,
   ]);
 
+  const handleImplementPlan = useCallback((planMarkdown: string) => {
+    void handleSendPrompt({
+      prompt: buildPlanImplementationPrompt(planMarkdown),
+      settings: {
+        ...composerSettings,
+        interactionMode: 'default',
+      },
+      attachments: [],
+    });
+  }, [composerSettings, handleSendPrompt]);
+
   const handleCreateWorktree = async () => {
     setIsCreatingWorktree(true);
 
@@ -747,7 +759,7 @@ export function CodeWorkspaceScreen({
                 <SessionTranscript
                   sessionState={sessionState}
                   targetLabel={activeTargetLabel}
-                  onCreateSession={handleAddCurrentBranchSession}
+                  onImplementPlan={handleImplementPlan}
                   onSendSuggestion={(prompt) => {
                     void handleSendPrompt({ prompt, settings: composerSettings, attachments: [] });
                     rememberActivePane('codex');
@@ -798,6 +810,7 @@ export function CodeWorkspaceScreen({
     composerSettings,
     handleAddCurrentBranchSession,
     handleComposerSettingsChange,
+    handleImplementPlan,
     handleSendPrompt,
     handleSidebarResize,
     interruptSession,

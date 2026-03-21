@@ -8,6 +8,7 @@ export const CODEX_MODEL_OPTIONS = [
 
 export const CODEX_REASONING_EFFORTS = ['low', 'medium', 'high', 'xhigh'] as const;
 export const CODEX_RUNTIME_MODES = ['approval-required', 'full-access'] as const;
+export const CODEX_INTERACTION_MODES = ['default', 'plan'] as const;
 export const CODEX_INTERACTION_MODE_LABEL = 'Chat';
 export const CODEX_IMAGE_ATTACHMENTS_MAX_COUNT = 8;
 export const CODEX_IMAGE_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024;
@@ -15,6 +16,7 @@ export const CODEX_IMAGE_ATTACHMENT_MAX_BYTES_LABEL = `${Math.round(CODEX_IMAGE_
 
 export type CodexReasoningEffort = (typeof CODEX_REASONING_EFFORTS)[number];
 export type CodexRuntimeMode = (typeof CODEX_RUNTIME_MODES)[number];
+export type CodexInteractionMode = (typeof CODEX_INTERACTION_MODES)[number];
 export type CodexModelOption = (typeof CODEX_MODEL_OPTIONS)[number];
 
 export type CodexComposerSettings = {
@@ -22,6 +24,7 @@ export type CodexComposerSettings = {
   reasoningEffort: CodexReasoningEffort;
   fastMode: boolean;
   runtimeMode: CodexRuntimeMode;
+  interactionMode: CodexInteractionMode;
 };
 
 export type CodexImageAttachmentInput = {
@@ -51,6 +54,7 @@ export const DEFAULT_CODEX_COMPOSER_SETTINGS: CodexComposerSettings = {
   reasoningEffort: 'high',
   fastMode: false,
   runtimeMode: 'approval-required',
+  interactionMode: 'default',
 };
 
 export function codexReasoningEffortLabel(value: CodexReasoningEffort): string {
@@ -68,6 +72,10 @@ export function codexReasoningEffortLabel(value: CodexReasoningEffort): string {
 
 export function codexRuntimeModeLabel(value: CodexRuntimeMode): string {
   return value === 'full-access' ? 'Full access' : 'Supervised';
+}
+
+export function codexInteractionModeLabel(value: CodexInteractionMode): string {
+  return value === 'plan' ? 'Plan' : 'Chat';
 }
 
 export function codexFastModeLabel(enabled: boolean): string {

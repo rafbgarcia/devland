@@ -15,6 +15,7 @@ import {
   CODEX_MODEL_OPTIONS,
   CODEX_REASONING_EFFORTS,
   type CodexComposerSettings,
+  codexInteractionModeLabel,
   codexReasoningEffortLabel,
 } from '@/lib/codex-chat';
 import type { CodexThreadSummary } from '@/ipc/contracts';
@@ -218,7 +219,7 @@ export function CodexTabMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className="flex size-4 items-center justify-center rounded text-muted-foreground/60 transition-colors hover:text-foreground"
+        className="flex size-6 items-center justify-center rounded text-muted-foreground/60 transition-colors hover:text-foreground"
         aria-label="Codex menu"
         onClick={(e) => e.stopPropagation()}
       >
@@ -246,6 +247,37 @@ export function CodexTabMenu({
               onSelectThread={onSelectThread}
             />
           </DropdownMenuSubmenu>
+        </DropdownMenuGroup>
+
+        <DropdownMenuSeparator />
+
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Mode</DropdownMenuLabel>
+          <DropdownMenuRadioGroup
+            value={settings.interactionMode}
+            onValueChange={(interactionMode) => {
+              if (!interactionMode || interactionMode === settings.interactionMode) return;
+              onSettingsChange({
+                ...settings,
+                interactionMode: interactionMode as CodexComposerSettings['interactionMode'],
+              });
+            }}
+          >
+            {['default', 'plan'].map((interactionMode) => (
+              <DropdownMenuRadioItem
+                key={interactionMode}
+                value={interactionMode}
+                closeOnClick={false}
+              >
+                {codexInteractionModeLabel(
+                  interactionMode as CodexComposerSettings['interactionMode'],
+                )}
+                <DropdownMenuRadioItemIndicator className="ml-auto">
+                  <CheckIcon className="size-3.5" />
+                </DropdownMenuRadioItemIndicator>
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
         </DropdownMenuGroup>
 
         <DropdownMenuSeparator />

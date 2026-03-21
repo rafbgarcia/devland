@@ -99,6 +99,10 @@ export function getFocusPlanStep(plan: CodexPlanStep[]): CodexPlanStep | null {
   return getFocusStep(plan);
 }
 
+export function shouldShowMinimizedTask(plan: CodexPlanStep[]): boolean {
+  return plan.some((step) => step.status !== 'completed');
+}
+
 export const LivePlanDock = memo(function LivePlanDock({
   activePlan,
   isRunning,
@@ -136,6 +140,7 @@ export const LivePlanDock = memo(function LivePlanDock({
   const focusStep = getFocusPlanStep(activePlan.plan);
   const completedCount = activePlan.plan.filter((s) => s.status === 'completed').length;
   const totalCount = activePlan.plan.length;
+  const showMinimizedTask = shouldShowMinimizedTask(activePlan.plan);
 
   return (
     <AnimatePresence>
@@ -153,7 +158,7 @@ export const LivePlanDock = memo(function LivePlanDock({
           className="flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors hover:bg-muted/30"
         >
           <span className="rounded bg-blue-500/10 px-1.5 py-px text-[10px] font-semibold tracking-wide text-blue-400 uppercase">
-            Plan
+            Tasks
           </span>
           <span className="text-[10px] tabular-nums text-muted-foreground/40">
             {completedCount}/{totalCount}
@@ -187,7 +192,7 @@ export const LivePlanDock = memo(function LivePlanDock({
                 ))}
               </div>
             </motion.div>
-          ) : focusStep ? (
+          ) : focusStep && showMinimizedTask ? (
             <motion.div
               key="minimized"
               initial={{ height: 0, opacity: 0 }}

@@ -285,4 +285,40 @@ describe('deriveSessionTimelineRows', () => {
     assert.equal(rows[0]?.kind === 'message' ? rows[0].isStreaming : false, false);
     assert.equal(rows[1]?.kind === 'message' ? rows[1].isStreaming : false, true);
   });
+
+  it('surfaces proposed plan assistant messages as dedicated timeline rows', () => {
+    const rows = deriveSessionTimelineRows({
+      ...DEFAULT_SESSION_STATE,
+      latestProposedPlan: {
+        messageId: 'assistant-plan',
+        turnId: 'turn-plan',
+        createdAt: '2026-03-21T12:00:00.000Z',
+        title: 'Ship planning mode',
+        planMarkdown: '# Ship planning mode\n\n- Add the mode switch',
+      },
+      transcriptEntries: [
+        {
+          id: 'assistant-plan',
+          kind: 'message',
+          message: {
+            id: 'assistant-plan',
+            role: 'assistant',
+            text: '<proposed_plan>\n# Ship planning mode\n\n- Add the mode switch\n</proposed_plan>',
+            attachments: [],
+            createdAt: '2026-03-21T12:00:00.000Z',
+            completedAt: '2026-03-21T12:00:01.000Z',
+            turnId: 'turn-plan',
+            itemId: 'assistant-plan',
+            diff: null,
+            activities: [],
+          },
+        },
+      ],
+      messages: [],
+    });
+
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0]?.kind, 'proposed-plan');
+    assert.equal(rows[0]?.kind === 'proposed-plan' ? rows[0].isLatest : false, true);
+  });
 });
