@@ -63,6 +63,7 @@ export type ProjectFeedDefinition<TFeed extends FeedBase<FeedItemBase>> = {
     list: string;
   };
   renderItem: (item: TFeed['items'][number]) => ReactNode;
+  headerTrailing?: ReactNode;
 };
 
 function FeedCommentAuthors({
@@ -135,56 +136,30 @@ function FeedLabels({ labels }: { labels: Array<{ name: string; color: string }>
   );
 }
 
-export function ProjectFeedHeader({
-  itemCount,
-  fetchedAt,
-  isRefetching,
-  onRefetch,
-  refreshLabel,
-}: {
-  itemCount: number;
-  fetchedAt: number;
-  isRefetching: boolean;
-  onRefetch: () => void;
-  refreshLabel: string;
-}) {
-  return (
-    <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-      {itemCount} open
-      {' · '}
-      refreshed <RelativeTime value={fetchedAt} />
-      <button
-        className="inline-flex size-5 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
-        disabled={isRefetching}
-        onClick={onRefetch}
-        title={`Refresh ${refreshLabel}`}
-        type="button"
-      >
-        <RefreshCwIcon className={cn('size-3', isRefetching && 'animate-spin')} />
-      </button>
-    </span>
-  );
-}
-
 export function ProjectFeedItemFrame<TItem extends FeedItemBase>({
   item,
   title,
+  titleAside,
   leadingIcon,
   sublineAside,
   sublineExtra,
 }: {
   item: TItem;
   title: ReactNode;
+  titleAside?: ReactNode;
   leadingIcon?: ReactNode;
   sublineAside?: ReactNode;
   sublineExtra?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-1 px-5 py-3.5">
+    <div className="group/issue-item flex flex-col gap-1 px-5 py-3.5">
       <div className="flex items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-1.5">
           {leadingIcon}
           {title}
+          <span className='opacity-0 group-hover/issue-item:opacity-100 transition-opacity'>
+          {titleAside}
+          </span>
         </div>
         <FeedLabels labels={item.labels} />
       </div>
@@ -287,17 +262,25 @@ export function ProjectFeedScaffold<TFeed extends FeedBase<FeedItemBase>>({
 
   return (
     <div>
-      <div className="flex items-center justify-between border-b border-border px-5 py-3">
+      <div className="flex items-center border-b border-border px-5 py-3 gap-2">
         <span className="text-sm text-muted-foreground">
           Showing {state.data.items.length} {definition.labels.list}
         </span>
-        <ProjectFeedHeader
-          itemCount={state.data.items.length}
-          fetchedAt={state.data.fetchedAt}
-          isRefetching={isRefetching}
-          onRefetch={onRefetch}
-          refreshLabel={definition.labels.refresh}
-        />
+        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          refreshed <RelativeTime value={state.data.fetchedAt} />
+          <button
+            className="inline-flex size-5 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+            disabled={isRefetching}
+            onClick={onRefetch}
+            title={`Refresh ${definition.labels.refresh}`}
+            type="button"
+          >
+            <RefreshCwIcon className={cn('size-3', isRefetching && 'animate-spin')} />
+          </button>
+        </span>
+        <div className='ml-auto'>
+          {definition.headerTrailing}
+        </div>
       </div>
 
       {state.data.items.map((item, index) => (

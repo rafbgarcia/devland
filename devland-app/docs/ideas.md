@@ -6,8 +6,6 @@ MLP
     - Show README
 - Issues extension: button solve on worktree/local
 - `devland.json` "suggestedPrompts"
-- Extract PRs/Issues/Channels into extensions
-- Channels needs auth
 - Prompt request extension
 - Open files with CMD + P (use diff viewer): readonly; comments for Codex session;
 - One-click setup repo `devland.json` "initialDevelopmentSetupCommand"

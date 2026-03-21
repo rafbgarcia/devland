@@ -4,6 +4,7 @@ import { MessageSquareDotIcon } from 'lucide-react';
 
 import type { DevlandRepoContext } from '@devlandapp/sdk';
 
+import { IssuesSettingsButton } from '@/components/issues-settings-dialog';
 import {
   ProjectFeedScaffold,
   type ProjectFeedDefinition,
@@ -38,15 +39,17 @@ export function ProjectIssuesView({
         refresh: 'issues',
         list: 'issues',
       },
+      headerTrailing: <IssuesSettingsButton slug={repo.githubSlug} />,
       renderItem: (item) => (
         <IssueFeedItem
           item={item}
+          slug={repo.githubSlug}
           isSelected={item.number === selectedIssueNumber}
           onSelect={(candidate) => setSelectedIssueNumber(candidate.number)}
         />
       ),
     }),
-    [selectedIssueNumber],
+    [selectedIssueNumber, repo.githubSlug],
   );
 
   return (
@@ -60,6 +63,7 @@ export function ProjectIssuesView({
       <IssueDetailDrawer
         issue={selectedIssue}
         issueNumber={selectedIssueNumber}
+        slug={repo.githubSlug}
         onClose={() => setSelectedIssueNumber(null)}
       />
     </>

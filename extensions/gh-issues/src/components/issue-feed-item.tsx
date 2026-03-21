@@ -1,13 +1,16 @@
+import { InvestigateButton } from '@/components/investigate-button';
 import { ProjectFeedItemFrame } from '@/components/project-feed';
 import { cn } from '@/lib/utils';
 import type { ProjectIssueFeedItem } from '@/types/issues';
 
 export function IssueFeedItem({
   item,
+  slug,
   isSelected,
   onSelect,
 }: {
   item: ProjectIssueFeedItem;
+  slug: string;
   isSelected: boolean;
   onSelect: (item: ProjectIssueFeedItem) => void;
 }) {
@@ -23,7 +26,7 @@ export function IssueFeedItem({
         }
       }}
       className={cn(
-        'w-full text-left transition-colors hover:bg-muted/50',
+        'group/row w-full text-left transition-colors hover:bg-muted/50 cursor-default',
         isSelected && 'bg-muted',
       )}
     >
@@ -34,6 +37,9 @@ export function IssueFeedItem({
             {item.title}{' '}
             <span className="font-normal text-muted-foreground">(#{item.number})</span>
           </span>
+        }
+        titleAside={
+          <InvestigateButton slug={slug} issueNumber={item.number} />
         }
       />
     </div>

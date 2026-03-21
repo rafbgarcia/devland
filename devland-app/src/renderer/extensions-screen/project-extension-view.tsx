@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from '@tanstack/react-router';
 
 import {
   DevlandHostRequestSchema,
@@ -13,9 +14,22 @@ import {
   RefreshCwIcon,
 } from 'lucide-react';
 
+import { DEFAULT_CODEX_COMPOSER_SETTINGS } from '@/lib/codex-chat';
+import { useCodeTargets } from '@/renderer/code-screen/use-code-targets';
+import { useCodexSessionActions } from '@/renderer/code-screen/use-codex-sessions';
+import { DETACHED_WORKTREE_TARGET_TITLE } from '@/renderer/code-screen/worktree-session';
 import { useProjectExtensions } from '@/renderer/extensions-screen/use-project-extensions';
 import { useProjectRepoDetailsState } from '@/renderer/projects-shell/use-project-repo';
-import { isAbsoluteProjectPath } from '@/renderer/shared/lib/projects';
+import { useWorkspaceSession } from '@/renderer/projects-shell/use-workspace-session';
+import {
+  getProjectTabRoute,
+  isAbsoluteProjectPath,
+} from '@/renderer/shared/lib/projects';
+import {
+  rememberCodePane,
+  rememberCodeTarget,
+  rememberProjectTab,
+} from '@/renderer/shared/lib/workspace-view-state';
 import { ExtensionTabIcon } from '@/renderer/shared/ui/extension-tab-icon';
 import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';
 import { Button } from '@/shadcn/components/ui/button';
@@ -74,14 +88,22 @@ export function ProjectExtensionView({
 }: {
   extensionId: string;
 }) {
+  const router = useRouter();
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [isInstalling, setIsInstalling] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const repoDetails = useProjectRepoDetailsState();
+  const { updateSession } = useWorkspaceSession();
+  const { sendPrompt } = useCodexSessionActions();
   const extensions = useProjectExtensions(
     repoDetails.status === 'ready' && isAbsoluteProjectPath(repoDetails.data.path)
       ? repoDetails.data.path
       : null,
+  );
+  const { addWorktreeTarget, updateTarget } = useCodeTargets(
+    repoDetails.status === 'ready' ? repoDetails.data.id : '__pending__',
+    repoDetails.status === 'ready' ? repoDetails.data.path : '/',
+    null,
   );
 
   const extension = extensions.byId.get(extensionId) ?? null;
@@ -96,6 +118,85 @@ export function ProjectExtensionView({
         : null,
     [repoDetails],
   );
+
+  const createNewCodesSession = useCallback(async (
+    prompt: string,
+  ): Promise<{ targetId: string; cwd: string }> => {
+    if (repoDetails.status !== 'ready' || repoDetails.data === null) {
+      throw new Error('Repository context is not ready yet.');
+    }
+
+    const trimmedPrompt = prompt.trim();
+
+    if (trimmedPrompt.length === 0) {
+      throw new Error('Prompt cannot be empty.');
+    }
+
+    const repo = repoDetails.data;
+    const status = await window.electronAPI.getGitStatus(repo.path);
+    const worktree = await window.electronAPI.createGitWorktree(repo.path, status.branch);
+    const target = addWorktreeTarget(worktree.cwd, worktree.initialTitle);
+
+    if (worktree.worktreeSetupCommand) {
+      void window.electronAPI
+        .execTerminalSessionCommand({
+          sessionId: target.id,
+          cwd: target.cwd,
+          command: worktree.worktreeSetupCommand,
+        })
+        .catch((error) => {
+          console.error('Failed to start worktree setup command:', error);
+        });
+    }
+
+    await sendPrompt(
+      target.id,
+      target.cwd,
+      {
+        prompt: trimmedPrompt,
+        settings: DEFAULT_CODEX_COMPOSER_SETTINGS,
+        attachments: [],
+      },
+      {
+        background: true,
+        beforeSend: async () => {
+          if (target.title !== DETACHED_WORKTREE_TARGET_TITLE) {
+            return;
+          }
+
+          const suggestion = await window.electronAPI.suggestGitWorktreeBranchName(
+            target.cwd,
+            trimmedPrompt,
+          );
+
+          await window.electronAPI.createGitBranch(target.cwd, suggestion.branch);
+          updateTarget(target.id, (currentTarget) => ({
+            ...currentTarget,
+            title: suggestion.branch,
+          }));
+        },
+      },
+    );
+
+    updateSession((currentSession) =>
+      rememberCodeTarget(
+        rememberCodePane(
+          rememberProjectTab(currentSession, repo.id, 'code'),
+          repo.id,
+          'codex',
+        ),
+        repo.id,
+        target.id,
+      ),
+    );
+
+    await router.navigate(getProjectTabRoute(repo.id, 'code'));
+
+    return {
+      targetId: target.id,
+      cwd: target.cwd,
+    };
+  }, [addWorktreeTarget, repoDetails, router, sendPrompt, updateSession, updateTarget]);
 
   useEffect(() => {
     const handleWindowMessage = (event: MessageEvent) => {
@@ -142,6 +243,33 @@ export function ProjectExtensionView({
         return;
       }
 
+      if (request.type === 'devland:new-codes-session') {
+        void createNewCodesSession(request.prompt)
+          .then((result) => {
+            postToFrame(iframeRef.current, extensionMessaging.targetOrigin, {
+              type: 'devland:new-codes-session-result',
+              requestId: request.requestId,
+              result,
+            });
+          })
+          .catch((error: unknown) => {
+            postToFrame(iframeRef.current, extensionMessaging.targetOrigin, {
+              type: 'devland:error',
+              requestId: request.requestId,
+              message:
+                error instanceof Error
+                  ? error.message
+                  : 'Could not create a Codex session.',
+            });
+          });
+
+        return;
+      }
+
+      if (request.type !== 'devland:run-command') {
+        return;
+      }
+
       void window.electronAPI
         .runExtensionCommand({
           repoPath: extensionContext.repo.projectPath,
@@ -174,7 +302,13 @@ export function ProjectExtensionView({
     return () => {
       window.removeEventListener('message', handleWindowMessage);
     };
-  }, [extension, extensionContext, extensionId, extensionMessaging]);
+  }, [
+    createNewCodesSession,
+    extension,
+    extensionContext,
+    extensionId,
+    extensionMessaging,
+  ]);
 
   const handleInstall = async () => {
     if (repoDetails.status !== 'ready' || extension === null) {

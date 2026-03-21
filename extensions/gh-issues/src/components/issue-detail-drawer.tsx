@@ -1,5 +1,6 @@
 import { ExternalLinkIcon } from 'lucide-react';
 
+import { InvestigateButton } from '@/components/investigate-button';
 import { RelativeTime } from '@/components/relative-time';
 import { SlidingDetailDrawer } from '@/components/sliding-detail-drawer';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -7,22 +8,25 @@ import { Badge } from '@/components/ui/badge';
 import { getAuthorLogin } from '@/lib/github';
 import type { ProjectIssueFeedItem } from '@/types/issues';
 
-function IssueDetailContent({ issue }: { issue: ProjectIssueFeedItem }) {
+function IssueDetailContent({ issue, slug }: { issue: ProjectIssueFeedItem; slug: string }) {
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
       <div className="flex flex-col gap-3 p-4">
-        <a
-          href={issue.url}
-          target="_blank"
-          rel="noreferrer"
-          className="group/title flex items-center gap-1.5"
-        >
-          <h2 className="text-base font-semibold leading-snug group-hover/title:underline">
-            {issue.title}{' '}
-            <span className="font-normal text-muted-foreground">({issue.number})</span>
-          </h2>
-          <ExternalLinkIcon className="size-3 shrink-0 text-muted-foreground transition-colors group-hover/title:text-foreground" />
-        </a>
+        <div className="flex items-start gap-3">
+          <a
+            href={issue.url}
+            target="_blank"
+            rel="noreferrer"
+            className="group/title flex items-start gap-1.5"
+          >
+            <h2 className="text-base font-semibold leading-snug group-hover/title:underline">
+              {issue.title}{' '}
+              <span className="font-normal text-muted-foreground">({issue.number})</span>
+            </h2>
+            <ExternalLinkIcon className="mt-1.5 size-3 shrink-0 text-muted-foreground transition-colors group-hover/title:text-foreground" />
+          </a>
+          <InvestigateButton slug={slug} issueNumber={issue.number} />
+        </div>
 
         {issue.labels.length > 0 && (
           <div className="flex flex-wrap gap-1">
@@ -105,10 +109,12 @@ function IssueDetailContent({ issue }: { issue: ProjectIssueFeedItem }) {
 export function IssueDetailDrawer({
   issue,
   issueNumber,
+  slug,
   onClose,
 }: {
   issue: ProjectIssueFeedItem | null;
   issueNumber: number | null;
+  slug: string;
   onClose: () => void;
 }) {
   return (
@@ -120,7 +126,7 @@ export function IssueDetailDrawer({
           </p>
         </div>
       ) : (
-        <IssueDetailContent issue={issue} />
+        <IssueDetailContent issue={issue} slug={slug} />
       )}
     </SlidingDetailDrawer>
   );

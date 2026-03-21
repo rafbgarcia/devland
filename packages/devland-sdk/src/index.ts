@@ -31,6 +31,12 @@ export const DevlandRunCommandResultSchema = z.object({
 });
 export type DevlandRunCommandResult = z.infer<typeof DevlandRunCommandResultSchema>;
 
+export const DevlandNewCodesSessionResultSchema = z.object({
+  targetId: z.string().min(1),
+  cwd: z.string().min(1),
+});
+export type DevlandNewCodesSessionResult = z.infer<typeof DevlandNewCodesSessionResultSchema>;
+
 export const DevlandHostRequestSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('devland:ready'),
@@ -46,6 +52,11 @@ export const DevlandHostRequestSchema = z.discriminatedUnion('type', [
     args: z.array(z.string()),
     cwd: z.string().min(1).nullable().optional(),
   }),
+  z.object({
+    type: z.literal('devland:new-codes-session'),
+    requestId: z.string().min(1),
+    prompt: z.string().min(1),
+  }),
 ]);
 export type DevlandHostRequest = z.infer<typeof DevlandHostRequestSchema>;
 
@@ -59,6 +70,11 @@ export const DevlandHostResponseSchema = z.discriminatedUnion('type', [
     type: z.literal('devland:command-result'),
     requestId: z.string().min(1),
     result: DevlandRunCommandResultSchema,
+  }),
+  z.object({
+    type: z.literal('devland:new-codes-session-result'),
+    requestId: z.string().min(1),
+    result: DevlandNewCodesSessionResultSchema,
   }),
   z.object({
     type: z.literal('devland:error'),
@@ -104,6 +120,9 @@ export function createDevlandClient() {
       case 'devland:command-result':
         pending.resolve(message.result);
         break;
+      case 'devland:new-codes-session-result':
+        pending.resolve(message.result);
+        break;
       case 'devland:error':
         pending.reject(new Error(message.message));
         break;
@@ -118,6 +137,10 @@ export function createDevlandClient() {
           command: string;
           args: string[];
           cwd?: string | null;
+        }
+      | {
+          type: 'devland:new-codes-session';
+          prompt: string;
         },
   ): Promise<TResponse> => {
     const requestId = `${message.type}:${++requestCount}`;
@@ -152,6 +175,11 @@ export function createDevlandClient() {
         command: input.command,
         args: input.args,
         cwd: input.cwd ?? null,
+      }),
+    newCodesSession: async (prompt: string): Promise<DevlandNewCodesSessionResult> =>
+      await requestFromHost<DevlandNewCodesSessionResult>({
+        type: 'devland:new-codes-session',
+        prompt,
       }),
   };
 }

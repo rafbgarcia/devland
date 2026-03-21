@@ -1,11 +1,15 @@
 import {
   createDevlandClient,
   type DevlandHostContext,
+  type DevlandNewCodesSessionResult,
   type DevlandRunCommandResult,
 } from '@devlandapp/sdk';
 import { z } from 'zod';
 
 const devland = createDevlandClient();
+
+export const newCodesSession = async (prompt: string): Promise<DevlandNewCodesSessionResult> =>
+  await devland.newCodesSession(prompt);
 
 export const getExtensionContext = async (): Promise<DevlandHostContext> =>
   await devland.getContext();
