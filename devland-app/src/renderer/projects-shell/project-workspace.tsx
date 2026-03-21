@@ -1,14 +1,7 @@
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react';
 import { useRouter, useRouterState } from '@tanstack/react-router';
 import { AnimatePresence, Reorder } from 'motion/react';
-import {
-  CodeIcon,
-  FolderOpenIcon,
-  GitPullRequestArrowIcon,
-  MessageSquareDotIcon,
-  PlusIcon,
-  XIcon,
-} from 'lucide-react';
+import { CodeIcon, FolderOpenIcon, PlusIcon, XIcon } from 'lucide-react';
 
 import type { AppShortcutCommand, ProjectViewTab, Repo } from '@/ipc/contracts';
 import {
@@ -27,6 +20,7 @@ import {
   rememberProjectTab,
 } from '@/renderer/shared/lib/workspace-view-state';
 import { useProjectExtensions } from '@/renderer/extensions-screen/use-project-extensions';
+import { ExtensionTabIcon } from '@/renderer/shared/ui/extension-tab-icon';
 import { useRepoActions, useRepos } from './use-repos';
 import { useProjectRepo } from './use-project-repo';
 import { useWorkspaceSession } from './use-workspace-session';
@@ -61,14 +55,9 @@ const VIEW_TABS = [
 type ProjectWorkspaceTab = {
   key: string;
   label: string;
-  icon: typeof CodeIcon;
+  icon: ReactNode;
   tabId: ProjectTabId;
 };
-
-const EXTENSION_ICON_BY_NAME = {
-  'git-pull-request': GitPullRequestArrowIcon,
-  'gh-issue': MessageSquareDotIcon,
-} as const;
 
 export function AddProjectDialog({
   open,
@@ -241,13 +230,13 @@ export function ProjectWorkspace({
     ...VIEW_TABS.map((tab) => ({
       key: tab.value,
       label: tab.label,
-      icon: tab.icon,
+      icon: <tab.icon className="size-3.5" />,
       tabId: tab.value,
     })),
     ...projectExtensions.data.map((extension) => ({
       key: `extension:${extension.id}`,
       label: extension.tabName,
-      icon: EXTENSION_ICON_BY_NAME[extension.tabIcon],
+      icon: <ExtensionTabIcon iconName={extension.tabIcon} className="size-3.5" />,
       tabId: toProjectExtensionTabId(extension.id),
     })),
   ];
@@ -408,7 +397,6 @@ export function ProjectWorkspace({
         <div className="flex shrink-0 items-center justify-between border-b border-border px-5">
           <nav className="-mb-px flex gap-1">
             {tabs.map((tab) => {
-              const Icon = tab.icon;
               const isActive = tab.tabId === activeTabId;
 
               return (
@@ -425,7 +413,7 @@ export function ProjectWorkspace({
                   }}
                   type="button"
                 >
-                  <Icon className="size-3.5" />
+                  {tab.icon}
                   {tab.label}
                 </button>
               );

@@ -9,8 +9,6 @@ import {
   AlertCircleIcon,
   DownloadIcon,
   ExternalLinkIcon,
-  GitPullRequestArrowIcon,
-  MessageSquareDotIcon,
   PuzzleIcon,
   RefreshCwIcon,
 } from 'lucide-react';
@@ -18,8 +16,8 @@ import {
 import { useProjectExtensions } from '@/renderer/extensions-screen/use-project-extensions';
 import { useProjectRepoDetailsState } from '@/renderer/projects-shell/use-project-repo';
 import { isAbsoluteProjectPath } from '@/renderer/shared/lib/projects';
+import { ExtensionTabIcon } from '@/renderer/shared/ui/extension-tab-icon';
 import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';
-import { Badge } from '@/shadcn/components/ui/badge';
 import { Button } from '@/shadcn/components/ui/button';
 import {
   Empty,
@@ -29,11 +27,6 @@ import {
   EmptyTitle,
 } from '@/shadcn/components/ui/empty';
 import { Spinner } from '@/shadcn/components/ui/spinner';
-
-const EXTENSION_ICON_BY_NAME = {
-  'git-pull-request': GitPullRequestArrowIcon,
-  'gh-issue': MessageSquareDotIcon,
-} as const;
 
 const buildExtensionContext = (
   repo: NonNullable<ReturnType<typeof useProjectRepoDetailsState>['data']>,
@@ -76,13 +69,6 @@ const postToFrame = (
   iframe?.contentWindow?.postMessage(message, targetOrigin);
 };
 
-const statusLabelByType = {
-  ready: 'Installed',
-  'install-required': 'Install required',
-  'update-available': 'Update available',
-  error: 'Error',
-} as const;
-
 export function ProjectExtensionView({
   extensionId,
 }: {
@@ -99,9 +85,6 @@ export function ProjectExtensionView({
   );
 
   const extension = extensions.byId.get(extensionId) ?? null;
-  const ExtensionIcon = extension !== null
-    ? EXTENSION_ICON_BY_NAME[extension.tabIcon]
-    : GitPullRequestArrowIcon;
   const extensionMessaging = useMemo(
     () => getMessageOrigin(extension?.entryUrl ?? null),
     [extension?.entryUrl],
@@ -343,7 +326,7 @@ export function ProjectExtensionView({
           <Empty>
             <EmptyHeader>
               <EmptyMedia variant="icon">
-                <ExtensionIcon />
+                <ExtensionTabIcon iconName={extension.tabIcon} />
               </EmptyMedia>
               <EmptyTitle>Install extension</EmptyTitle>
               <EmptyDescription>
