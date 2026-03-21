@@ -3,8 +3,7 @@ import {
   GitPullRequestIcon,
 } from 'lucide-react';
 
-import type { ProjectPullRequestFeedItem } from '@devlandapp/sdk';
-
+import type { ProjectPullRequestFeedItem } from '@/pull-requests/contracts';
 import {
   ProjectFeedItemFrame,
 } from '@/renderer/shared/ui/project-feed/project-feed';

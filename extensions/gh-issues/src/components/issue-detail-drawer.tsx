@@ -1,7 +1,6 @@
 import { ExternalLinkIcon } from 'lucide-react';
 
-import type { ProjectIssueFeedItem } from '@devlandapp/sdk';
-
+import type { ProjectIssueFeedItem } from '@/issues/contracts';
 import { RelativeTime } from '@/renderer/shared/ui/relative-time';
 import { getAuthorLogin } from '@/renderer/shared/lib/github-view';
 import { SlidingDetailDrawer } from '@/renderer/shared/ui/sliding-detail-drawer';

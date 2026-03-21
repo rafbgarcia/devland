@@ -46,12 +46,6 @@ export const DevlandHostRequestSchema = z.discriminatedUnion('type', [
     args: z.array(z.string()),
     cwd: z.string().min(1).nullable().optional(),
   }),
-  z.object({
-    type: z.literal('devland:invoke'),
-    requestId: z.string().min(1),
-    method: z.string().min(1),
-    input: z.unknown().optional(),
-  }),
 ]);
 export type DevlandHostRequest = z.infer<typeof DevlandHostRequestSchema>;
 
@@ -65,11 +59,6 @@ export const DevlandHostResponseSchema = z.discriminatedUnion('type', [
     type: z.literal('devland:command-result'),
     requestId: z.string().min(1),
     result: DevlandRunCommandResultSchema,
-  }),
-  z.object({
-    type: z.literal('devland:invoke-result'),
-    requestId: z.string().min(1),
-    result: z.unknown(),
   }),
   z.object({
     type: z.literal('devland:error'),
@@ -115,9 +104,6 @@ export function createDevlandClient() {
       case 'devland:command-result':
         pending.resolve(message.result);
         break;
-      case 'devland:invoke-result':
-        pending.resolve(message.result);
-        break;
       case 'devland:error':
         pending.reject(new Error(message.message));
         break;
@@ -132,11 +118,6 @@ export function createDevlandClient() {
           command: string;
           args: string[];
           cwd?: string | null;
-        }
-      | {
-          type: 'devland:invoke';
-          method: string;
-          input?: unknown;
         },
   ): Promise<TResponse> => {
     const requestId = `${message.type}:${++requestCount}`;
@@ -172,23 +153,5 @@ export function createDevlandClient() {
         args: input.args,
         cwd: input.cwd ?? null,
       }),
-    invoke: async <TResponse>(input: {
-      method: string;
-      input?: unknown;
-      resultSchema?: z.ZodType<TResponse>;
-    }): Promise<TResponse> => {
-      const result = await requestFromHost<unknown>({
-        type: 'devland:invoke',
-        method: input.method,
-        input: input.input,
-      });
-
-      return input.resultSchema
-        ? input.resultSchema.parse(result)
-        : (result as TResponse);
-    },
   };
 }
-
-export * from './gh-prs.js';
-export * from './gh-issues.js';

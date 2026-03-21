@@ -4,20 +4,6 @@ import {
   DevlandHostRequestSchema,
   type DevlandHostContext,
   type DevlandHostResponse,
-  GhPrsCloneRepoInputSchema,
-  GhPrsGetCommitDiffInputSchema,
-  GhPrsGetCommitParentInputSchema,
-  GhPrsGetGitBlobTextInputSchema,
-  GhPrsGetPrDiffInputSchema,
-  GhPrsGetPrDiffMetaInputSchema,
-  GhPrsGetPullRequestFeedInputSchema,
-  GhPrsGetWorkingTreeFileTextInputSchema,
-  GhPrsHostMethods,
-  GhPrsSyncReviewRefsInputSchema,
-  GhPrsGeneratePrReviewInputSchema,
-  CreateGitHubPrReviewThreadInputSchema,
-  GhIssuesHostMethods,
-  GhIssuesGetIssueFeedInputSchema,
 } from '@devlandapp/sdk';
 import {
   AlertCircleIcon,
@@ -31,7 +17,6 @@ import {
 
 import { useProjectExtensions } from '@/renderer/extensions-screen/use-project-extensions';
 import { useProjectRepoDetailsState } from '@/renderer/projects-shell/use-project-repo';
-import { useRepoActions } from '@/renderer/projects-shell/use-repos';
 import { isAbsoluteProjectPath } from '@/renderer/shared/lib/projects';
 import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';
 import { Badge } from '@/shadcn/components/ui/badge';
@@ -107,7 +92,6 @@ export function ProjectExtensionView({
   const [isInstalling, setIsInstalling] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const repoDetails = useProjectRepoDetailsState();
-  const { updateRepoPath } = useRepoActions();
   const extensions = useProjectExtensions(
     repoDetails.status === 'ready' && isAbsoluteProjectPath(repoDetails.data.path)
       ? repoDetails.data.path
@@ -175,123 +159,6 @@ export function ProjectExtensionView({
         return;
       }
 
-      if (request.type === 'devland:invoke') {
-        void (async () => {
-          try {
-            const result = await (() => {
-              switch (request.method) {
-                case GhPrsHostMethods.getPullRequestFeed: {
-                  const input = GhPrsGetPullRequestFeedInputSchema.parse(request.input);
-
-                  return window.electronAPI.getProjectPullRequests(
-                    input.owner,
-                    input.name,
-                    input.skipCache,
-                  );
-                }
-                case GhPrsHostMethods.syncReviewRefs: {
-                  const input = GhPrsSyncReviewRefsInputSchema.parse(request.input);
-
-                  return window.electronAPI
-                    .syncRepoReviewRefs(input.repoPath, input.owner, input.name)
-                    .then(() => null);
-                }
-                case GhPrsHostMethods.getPrDiffMeta: {
-                  const input = GhPrsGetPrDiffMetaInputSchema.parse(request.input);
-
-                  return window.electronAPI.getPrDiffMeta(input.repoPath, input.prNumber);
-                }
-                case GhPrsHostMethods.generatePrReview: {
-                  const input = GhPrsGeneratePrReviewInputSchema.parse(request.input);
-
-                  return window.electronAPI.generatePrReview(
-                    input.repoPath,
-                    input.prNumber,
-                    input.title,
-                  );
-                }
-                case GhPrsHostMethods.createReviewThread: {
-                  const input = CreateGitHubPrReviewThreadInputSchema.parse(request.input);
-
-                  return window.electronAPI.createGitHubPrReviewThread(input);
-                }
-                case GhPrsHostMethods.getCommitDiff: {
-                  const input = GhPrsGetCommitDiffInputSchema.parse(request.input);
-
-                  return window.electronAPI.getCommitDiff(input.repoPath, input.commitSha);
-                }
-                case GhPrsHostMethods.getPrDiff: {
-                  const input = GhPrsGetPrDiffInputSchema.parse(request.input);
-
-                  return window.electronAPI.getPrDiff(input.repoPath, input.prNumber);
-                }
-                case GhPrsHostMethods.getCommitParent: {
-                  const input = GhPrsGetCommitParentInputSchema.parse(request.input);
-
-                  return window.electronAPI.getCommitParent(input.repoPath, input.commitSha);
-                }
-                case GhPrsHostMethods.getGitBlobText: {
-                  const input = GhPrsGetGitBlobTextInputSchema.parse(request.input);
-
-                  return window.electronAPI.getGitBlobText({
-                    repoPath: input.repoPath,
-                    revision: input.revision,
-                    filePath: input.filePath,
-                    ...(input.maxBytes === undefined ? {} : { maxBytes: input.maxBytes }),
-                  });
-                }
-                case GhPrsHostMethods.getWorkingTreeFileText: {
-                  const input = GhPrsGetWorkingTreeFileTextInputSchema.parse(request.input);
-
-                  return window.electronAPI.getWorkingTreeFileText({
-                    repoPath: input.repoPath,
-                    filePath: input.filePath,
-                    ...(input.maxBytes === undefined ? {} : { maxBytes: input.maxBytes }),
-                  });
-                }
-                case GhPrsHostMethods.cloneRepo: {
-                  const input = GhPrsCloneRepoInputSchema.parse(request.input);
-
-                  return window.electronAPI.cloneGithubRepo(input.slug).then((path) => {
-                    updateRepoPath(input.repoId, path);
-
-                    return { path };
-                  });
-                }
-                case GhIssuesHostMethods.getIssueFeed: {
-                  const input = GhIssuesGetIssueFeedInputSchema.parse(request.input);
-
-                  return window.electronAPI.getProjectIssues(
-                    input.owner,
-                    input.name,
-                    input.skipCache,
-                  );
-                }
-                default:
-                  throw new Error(`Unsupported extension host method: ${request.method}`);
-              }
-            })();
-
-            postToFrame(iframeRef.current, extensionMessaging.targetOrigin, {
-              type: 'devland:invoke-result',
-              requestId: request.requestId,
-              result,
-            });
-          } catch (error: unknown) {
-            postToFrame(iframeRef.current, extensionMessaging.targetOrigin, {
-              type: 'devland:error',
-              requestId: request.requestId,
-              message:
-                error instanceof Error
-                  ? error.message
-                  : 'Extension host call failed.',
-            });
-          }
-        })();
-
-        return;
-      }
-
       void window.electronAPI
         .runExtensionCommand({
           repoPath: extensionContext.repo.projectPath,
@@ -324,7 +191,7 @@ export function ProjectExtensionView({
     return () => {
       window.removeEventListener('message', handleWindowMessage);
     };
-  }, [extension, extensionContext, extensionId, extensionMessaging, updateRepoPath]);
+  }, [extension, extensionContext, extensionId, extensionMessaging]);
 
   const handleInstall = async () => {
     if (repoDetails.status !== 'ready' || extension === null) {

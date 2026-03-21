@@ -6,8 +6,6 @@ import {
   CODEX_SESSION_EVENT_CHANNEL,
   CodexSessionEventSchema,
   GET_APP_BOOTSTRAP_CHANNEL,
-  GET_PROJECT_ISSUES_CHANNEL,
-  GET_PROJECT_PULL_REQUESTS_CHANNEL,
   GET_GITHUB_REPO_DETAILS_CHANNEL,
   FIND_LOCAL_GITHUB_REPO_CHANNEL,
   PICK_REPO_DIRECTORY_CHANNEL,
@@ -83,10 +81,6 @@ export const electronApi: ElectronApi = {
   },
   getAppBootstrap: () => ipcRenderer.invoke(GET_APP_BOOTSTRAP_CHANNEL),
   pickRepoDirectory: () => ipcRenderer.invoke(PICK_REPO_DIRECTORY_CHANNEL),
-  getProjectIssues: (owner, name, skipCache) =>
-    ipcRenderer.invoke(GET_PROJECT_ISSUES_CHANNEL, owner, name, skipCache),
-  getProjectPullRequests: (owner, name, skipCache) =>
-    ipcRenderer.invoke(GET_PROJECT_PULL_REQUESTS_CHANNEL, owner, name, skipCache),
   validateLocalGitRepository: (directoryPath) =>
     ipcRenderer.invoke(VALIDATE_LOCAL_GIT_REPO_CHANNEL, directoryPath),
   getGithubRepoDetails: (projectPath) =>

@@ -2,8 +2,7 @@ import type { ReactNode } from 'react';
 
 import { GithubIcon, MessageSquareIcon, RefreshCwIcon } from 'lucide-react';
 
-import type { GitHubUserWithAvatar } from '@devlandapp/sdk';
-
+import type { GitHubUserWithAvatar } from '@/pull-requests/contracts';
 import { getAuthorLogin, getUniqueCommentAuthors } from '@/renderer/shared/lib/github-view';
 import { RelativeTime } from '@/renderer/shared/ui/relative-time';
 import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';

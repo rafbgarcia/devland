@@ -1,4 +1,4 @@
-import type { GitHubUserWithAvatar } from '@devlandapp/sdk';
+import type { GitHubUserWithAvatar } from '@/issues/contracts';
 
 export const getAuthorLogin = (author: { login: string } | null): string => author?.login ?? 'unknown';
 

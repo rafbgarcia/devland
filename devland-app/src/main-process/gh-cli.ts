@@ -8,11 +8,6 @@ const MAX_CONCURRENT_GH_PROCESSES = 2;
 const MAX_QUEUED_GH_PROCESSES = 20;
 
 export type GH = <T = unknown>(args: readonly string[]) => Promise<T>;
-export type GhResponse<T> = {
-  body: T;
-  headers: Record<string, string>;
-  statusLine: string;
-};
 
 let activeGhProcessCount = 0;
 const ghProcessQueue: Array<() => void> = [];
@@ -101,46 +96,6 @@ const runGhCommand = async (
   }
 };
 
-const parseIncludedOutput = (output: string): GhResponse<string> => {
-  const normalizedOutput = output.replace(/\r\n/g, '\n');
-  const separatorIndex = normalizedOutput.indexOf('\n\n');
-
-  if (separatorIndex === -1) {
-    throw new Error('GitHub CLI response headers were requested but not returned.');
-  }
-
-  const headerBlock = normalizedOutput.slice(0, separatorIndex).trim();
-  const body = normalizedOutput.slice(separatorIndex + 2).trim();
-
-  if (!headerBlock || !body) {
-    throw new Error('GitHub CLI returned an incomplete response.');
-  }
-
-  const [statusLine = '', ...headerLines] = headerBlock.split('\n');
-  const headers: Record<string, string> = {};
-
-  for (const line of headerLines) {
-    const separator = line.indexOf(':');
-
-    if (separator === -1) {
-      continue;
-    }
-
-    const key = line.slice(0, separator).trim().toLowerCase();
-    const value = line.slice(separator + 1).trim();
-
-    if (key) {
-      headers[key] = value;
-    }
-  }
-
-  if (!statusLine) {
-    throw new Error('GitHub CLI response status line is missing.');
-  }
-
-  return { body, headers, statusLine };
-};
-
 const createGh = (ghExecutable: string): GH => {
   return async <T>(args: readonly string[]) => {
     const output = await runGhCommand(ghExecutable, args);
@@ -153,26 +108,5 @@ const createGh = (ghExecutable: string): GH => {
   };
 };
 
-const createGhWithResponse = (
-  ghExecutable: string,
-): (<T = unknown>(args: readonly string[]) => Promise<GhResponse<T>>) => {
-  return async <T>(args: readonly string[]) => {
-    const output = await runGhCommand(ghExecutable, [...args, '--include']);
-
-    if (!output) {
-      throw new Error(`GitHub CLI returned an empty response for: gh ${args.join(' ')}`);
-    }
-
-    const response = parseIncludedOutput(output);
-
-    return {
-      ...response,
-      body: JSON.parse(response.body) as T,
-    };
-  };
-};
-
 export const ghExecutable = resolveGhExecutable();
 export const gh = ghExecutable === null ? null : createGh(ghExecutable);
-export const ghWithResponse =
-  ghExecutable === null ? null : createGhWithResponse(ghExecutable);

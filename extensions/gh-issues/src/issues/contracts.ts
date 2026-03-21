@@ -1,6 +1,16 @@
 import { z } from 'zod';
 
-import { GitHubLabelSchema, GitHubUserWithAvatarSchema } from './gh-prs.js';
+export const GitHubUserWithAvatarSchema = z.object({
+  login: z.string().min(1),
+  avatarUrl: z.string().url(),
+});
+export type GitHubUserWithAvatar = z.infer<typeof GitHubUserWithAvatarSchema>;
+
+export const GitHubLabelSchema = z.object({
+  name: z.string().min(1),
+  color: z.string().min(1),
+});
+export type GitHubLabel = z.infer<typeof GitHubLabelSchema>;
 
 export const IssueCommentSchema = z.object({
   id: z.string().min(1),
@@ -31,14 +41,3 @@ export const ProjectIssueFeedSchema = z.object({
   items: z.array(ProjectIssueFeedItemSchema),
 });
 export type ProjectIssueFeed = z.infer<typeof ProjectIssueFeedSchema>;
-
-export const GhIssuesHostMethods = {
-  getIssueFeed: 'gh-issues:get-issue-feed',
-} as const;
-
-export const GhIssuesGetIssueFeedInputSchema = z.object({
-  owner: z.string().min(1),
-  name: z.string().min(1),
-  skipCache: z.boolean().optional(),
-});
-export type GhIssuesGetIssueFeedInput = z.infer<typeof GhIssuesGetIssueFeedInputSchema>;

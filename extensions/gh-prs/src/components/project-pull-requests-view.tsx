@@ -2,8 +2,9 @@ import { useMemo, useState } from 'react';
 
 import { GitPullRequestArrowIcon } from 'lucide-react';
 
-import type { DevlandRepoContext, ProjectPullRequestFeed } from '@devlandapp/sdk';
+import type { DevlandRepoContext } from '@devlandapp/sdk';
 
+import type { ProjectPullRequestFeed } from '@/pull-requests/contracts';
 import {
   ProjectFeedScaffold,
   type ProjectFeedDefinition,

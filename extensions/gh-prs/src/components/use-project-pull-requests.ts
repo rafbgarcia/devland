@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { DevlandRepoContext, ProjectPullRequestFeed } from '@devlandapp/sdk';
+import type { DevlandRepoContext } from '@devlandapp/sdk';
+
+import { getProjectPullRequests } from '@/pull-requests/api';
+import type { ProjectPullRequestFeed } from '@/pull-requests/contracts';
 
 type ProjectPullRequestsState =
   | { status: 'loading'; data: null; error: null }
@@ -25,8 +28,7 @@ export function useProjectPullRequests(repo: DevlandRepoContext) {
       setState({ status: 'loading', data: null, error: null });
     }
 
-    void window.electronAPI
-      .getProjectPullRequests(repo.owner, repo.name, skipCache)
+    void getProjectPullRequests(repo, skipCache)
       .then((data) => {
         if (fetchIdRef.current !== fetchId) return;
         setState({ status: 'ready', data, error: null });

@@ -14,8 +14,6 @@ import {
 
 export const GET_APP_BOOTSTRAP_CHANNEL = 'app:get-app-bootstrap';
 export const PICK_REPO_DIRECTORY_CHANNEL = 'app:pick-repo-directory';
-export const GET_PROJECT_ISSUES_CHANNEL = 'app:get-project-issues';
-export const GET_PROJECT_PULL_REQUESTS_CHANNEL = 'app:get-project-pull-requests';
 export const VALIDATE_LOCAL_GIT_REPO_CHANNEL = 'app:validate-local-git-repo';
 export const GET_GITHUB_REPO_DETAILS_CHANNEL = 'app:get-github-repo-details';
 export const FIND_LOCAL_GITHUB_REPO_CHANNEL = 'app:find-local-github-repo';
@@ -203,84 +201,6 @@ export const AppBootstrapSchema = z.object({
   ghUser: GhUserSchema.nullable(),
 });
 export type AppBootstrap = z.infer<typeof AppBootstrapSchema>;
-
-export const GitHubUserSchema = z.object({
-  login: z.string().min(1),
-});
-export type GitHubUser = z.infer<typeof GitHubUserSchema>;
-
-export const GitHubUserWithAvatarSchema = GitHubUserSchema.extend({
-  avatarUrl: z.string().url(),
-});
-export type GitHubUserWithAvatar = z.infer<typeof GitHubUserWithAvatarSchema>;
-
-export const GitHubLabelSchema = z.object({
-  name: z.string().min(1),
-  color: z.string().min(1),
-});
-export type GitHubLabel = z.infer<typeof GitHubLabelSchema>;
-
-export const ProjectFeedItemBaseSchema = z.object({
-  id: z.string().min(1),
-  number: z.number().int().positive(),
-  title: z.string().min(1),
-  url: z.string().url(),
-  state: z.string().min(1),
-  author: GitHubUserWithAvatarSchema.nullable(),
-  commentCount: z.number().int().nonnegative(),
-  commentAuthors: z.array(GitHubUserWithAvatarSchema.nullable()),
-  labels: z.array(GitHubLabelSchema),
-  createdAt: z.string().min(1),
-});
-export type ProjectFeedItemBase = z.infer<typeof ProjectFeedItemBaseSchema>;
-
-export const IssueCommentSchema = z.object({
-  id: z.string().min(1),
-  bodyHTML: z.string(),
-  createdAt: z.string().min(1),
-  author: GitHubUserWithAvatarSchema.nullable(),
-});
-export type IssueComment = z.infer<typeof IssueCommentSchema>;
-
-export const ProjectIssueFeedItemSchema = ProjectFeedItemBaseSchema.extend({
-  bodyHTML: z.string(),
-  comments: z.array(IssueCommentSchema),
-});
-export type ProjectIssueFeedItem = z.infer<typeof ProjectIssueFeedItemSchema>;
-
-export const PullRequestCommentSchema = z.object({
-  id: z.string().min(1),
-  bodyHTML: z.string(),
-  createdAt: z.string().min(1),
-  author: GitHubUserWithAvatarSchema.nullable(),
-});
-export type PullRequestComment = z.infer<typeof PullRequestCommentSchema>;
-
-export const ProjectPullRequestFeedItemSchema = ProjectFeedItemBaseSchema.extend({
-  isDraft: z.boolean(),
-  bodyHTML: z.string(),
-  comments: z.array(PullRequestCommentSchema),
-  commitCount: z.number().int().nonnegative(),
-  additions: z.number().int().nonnegative(),
-  deletions: z.number().int().nonnegative(),
-});
-export type ProjectPullRequestFeedItem = z.infer<typeof ProjectPullRequestFeedItemSchema>;
-
-const ProjectFeedBaseSchema = z.object({
-  fetchedAt: z.number().int().nonnegative(),
-});
-
-export const ProjectIssueFeedSchema = ProjectFeedBaseSchema.extend({
-  items: z.array(ProjectIssueFeedItemSchema),
-});
-export type ProjectIssueFeed = z.infer<typeof ProjectIssueFeedSchema>;
-
-export const ProjectPullRequestFeedSchema = ProjectFeedBaseSchema.extend({
-  items: z.array(ProjectPullRequestFeedItemSchema),
-});
-export type ProjectPullRequestFeed = z.infer<typeof ProjectPullRequestFeedSchema>;
-
-export type ProjectFeed = ProjectIssueFeed | ProjectPullRequestFeed;
 
 export const RepoDetailsSchema = z.object({
   projectPath: z.string().min(1),
@@ -704,16 +624,6 @@ export interface ElectronApi {
   };
   getAppBootstrap: () => Promise<AppBootstrap>;
   pickRepoDirectory: () => Promise<string | null>;
-  getProjectIssues: (
-    owner: string,
-    name: string,
-    skipCache?: boolean,
-  ) => Promise<ProjectIssueFeed>;
-  getProjectPullRequests: (
-    owner: string,
-    name: string,
-    skipCache?: boolean,
-  ) => Promise<ProjectPullRequestFeed>;
   validateLocalGitRepository: (directoryPath: string) => Promise<void>;
   getGithubRepoDetails: (projectPath: string) => Promise<RepoDetails>;
   findLocalGithubRepoPath: (slug: string) => Promise<string | null>;

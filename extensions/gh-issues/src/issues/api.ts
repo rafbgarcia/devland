@@ -1,13 +1,18 @@
+import type { DevlandRepoContext } from '@devlandapp/sdk';
 import { z } from 'zod';
+
+import { runJsonCommand } from '@/lib/devland';
 
 import {
   GitHubLabelSchema,
   GitHubUserWithAvatarSchema,
   IssueCommentSchema,
+  ProjectIssueFeedSchema,
   ProjectIssueFeedItemSchema,
-  type ProjectIssueFeedItem,
-} from '../../ipc/contracts';
-import { graphql } from '../gh-graphql';
+  type ProjectIssueFeed,
+} from './contracts';
+
+const GH_GRAPHQL_CACHE_TTL_SECONDS = 60 * 60;
 
 const GitHubNodeIdSchema = z.union([z.string(), z.number()]).transform(String);
 
@@ -52,18 +57,59 @@ const IssuesResponseSchema = z.object({
   }),
 });
 
-export async function getRepositoryIssues(
+const buildIssueQueryArgs = (
   owner: string,
   name: string,
-  skipCache = false,
-): Promise<{ items: ProjectIssueFeedItem[]; fetchedAt: number }> {
-  const result = await graphql(ISSUES_QUERY, { owner, name, skipCache });
-  const response = IssuesResponseSchema.parse(result.data);
+  skipCache: boolean,
+): string[] => {
+  const args = ['api', 'graphql'];
 
-  return {
-    fetchedAt: result.fetchedAt,
+  if (!skipCache) {
+    args.push('--cache', `${GH_GRAPHQL_CACHE_TTL_SECONDS}s`);
+  }
+
+  args.push(
+    '-f',
+    `query=${ISSUES_QUERY}`,
+    '-f',
+    `owner=${owner}`,
+    '-f',
+    `name=${name}`,
+  );
+
+  return args;
+};
+
+const fetchIssues = async (
+  owner: string,
+  name: string,
+  skipCache: boolean,
+) =>
+  await runJsonCommand(
+    {
+      command: 'gh',
+      args: buildIssueQueryArgs(owner, name, skipCache),
+    },
+    IssuesResponseSchema,
+  );
+
+export async function getProjectIssues(
+  repo: Pick<DevlandRepoContext, 'owner' | 'name'>,
+  skipCache = false,
+): Promise<ProjectIssueFeed> {
+  const response = await fetchIssues(repo.owner, repo.name, skipCache)
+    .catch(async (error: unknown) => {
+      if (skipCache) {
+        throw error;
+      }
+
+      return await fetchIssues(repo.owner, repo.name, true);
+    });
+
+  return ProjectIssueFeedSchema.parse({
+    fetchedAt: Date.now(),
     items: response.data.repository.issues.nodes,
-  };
+  });
 }
 
 const ISSUES_QUERY = `

@@ -1,13 +1,18 @@
+import type { DevlandRepoContext } from '@devlandapp/sdk';
 import { z } from 'zod';
+
+import { runJsonCommand } from '@/lib/devland';
 
 import {
   GitHubLabelSchema,
   GitHubUserWithAvatarSchema,
-  PullRequestCommentSchema,
+  ProjectPullRequestFeedSchema,
   ProjectPullRequestFeedItemSchema,
-  type ProjectPullRequestFeedItem,
-} from '../../ipc/contracts';
-import { graphql } from '../gh-graphql';
+  PullRequestCommentSchema,
+  type ProjectPullRequestFeed,
+} from './contracts';
+
+const GH_GRAPHQL_CACHE_TTL_SECONDS = 60 * 60;
 
 const GitHubNodeIdSchema = z.union([z.string(), z.number()]).transform(String);
 
@@ -59,18 +64,59 @@ const PullRequestsResponseSchema = z.object({
   }),
 });
 
-export async function getRepositoryPullRequests(
+const buildPullRequestQueryArgs = (
   owner: string,
   name: string,
-  skipCache = false,
-): Promise<{ items: ProjectPullRequestFeedItem[]; fetchedAt: number }> {
-  const result = await graphql(PULL_REQUESTS_QUERY, { owner, name, skipCache });
-  const response = PullRequestsResponseSchema.parse(result.data);
+  skipCache: boolean,
+): string[] => {
+  const args = ['api', 'graphql'];
 
-  return {
-    fetchedAt: result.fetchedAt,
+  if (!skipCache) {
+    args.push('--cache', `${GH_GRAPHQL_CACHE_TTL_SECONDS}s`);
+  }
+
+  args.push(
+    '-f',
+    `query=${PULL_REQUESTS_QUERY}`,
+    '-f',
+    `owner=${owner}`,
+    '-f',
+    `name=${name}`,
+  );
+
+  return args;
+};
+
+const fetchPullRequests = async (
+  owner: string,
+  name: string,
+  skipCache: boolean,
+) =>
+  await runJsonCommand(
+    {
+      command: 'gh',
+      args: buildPullRequestQueryArgs(owner, name, skipCache),
+    },
+    PullRequestsResponseSchema,
+  );
+
+export async function getProjectPullRequests(
+  repo: Pick<DevlandRepoContext, 'owner' | 'name'>,
+  skipCache = false,
+): Promise<ProjectPullRequestFeed> {
+  const response = await fetchPullRequests(repo.owner, repo.name, skipCache)
+    .catch(async (error: unknown) => {
+      if (skipCache) {
+        throw error;
+      }
+
+      return await fetchPullRequests(repo.owner, repo.name, true);
+    });
+
+  return ProjectPullRequestFeedSchema.parse({
+    fetchedAt: Date.now(),
     items: response.data.repository.pullRequests.nodes,
-  };
+  });
 }
 
 const PULL_REQUESTS_QUERY = `

@@ -167,15 +167,14 @@
 
 .devland-terminal .xterm {
   height: 100%;
-  padding: var(--spacing-3);
 }
 
 .devland-terminal .xterm-screen {
   width: 100% !important;
+  padding: calc(3 * var(--spacing));
 }
 
 .devland-terminal .xterm-viewport {
-  border-radius: calc(var(--radius) * 0.9);
   scrollbar-color: color-mix(in oklab, var(--muted-foreground) 32%, transparent) transparent;
 }
 

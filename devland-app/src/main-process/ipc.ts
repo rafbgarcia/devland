@@ -8,8 +8,6 @@ import {
   BROWSER_VIEW_EVENT_CHANNEL,
   CODEX_SESSION_EVENT_CHANNEL,
   GET_APP_BOOTSTRAP_CHANNEL,
-  GET_PROJECT_ISSUES_CHANNEL,
-  GET_PROJECT_PULL_REQUESTS_CHANNEL,
   GET_GITHUB_REPO_DETAILS_CHANNEL,
   FIND_LOCAL_GITHUB_REPO_CHANNEL,
   PICK_REPO_DIRECTORY_CHANNEL,
@@ -80,8 +78,6 @@ import { suggestGitWorktreeBranchName } from './codex-use-cases/worktree-branch-
 import { generatePrReview } from './codex-use-cases/pr-review';
 import { ghExecutable } from './gh-cli';
 import { createGitHubPrReviewThread } from './gh-review-comments';
-import { getRepositoryIssues } from './gh-queries/issues';
-import { getRepositoryPullRequests } from './gh-queries/pull-requests';
 import { getGhUser } from './gh-queries/user';
 import { getRepoExtensions, installRepoExtension } from './extensions/repo-extensions';
 import { runExtensionCommand } from './extensions/runtime';
@@ -169,16 +165,6 @@ export const registerAppIpcHandlers = (
   ipcMain.handle(GET_APP_BOOTSTRAP_CHANNEL, () => getAppBootstrap());
   ipcMain.handle(PICK_REPO_DIRECTORY_CHANNEL, () =>
     pickRepoDirectory(getMainWindow()),
-  );
-  ipcMain.handle(
-    GET_PROJECT_ISSUES_CHANNEL,
-    (_event, owner: string, name: string, skipCache?: boolean) =>
-      getRepositoryIssues(owner, name, skipCache),
-  );
-  ipcMain.handle(
-    GET_PROJECT_PULL_REQUESTS_CHANNEL,
-    (_event, owner: string, name: string, skipCache?: boolean) =>
-      getRepositoryPullRequests(owner, name, skipCache),
   );
   ipcMain.handle(
     VALIDATE_LOCAL_GIT_REPO_CHANNEL,

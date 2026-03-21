@@ -1,5 +1,4 @@
-import type { ProjectIssueFeedItem } from '@devlandapp/sdk';
-
+import type { ProjectIssueFeedItem } from '@/issues/contracts';
 import {
   ProjectFeedItemFrame,
 } from '@/renderer/shared/ui/project-feed/project-feed';

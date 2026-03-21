@@ -2,8 +2,9 @@ import { useMemo, useState } from 'react';
 
 import { MessageSquareDotIcon } from 'lucide-react';
 
-import type { DevlandRepoContext, ProjectIssueFeed } from '@devlandapp/sdk';
+import type { DevlandRepoContext } from '@devlandapp/sdk';
 
+import type { ProjectIssueFeed } from '@/issues/contracts';
 import {
   ProjectFeedScaffold,
   type ProjectFeedDefinition,

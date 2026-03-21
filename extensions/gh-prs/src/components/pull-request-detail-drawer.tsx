@@ -4,8 +4,7 @@ import {
   GitPullRequestIcon,
 } from 'lucide-react';
 
-import type { ProjectPullRequestFeedItem } from '@devlandapp/sdk';
-
+import type { ProjectPullRequestFeedItem } from '@/pull-requests/contracts';
 import { RelativeTime } from '@/renderer/shared/ui/relative-time';
 import { getAuthorLogin } from '@/renderer/shared/lib/github-view';
 import { SlidingDetailDrawer } from '@/renderer/shared/ui/sliding-detail-drawer';

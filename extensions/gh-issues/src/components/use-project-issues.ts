@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { DevlandRepoContext, ProjectIssueFeed } from '@devlandapp/sdk';
+import type { DevlandRepoContext } from '@devlandapp/sdk';
+
+import { getProjectIssues } from '@/issues/api';
+import type { ProjectIssueFeed } from '@/issues/contracts';
 
 type ProjectIssuesState =
   | { status: 'loading'; data: null; error: null }
@@ -25,8 +28,7 @@ export function useProjectIssues(repo: DevlandRepoContext) {
       setState({ status: 'loading', data: null, error: null });
     }
 
-    void window.electronAPI
-      .getProjectIssues(repo.owner, repo.name, skipCache)
+    void getProjectIssues(repo, skipCache)
       .then((data) => {
         if (fetchIdRef.current !== fetchId) return;
         setState({ status: 'ready', data, error: null });

@@ -2,14 +2,8 @@ import '@xterm/xterm/css/xterm.css';
 
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal, type ITheme } from '@xterm/xterm';
-import { LoaderCircleIcon, TerminalIcon } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-
 import type { TerminalSessionSnapshot, TerminalSessionStatus } from '@/ipc/contracts';
-import { Badge } from '@/shadcn/components/ui/badge';
-import { cn } from '@/shadcn/lib/utils';
-
-const FALLBACK_TERMINAL_HEIGHT = 320;
 
 function getTerminalTheme(): ITheme {
   const bodyStyles = getComputedStyle(document.body);
@@ -272,40 +266,11 @@ export function SessionTerminal({
   }, [cwd, sessionId]);
 
   return (
-    <div className={cn('flex h-full min-h-0 flex-col bg-card/35', className)}>
-      <div className="flex items-center justify-between gap-3 border-b border-border/70 px-4 py-2.5">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-            <TerminalIcon className="size-4 text-primary" />
-            <span className="truncate">Terminal · {headline}</span>
-          </div>
-          <p className="truncate text-xs text-muted-foreground" title={cwd}>
-            {cwd}
-          </p>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-2">
-          {snapshot === null && loadError === null ? (
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <LoaderCircleIcon className="size-3.5 animate-spin" />
-              Preparing shell
-            </div>
-          ) : null}
-          <Badge variant={statusVariant(status)}>
-            {statusLabel(status)}
-          </Badge>
-        </div>
-      </div>
-
-      <div className="min-h-0 flex-1 p-3">
-        <div className="devland-terminal-shell h-full min-h-[320px] overflow-hidden rounded-xl border border-border/70 bg-card/90 shadow-sm">
-          <div
-            ref={mountRef}
-            className="devland-terminal h-full w-full"
-            style={{ minHeight: FALLBACK_TERMINAL_HEIGHT }}
-          />
-        </div>
-      </div>
+    <div className='flex flex-col h-full overflow-hidden'>
+      <div
+        ref={mountRef}
+        className="devland-terminal flex-1"
+      />
 
       {loadError ? (
         <div className="border-t border-border/70 px-4 py-2 text-xs text-destructive">

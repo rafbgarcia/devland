@@ -17,5 +17,4 @@ MLP
 TODO:
 - Files changed double-click open on editor (Editor user preference)
 - Check if PR and Issue tab must handle missing `gh` CLI themselves
-- Extract out packages/devland-sdk/src/gh-issues.ts and packages/devland-sdk/src/gh-prs.ts to their respective extension code, that shouldn't live in the sdk
 -
