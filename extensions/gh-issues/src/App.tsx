@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { motion } from 'motion/react';
 
 import type { DevlandRepoContext } from '@devlandapp/sdk';
 
@@ -72,5 +73,15 @@ export function App() {
     );
   }
 
-  return <ProjectIssuesView repo={state.repo} />;
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      className="h-full origin-center"
+    >
+      <ProjectIssuesView repo={state.repo} />
+    </motion.div>
+  );
 }
