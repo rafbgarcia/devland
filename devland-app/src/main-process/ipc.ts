@@ -9,6 +9,7 @@ import {
   CODEX_SESSION_EVENT_CHANNEL,
   GET_APP_BOOTSTRAP_CHANNEL,
   GET_GITHUB_REPO_DETAILS_CHANNEL,
+  GET_REPO_CONFIG_CHANNEL,
   FIND_LOCAL_GITHUB_REPO_CHANNEL,
   PICK_REPO_DIRECTORY_CHANNEL,
   VALIDATE_LOCAL_GIT_REPO_CHANNEL,
@@ -176,6 +177,10 @@ export const registerAppIpcHandlers = (
   ipcMain.handle(
     GET_GITHUB_REPO_DETAILS_CHANNEL,
     (_event, projectPath: string) => getGithubRepoDetails(projectPath),
+  );
+  ipcMain.handle(
+    GET_REPO_CONFIG_CHANNEL,
+    (_event, repoPath: string) => readRepoConfig(repoPath),
   );
   ipcMain.handle(
     FIND_LOCAL_GITHUB_REPO_CHANNEL,

@@ -27,6 +27,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import { useVirtualizer, type VirtualItem } from '@tanstack/react-virtual';
 
+import type { RepoSuggestedPrompt } from '@/extensions/contracts';
 import type { CodexSessionState } from '@/renderer/code-screen/codex-session-state';
 import { DETACHED_WORKTREE_TARGET_TITLE } from '@/renderer/code-screen/worktree-session';
 import {
@@ -328,7 +329,7 @@ const ProposedPlanRow = memo(function ProposedPlanRow({
   );
 });
 
-const SUGGESTION_PROMPTS = [
+const DEFAULT_SUGGESTION_PROMPTS: RepoSuggestedPrompt[] = [
   { label: 'Code review branch ', prompt: 'Code review the changes on this branch against the base branch.' },
   { label: 'Summarize branch changes', prompt: 'Review the changes on this branch against the base branch and output a markdown summary of user-facing changes.' },
   { label: 'Address Github PR review', prompt: 'Use gh CLI to fetch open PR comments for this branch. Investigate the codebase and address the relevant code reviews.' },
@@ -338,14 +339,20 @@ const SUGGESTION_PROMPTS = [
 function EmptyState({
   targetLabel,
   onSendSuggestion,
+  suggestedPrompts,
 }: {
   targetLabel: string;
   onSendSuggestion: ((prompt: string) => void) | undefined;
+  suggestedPrompts?: RepoSuggestedPrompt[] | null | undefined;
 }) {
   const resolvedTargetLabel =
     targetLabel === DETACHED_WORKTREE_TARGET_TITLE
       ? 'Branch will be created after the first message'
       : targetLabel;
+  const resolvedSuggestedPrompts =
+    suggestedPrompts === null
+      ? []
+      : suggestedPrompts ?? DEFAULT_SUGGESTION_PROMPTS;
 
   return (
     <div className="flex h-full flex-col items-center justify-center px-8">
@@ -371,7 +378,7 @@ function EmptyState({
             transition={{ duration: 0.4, delay: 0.15, ease: 'easeOut' }}
             className="flex flex-wrap justify-center gap-2"
           >
-            {SUGGESTION_PROMPTS.map((suggestion) => (
+            {resolvedSuggestedPrompts.map((suggestion) => (
               <button
                 key={suggestion.label}
                 type="button"
@@ -406,11 +413,13 @@ export const SessionTranscript = memo(function SessionTranscript({
   targetLabel,
   onSendSuggestion,
   onImplementPlan,
+  suggestedPrompts,
 }: {
   sessionState: CodexSessionState;
   targetLabel: string;
   onSendSuggestion?: (prompt: string) => void;
   onImplementPlan?: (planMarkdown: string) => void;
+  suggestedPrompts?: RepoSuggestedPrompt[] | null | undefined;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const timelineRootRef = useRef<HTMLDivElement>(null);
@@ -520,6 +529,7 @@ export const SessionTranscript = memo(function SessionTranscript({
       <EmptyState
         targetLabel={targetLabel}
         onSendSuggestion={onSendSuggestion}
+        suggestedPrompts={suggestedPrompts}
       />
     );
   }

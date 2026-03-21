@@ -1,5 +1,4 @@
 {
   "worktreeSetupCommand": "bun install --cwd devland-app",
-  "extensions": [
-  ]
+  "extensions": []
 }

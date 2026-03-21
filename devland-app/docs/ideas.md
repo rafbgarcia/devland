@@ -4,8 +4,6 @@ MLP
   - Handle add repo
     - Read remote repo's `devland.json` to install extensions for remote repos
     - Show README
-- Issues extension: button solve on worktree/local
-- `devland.json` "suggestedPrompts"
 - Prompt request extension
 - Open files with CMD + P (use diff viewer): readonly; comments for Codex session;
 - One-click setup repo `devland.json` "initialDevelopmentSetupCommand"
@@ -14,6 +12,5 @@ MLP
 
 TODO:
 - Files changed double-click open on editor (Editor user preference)
-- Check if PR and Issue tab must handle missing `gh` CLI themselves
 - Codex scroll, follow up messages, context window
 - Git history limit

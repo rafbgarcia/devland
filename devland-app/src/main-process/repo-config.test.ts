@@ -51,4 +51,44 @@ describe('readRepoConfig', () => {
       worktreeSetupCommand: 'bun run setup-worktree',
     });
   });
+
+  it('reads and trims suggestedPrompts from devland.json', async () => {
+    const repoPath = makeTempDir('devland-repo-config-prompts-');
+
+    writeJsonFile(repoPath, 'devland.json', {
+      suggestedPrompts: [
+        {
+          label: '  Review branch  ',
+          prompt: '  Code review the current branch.  ',
+        },
+      ],
+    });
+
+    const config = await readRepoConfig(repoPath);
+
+    assert.deepEqual(config, {
+      extensions: [],
+      suggestedPrompts: [
+        {
+          label: 'Review branch',
+          prompt: 'Code review the current branch.',
+        },
+      ],
+    });
+  });
+
+  it('preserves an explicit empty suggestedPrompts list', async () => {
+    const repoPath = makeTempDir('devland-repo-config-empty-prompts-');
+
+    writeJsonFile(repoPath, 'devland.json', {
+      suggestedPrompts: [],
+    });
+
+    const config = await readRepoConfig(repoPath);
+
+    assert.deepEqual(config, {
+      extensions: [],
+      suggestedPrompts: [],
+    });
+  });
 });

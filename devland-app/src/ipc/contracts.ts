@@ -10,6 +10,7 @@ import {
   ProjectExtensionSchema,
   type ProjectExtension,
   type InstallRepoExtensionInput,
+  type RepoConfig,
   type RunExtensionCommandInput,
 } from '@/extensions/contracts';
 
@@ -17,6 +18,7 @@ export const GET_APP_BOOTSTRAP_CHANNEL = 'app:get-app-bootstrap';
 export const PICK_REPO_DIRECTORY_CHANNEL = 'app:pick-repo-directory';
 export const VALIDATE_LOCAL_GIT_REPO_CHANNEL = 'app:validate-local-git-repo';
 export const GET_GITHUB_REPO_DETAILS_CHANNEL = 'app:get-github-repo-details';
+export const GET_REPO_CONFIG_CHANNEL = 'app:get-repo-config';
 export const FIND_LOCAL_GITHUB_REPO_CHANNEL = 'app:find-local-github-repo';
 export const APP_SHORTCUT_COMMAND_CHANNEL = 'app:shortcut-command';
 export const CLONE_GITHUB_REPO_CHANNEL = 'app:clone-github-repo';
@@ -646,6 +648,7 @@ export interface ElectronApi {
   pickRepoDirectory: () => Promise<string | null>;
   validateLocalGitRepository: (directoryPath: string) => Promise<void>;
   getGithubRepoDetails: (projectPath: string) => Promise<RepoDetails>;
+  getRepoConfig: (repoPath: string) => Promise<RepoConfig>;
   findLocalGithubRepoPath: (slug: string) => Promise<string | null>;
   onAppShortcutCommand: (listener: (command: AppShortcutCommand) => void) => () => void;
   cloneGithubRepo: (slug: string) => Promise<string>;

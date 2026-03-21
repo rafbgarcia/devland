@@ -7,6 +7,7 @@ import {
   CodexSessionEventSchema,
   GET_APP_BOOTSTRAP_CHANNEL,
   GET_GITHUB_REPO_DETAILS_CHANNEL,
+  GET_REPO_CONFIG_CHANNEL,
   FIND_LOCAL_GITHUB_REPO_CHANNEL,
   PICK_REPO_DIRECTORY_CHANNEL,
   VALIDATE_LOCAL_GIT_REPO_CHANNEL,
@@ -86,6 +87,8 @@ export const electronApi: ElectronApi = {
     ipcRenderer.invoke(VALIDATE_LOCAL_GIT_REPO_CHANNEL, directoryPath),
   getGithubRepoDetails: (projectPath) =>
     ipcRenderer.invoke(GET_GITHUB_REPO_DETAILS_CHANNEL, projectPath),
+  getRepoConfig: (repoPath) =>
+    ipcRenderer.invoke(GET_REPO_CONFIG_CHANNEL, repoPath),
   findLocalGithubRepoPath: (slug) =>
     ipcRenderer.invoke(FIND_LOCAL_GITHUB_REPO_CHANNEL, slug),
   cloneGithubRepo: (slug) =>

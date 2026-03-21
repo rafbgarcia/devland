@@ -27,9 +27,16 @@ export const RepoExtensionDefinitionSchema = z.object({
 });
 export type RepoExtensionDefinition = z.infer<typeof RepoExtensionDefinitionSchema>;
 
+export const RepoSuggestedPromptSchema = z.object({
+  label: z.string().trim().min(1),
+  prompt: z.string().trim().min(1),
+});
+export type RepoSuggestedPrompt = z.infer<typeof RepoSuggestedPromptSchema>;
+
 export const RepoConfigSchema = z.object({
   extensions: z.array(RepoExtensionDefinitionSchema).default([]),
   worktreeSetupCommand: z.string().trim().min(1).optional(),
+  suggestedPrompts: z.array(RepoSuggestedPromptSchema).optional(),
 });
 export type RepoConfig = z.infer<typeof RepoConfigSchema>;
 

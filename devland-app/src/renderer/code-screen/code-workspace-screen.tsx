@@ -22,6 +22,7 @@ import {
   type CodexComposerSettings,
   type CodexPromptSubmission,
 } from '@/lib/codex-chat';
+import type { RepoSuggestedPrompt } from '@/extensions/contracts';
 import {
   type CodeTarget,
   type CodeWorkspacePane,
@@ -168,6 +169,9 @@ export function CodeWorkspaceScreen({
   const [composerSettingsByTargetId, setComposerSettingsByTargetId] = useState<
     Record<string, CodexComposerSettings>
   >({});
+  const [repoSuggestedPrompts, setRepoSuggestedPrompts] = useState<
+    RepoSuggestedPrompt[] | null | undefined
+  >(null);
   const sidebarWidthAtDragStart = useRef(SIDEBAR_DEFAULT_WIDTH);
   const repos = useRepos();
   const { session, updateSession } = useWorkspaceSession();
@@ -280,6 +284,30 @@ export function CodeWorkspaceScreen({
   useEffect(() => subscribeToGitStatusRefresh((request) => {
     handleGitStatusRefresh(request.repoPath);
   }), [handleGitStatusRefresh]);
+
+  useEffect(() => {
+    let isDisposed = false;
+
+    setRepoSuggestedPrompts(null);
+
+    void window.electronAPI.getRepoConfig(repoPath)
+      .then((config) => {
+        if (!isDisposed) {
+          setRepoSuggestedPrompts(config.suggestedPrompts);
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to load repo config:', error);
+
+        if (!isDisposed) {
+          setRepoSuggestedPrompts(undefined);
+        }
+      });
+
+    return () => {
+      isDisposed = true;
+    };
+  }, [repoPath]);
 
   useEffect(() => {
     pruneCodexChangeOrderStates(targets.map((target) => target.id));
@@ -750,6 +778,7 @@ export function CodeWorkspaceScreen({
                 <SessionTranscript
                   sessionState={sessionState}
                   targetLabel={activeTargetLabel}
+                  suggestedPrompts={repoSuggestedPrompts}
                   onImplementPlan={handleImplementPlan}
                   onSendSuggestion={(prompt) => {
                     void handleSendPrompt({ prompt, settings: composerSettings, attachments: [] });
