@@ -237,13 +237,36 @@ export function ProjectFeedScaffold<TFeed extends FeedBase<FeedItemBase>>({
   }
 
   if (state.status === 'error') {
+    const isGhMissing = /\bgh\b.*not found|command not found.*\bgh\b|gh:.*not installed|install.*github cli|github cli.*not/i.test(
+      state.error,
+    );
+
     return (
       <div className="p-5">
-        <Alert variant="destructive">
-          <GithubIcon />
-          <AlertTitle>Could not load project data</AlertTitle>
-          <AlertDescription>{state.error}</AlertDescription>
-        </Alert>
+        {isGhMissing ? (
+          <Alert>
+            <GithubIcon />
+            <AlertTitle>GitHub CLI not found</AlertTitle>
+            <AlertDescription>
+              This extension requires the GitHub CLI (<code className="text-xs font-semibold">gh</code>) to be installed
+              and available on your PATH.{' '}
+              <a
+                href="https://cli.github.com/manual/installation"
+                target="_blank"
+                rel="noreferrer"
+                className="underline underline-offset-2"
+              >
+                Install GitHub CLI
+              </a>
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <Alert variant="destructive">
+            <GithubIcon />
+            <AlertTitle>Could not load project data</AlertTitle>
+            <AlertDescription>{state.error}</AlertDescription>
+          </Alert>
+        )}
       </div>
     );
   }

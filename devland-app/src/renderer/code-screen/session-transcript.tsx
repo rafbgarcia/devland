@@ -357,7 +357,7 @@ function EmptyState({
           {' '}
           <kbd className="rounded border border-border/40 bg-muted/30 px-1 py-0.5 font-sans text-[10px]">N</kbd>
           {' '}
-          <span>to reset session</span>
+          <span>for a new session</span>
         </motion.p>
       </div>
     </div>

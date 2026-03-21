@@ -11,4 +11,4 @@
 HARD STOP RULES:
 - HARD STOP on ambiguious decisions; clarify assumptions; design choices; compromises; product decisions;
 - HARD STOP when you notice design flaws, inappropriate production code or tests;
-- HARD STOP delegate design (UI/UX) work to Claude code by running `_claude -p "<instructions>"`
+- HARD STOP delegate design (UI/UX) work to Claude code by running `_claude -p "<goal>"`
