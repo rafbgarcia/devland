@@ -116,7 +116,7 @@ export const ChangesSidebar = memo(function ChangesSidebar({
       onSelectFile={onSelectFile}
       getFileSelectionType={workingTreeCommitState?.getFileSelectionType}
       onToggleFileSelection={workingTreeCommitState?.onToggleFileSelection}
-      emptyMessage={isDiffLoading ? 'Loading changes...' : emptyMessage}
+      emptyMessage={emptyMessage}
       topContent={selectedCommit ? (
         <HistorySnapshotBanner
           commit={selectedCommit}

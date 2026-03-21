@@ -1,5 +1,6 @@
 MLP
-- Onboarding: don't require `gh` CLI, handle
+- Review Onboarding
+  - don't require `gh` CLI, handle
   - Handle add repo
     - Read remote repo's `devland.json` to install extensions for remote repos
   - PR and Issue tab must handle missing `gh` CLI themselves

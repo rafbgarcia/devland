@@ -153,6 +153,7 @@ export function useGitWorkingTreeDiff({
 }) {
   const [rawDiff, setRawDiff] = useState<AsyncState<string>>({ status: 'loading' });
   const fetchIdRef = useRef(0);
+  const diffCacheRef = useRef<Map<string, string>>(new Map());
 
   const snapshotKey = useMemo(
     () => files
@@ -171,13 +172,19 @@ export function useGitWorkingTreeDiff({
 
   useEffect(() => {
     const fetchId = ++fetchIdRef.current;
+    const cacheKey = `${repoPath}\0${snapshotKey}`;
+    const cachedDiff = getFromLruCache(diffCacheRef.current, cacheKey);
 
     if (files.length === 0) {
       setRawDiff({ status: 'ready', data: '' });
       return;
     }
 
-    setRawDiff({ status: 'loading' });
+    setRawDiff(
+      cachedDiff === undefined
+        ? { status: 'loading' }
+        : { status: 'ready', data: cachedDiff },
+    );
 
     window.electronAPI.getGitWorkingTreeDiff(repoPath)
       .then((diff) => {
@@ -185,10 +192,16 @@ export function useGitWorkingTreeDiff({
           return;
         }
 
+        setLruCacheValue(diffCacheRef.current, cacheKey, diff, COMMIT_DIFF_CACHE_LIMIT);
         setRawDiff({ status: 'ready', data: diff });
       })
       .catch((error) => {
         if (fetchIdRef.current !== fetchId) {
+          return;
+        }
+
+        if (cachedDiff !== undefined) {
+          setRawDiff({ status: 'ready', data: cachedDiff });
           return;
         }
 
@@ -222,7 +235,8 @@ export function useGitCommitDiff({
       return undefined;
     }
 
-    const cached = getFromLruCache(diffCacheRef.current, commitSha);
+    const cacheKey = `${repoPath}\0${commitSha}`;
+    const cached = getFromLruCache(diffCacheRef.current, cacheKey);
     if (cached !== undefined) {
       setRawDiff({ status: 'ready', data: cached });
     } else {
@@ -235,7 +249,7 @@ export function useGitCommitDiff({
             return;
           }
 
-          setLruCacheValue(diffCacheRef.current, commitSha, diff, COMMIT_DIFF_CACHE_LIMIT);
+          setLruCacheValue(diffCacheRef.current, cacheKey, diff, COMMIT_DIFF_CACHE_LIMIT);
           setRawDiff({ status: 'ready', data: diff });
         })
         .catch((error) => {

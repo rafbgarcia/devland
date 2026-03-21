@@ -7,7 +7,6 @@ import type {
 } from '@/lib/diff';
 import type { AsyncState } from '@/renderer/shared/ui/diff/diff-types';
 import type { DiffRenderFile } from '@/renderer/shared/ui/diff/use-diff-render-files';
-import { Spinner } from '@/shadcn/components/ui/spinner';
 
 import { DiffFileSection } from './diff-renderer';
 import type { DiffExpansionAction, DiffExpansionGap, DiffFileExpansionState } from './diff-expansion';
@@ -50,15 +49,6 @@ export const SingleFileDiffView = memo(function SingleFileDiffView({
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {topContent}
-
-      {rawDiff.status === 'loading' ? (
-        <div className="flex flex-1 items-center justify-center">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Spinner className="size-3.5" />
-            Loading diff...
-          </div>
-        </div>
-      ) : null}
 
       {rawDiff.status === 'error' ? (
         <div className="flex flex-1 items-center justify-center">

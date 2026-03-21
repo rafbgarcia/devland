@@ -5,6 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
   type MouseEvent as ReactMouseEvent,
 } from 'react';
 
@@ -45,6 +46,7 @@ import {
   useGitStatus,
 } from '@/renderer/code-screen/use-git';
 import {
+  DETACHED_WORKTREE_TARGET_TITLE,
   getWorktreeTargetTitle,
   getWorktreePromptText,
   shouldBootstrapDetachedWorktreeBranch,
@@ -186,11 +188,36 @@ export function CodeWorkspaceScreen({
     respondToUserInput,
   } = useCodexSessionActions();
   const rootStatusState = useGitStatus(repoPath);
-  const defaultBranchState = useGitDefaultBranch(activeTarget.cwd);
+  const defaultBranchState = useGitDefaultBranch(repoPath);
   const statusState = useGitStatus(activeTarget.cwd);
 
   const activeBranch = statusState.data?.branch ?? 'HEAD';
   const rootBranch = rootStatusState.data?.branch ?? 'HEAD';
+  const visibleChangesStatus = useMemo(() => {
+    if (statusState.status === 'ready') {
+      return statusState.data;
+    }
+
+    return {
+      branch:
+        activeTarget.kind === 'worktree'
+          ? activeTarget.title !== DETACHED_WORKTREE_TARGET_TITLE
+            ? activeTarget.title
+            : 'HEAD'
+          : rootBranch,
+      headRevision: null,
+      files: [],
+      hasStagedChanges: false,
+    };
+  }, [activeTarget.kind, activeTarget.title, rootBranch, statusState]);
+  const visibleBaseBranchName = defaultBranchState.status === 'ready'
+    ? defaultBranchState.data
+    : rootBranch;
+  const changesPaneError = defaultBranchState.status === 'error'
+    ? defaultBranchState.error
+    : statusState.status === 'error'
+      ? statusState.error
+      : null;
 
   const rememberActiveTarget = useCallback(
     (targetId: string | null) => {
@@ -218,11 +245,11 @@ export function CodeWorkspaceScreen({
     const refreshes: Promise<unknown>[] = [];
 
     if (changedRepoPath === repoPath) {
-      refreshes.push(rootStatusState.refetch());
+      refreshes.push(rootStatusState.refetch(), defaultBranchState.refetch());
     }
 
     if (changedRepoPath === activeTarget.cwd) {
-      refreshes.push(statusState.refetch(), defaultBranchState.refetch());
+      refreshes.push(statusState.refetch());
     }
 
     if (refreshes.length === 0) {
@@ -602,6 +629,126 @@ export function CodeWorkspaceScreen({
     rememberActiveTarget(target.id);
   }, [addCurrentBranchSession, rememberActiveTarget]);
 
+  const renderWorkspaceLayout = useCallback((
+    sidebar: ReactNode,
+    viewport: ReactNode,
+  ) => (
+    <>
+      <div
+        className="flex shrink-0 flex-col overflow-hidden border-r border-border"
+        style={{ width: sidebarWidth }}
+      >
+        {sidebar}
+      </div>
+      <ResizableHandle onResizeStart={() => { sidebarWidthAtDragStart.current = sidebarWidth; }} onResize={handleSidebarResize} />
+
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
+        <LayerToggle
+          activePaneId={activePaneId}
+          onChangePane={rememberActivePane}
+          codexMenu={(
+            <CodexTabMenu
+              cwd={activeTarget.cwd}
+              currentThreadId={sessionState.threadId}
+              settings={composerSettings}
+              onSettingsChange={handleComposerSettingsChange}
+              onNewSession={() => resetSession(activeTarget.id)}
+              onSelectThread={(threadId) =>
+                resumeThread(activeTarget.id, activeTarget.cwd, composerSettings, threadId)
+              }
+            />
+          )}
+        />
+
+        <div className="relative min-h-0 flex-1 overflow-hidden">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={activePaneId}
+              initial={{ opacity: 0, scale: 0.99 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.99 }}
+              transition={{ duration: 0.1 }}
+              className="h-full origin-center overflow-auto"
+            >
+              {activePaneId === 'changes' ? (
+                viewport
+              ) : activePaneId === 'browser' ? (
+                <BrowserPanel key={activeTarget.id} targetId={activeTarget.id} />
+              ) : activePaneId === 'terminal' ? (
+                <SessionTerminal
+                  key={activeTarget.id}
+                  sessionId={activeTarget.id}
+                  cwd={activeTarget.cwd}
+                />
+              ) : (
+                <SessionTranscript
+                  sessionState={sessionState}
+                  targetLabel={activeTargetLabel}
+                  onCreateSession={handleAddCurrentBranchSession}
+                  onSendSuggestion={(prompt) => {
+                    void handleSendPrompt({ prompt, settings: composerSettings, attachments: [] });
+                    rememberActivePane('codex');
+                  }}
+                />
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </div>
+
+        <div
+          className="shrink-0 border-t border-border/60 bg-background px-4 pb-3 pt-2.5"
+          onFocus={() => {
+            if (activePaneId !== 'browser') {
+              rememberActivePane('codex');
+            }
+          }}
+        >
+          <SessionAlerts
+            targetId={activeTarget.id}
+            sessionError={sessionState.error}
+            pendingApprovals={sessionState.pendingApprovals}
+            pendingUserInputs={sessionState.pendingUserInputs}
+            onRespondToApproval={respondToApproval}
+            onRespondToUserInput={respondToUserInput}
+          />
+
+          <ChatComposer
+            key={activeTarget.id}
+            activeRepoPath={activeTarget.cwd}
+            storedRepoPaths={storedRepoPaths}
+            settings={composerSettings}
+            isRunning={isRunning}
+            onSendPrompt={handleSendPrompt}
+            onInterrupt={() => interruptSession(activeTarget.id)}
+          />
+        </div>
+      </div>
+    </>
+  ), [
+    activePaneId,
+    activeTarget.cwd,
+    activeTarget.id,
+    activeTargetLabel,
+    composerSettings,
+    handleAddCurrentBranchSession,
+    handleComposerSettingsChange,
+    handleSendPrompt,
+    handleSidebarResize,
+    interruptSession,
+    isRunning,
+    rememberActivePane,
+    resetSession,
+    respondToApproval,
+    respondToUserInput,
+    resumeThread,
+    sessionState.error,
+    sessionState.pendingApprovals,
+    sessionState.pendingUserInputs,
+    sessionState.threadId,
+    sidebarWidth,
+    storedRepoPaths,
+  ]);
+
   return (
     <>
       <Dialog
@@ -727,128 +874,29 @@ export function CodeWorkspaceScreen({
       </Tabs>
 
       <div className="flex min-h-0 flex-1">
-        {defaultBranchState.status === 'ready' && statusState.status === 'ready' ? (
+        {changesPaneError !== null ? (
+          renderWorkspaceLayout(
+            <div className="flex h-full items-center justify-center px-6">
+              <p className="text-sm text-muted-foreground">{changesPaneError}</p>
+            </div>,
+            <div className="flex h-full items-center justify-center px-6">
+              <p className="text-sm text-muted-foreground">{changesPaneError}</p>
+            </div>,
+          )
+        ) : (
           <ChangesPane
             repoPath={activeTarget.cwd}
-            baseBranchName={defaultBranchState.data}
-            branchName={statusState.data.branch}
-            headRevision={statusState.data.headRevision}
-            workingTreeFiles={statusState.data.files}
+            baseBranchName={visibleBaseBranchName}
+            branchName={visibleChangesStatus.branch}
+            headRevision={visibleChangesStatus.headRevision}
+            workingTreeFiles={visibleChangesStatus.files}
             workingTreeStatusRefreshVersion={statusState.refreshVersion}
             isViewportActive={activePaneId === 'changes'}
             onFileSelect={() => rememberActivePane('changes')}
             onSubmitDiffComment={(anchor, body) => handleSubmitDiffComment(anchor, body)}
           >
-            {({ sidebar, viewport }) => (
-              <>
-                <div
-                  className="flex shrink-0 flex-col overflow-hidden border-r border-border"
-                  style={{ width: sidebarWidth }}
-                >
-                  {sidebar}
-                </div>
-                <ResizableHandle onResizeStart={() => { sidebarWidthAtDragStart.current = sidebarWidth; }} onResize={handleSidebarResize} />
-
-                <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
-                  <LayerToggle
-                    activePaneId={activePaneId}
-                    onChangePane={rememberActivePane}
-                    codexMenu={
-                      <CodexTabMenu
-                        cwd={activeTarget.cwd}
-                        currentThreadId={sessionState.threadId}
-                        settings={composerSettings}
-                        onSettingsChange={handleComposerSettingsChange}
-                        onNewSession={() => resetSession(activeTarget.id)}
-                        onSelectThread={(threadId) =>
-                          resumeThread(activeTarget.id, activeTarget.cwd, composerSettings, threadId)
-                        }
-                      />
-                    }
-                  />
-
-                  <div className="relative min-h-0 flex-1 overflow-hidden">
-                    <AnimatePresence mode="wait" initial={false}>
-                      <motion.div
-                        key={activePaneId}
-                        initial={{ opacity: 0, scale: 0.99 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.99 }}
-                        transition={{ duration: 0.1 }}
-                        className="h-full origin-center overflow-auto"
-                      >
-                        {activePaneId === 'changes' ? (
-                          viewport
-                        ) : activePaneId === 'browser' ? (
-                          <BrowserPanel key={activeTarget.id} targetId={activeTarget.id} />
-                        ) : activePaneId === 'terminal' ? (
-                          <SessionTerminal
-                            key={activeTarget.id}
-                            sessionId={activeTarget.id}
-                            cwd={activeTarget.cwd}
-                          />
-                        ) : (
-                          <SessionTranscript
-                            sessionState={sessionState}
-                            targetLabel={activeTargetLabel}
-                            onCreateSession={handleAddCurrentBranchSession}
-                            onSendSuggestion={(prompt) => {
-                              void handleSendPrompt({ prompt, settings: composerSettings, attachments: [] });
-                              rememberActivePane('codex');
-                            }}
-                          />
-                        )}
-                      </motion.div>
-                    </AnimatePresence>
-                  </div>
-
-                  <div
-                    className="shrink-0 border-t border-border/60 bg-background px-4 pb-3 pt-2.5"
-                    onFocus={() => {
-                      if (activePaneId !== 'browser') {
-                        rememberActivePane('codex');
-                      }
-                    }}
-                  >
-                    <SessionAlerts
-                      targetId={activeTarget.id}
-                      sessionError={sessionState.error}
-                      pendingApprovals={sessionState.pendingApprovals}
-                      pendingUserInputs={sessionState.pendingUserInputs}
-                      onRespondToApproval={respondToApproval}
-                      onRespondToUserInput={respondToUserInput}
-                    />
-
-                    <ChatComposer
-                      key={activeTarget.id}
-                      activeRepoPath={activeTarget.cwd}
-                      storedRepoPaths={storedRepoPaths}
-                      settings={composerSettings}
-                      isRunning={isRunning}
-                      onSendPrompt={handleSendPrompt}
-                      onInterrupt={() => interruptSession(activeTarget.id)}
-                    />
-                  </div>
-                </div>
-
-              </>
-            )}
+            {({ sidebar, viewport }) => renderWorkspaceLayout(sidebar, viewport)}
           </ChangesPane>
-        ) : defaultBranchState.status === 'error' ? (
-          <div className="flex h-full flex-1 items-center justify-center px-6">
-            <p className="text-sm text-muted-foreground">{defaultBranchState.error}</p>
-          </div>
-        ) : statusState.status === 'error' ? (
-          <div className="flex h-full flex-1 items-center justify-center px-6">
-            <p className="text-sm text-muted-foreground">{statusState.error}</p>
-          </div>
-        ) : (
-          <div className="flex h-full flex-1 items-center justify-center">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <LoaderCircleIcon className="size-3.5 animate-spin" />
-              Resolving default branch...
-            </div>
-          </div>
         )}
       </div>
       </div>

@@ -216,8 +216,8 @@ export function ChangesPane({
     ? workingTreeState.rawDiff
     : commitDiffState.rawDiff;
   const emptyMessage = selection.type === 'working-tree'
-    ? 'Working tree is clean.'
-    : 'No file changes in this commit.';
+    ? (activeDiffState.status === 'loading' ? '' : 'Working tree is clean.')
+    : (activeDiffState.status === 'loading' ? '' : 'No file changes in this commit.');
   const historyCommits = historyState.status === 'ready'
     ? historyState.data.commits
     : [];
