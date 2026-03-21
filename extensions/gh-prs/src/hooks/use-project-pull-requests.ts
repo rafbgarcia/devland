@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { DevlandRepoContext } from '@devlandapp/sdk';
 
-import { getProjectPullRequests } from '@/pull-requests/api';
-import type { ProjectPullRequestFeed } from '@/pull-requests/contracts';
+import { getProjectPullRequests } from '@/api/pull-requests';
+import type { ProjectPullRequestFeed } from '@/types/pull-requests';
 
 type ProjectPullRequestsState =
   | { status: 'loading'; data: null; error: null }

@@ -55,7 +55,6 @@
 :root {
   --radius: 0.625rem;
   --font-sans: "Avenir Next", "Segoe UI", sans-serif;
-  --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", ui-serif, serif;
   --background: oklch(0.965 0.015 82);
   --foreground: oklch(0.235 0.026 252);
   --card: oklch(0.985 0.008 84);
@@ -150,34 +149,4 @@
     background: color-mix(in oklab, var(--primary) 28%, white);
     color: var(--foreground);
   }
-}
-
-.display-face {
-  font-family: var(--font-display);
-  letter-spacing: -0.045em;
-}
-
-.diff-syntax .cm-diff-add-inner {
-  background: color-mix(in oklab, oklch(0.7 0.13 148) 36%, transparent);
-}
-
-.diff-syntax .cm-diff-delete-inner {
-  background: color-mix(in oklab, oklch(0.63 0.2 25) 34%, transparent);
-}
-
-.devland-terminal .xterm {
-  height: 100%;
-}
-
-.devland-terminal .xterm-screen {
-  width: 100% !important;
-}
-
-.devland-terminal .xterm-viewport {
-  border-radius: calc(var(--radius) * 0.9);
-  scrollbar-color: color-mix(in oklab, var(--muted-foreground) 32%, transparent) transparent;
-}
-
-.devland-terminal .xterm-rows {
-  padding-right: 2px;
 }

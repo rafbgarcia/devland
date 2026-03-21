@@ -1,4 +1,4 @@
-import type { GitHubUserWithAvatar } from '@/pull-requests/contracts';
+import type { GitHubUserWithAvatar } from '@/types/pull-requests';
 
 export const getAuthorLogin = (author: { login: string } | null): string => author?.login ?? 'unknown';
 

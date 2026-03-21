@@ -1,6 +1,6 @@
 import type { HTMLAttributes } from 'react';
 
-import { cn } from '@/shadcn/lib/utils';
+import { cn } from '@/lib/utils';
 
 export function Empty({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (

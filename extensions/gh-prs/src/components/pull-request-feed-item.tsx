@@ -3,11 +3,9 @@ import {
   GitPullRequestIcon,
 } from 'lucide-react';
 
-import type { ProjectPullRequestFeedItem } from '@/pull-requests/contracts';
-import {
-  ProjectFeedItemFrame,
-} from '@/renderer/shared/ui/project-feed/project-feed';
-import { cn } from '@/shadcn/lib/utils';
+import { ProjectFeedItemFrame } from '@/components/project-feed';
+import { cn } from '@/lib/utils';
+import type { ProjectPullRequestFeedItem } from '@/types/pull-requests';
 
 import { PullRequestDiffStats } from './pull-request-diff-stats';
 

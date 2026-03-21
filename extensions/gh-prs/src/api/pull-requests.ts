@@ -2,7 +2,6 @@ import type { DevlandRepoContext } from '@devlandapp/sdk';
 import { z } from 'zod';
 
 import { runJsonCommand } from '@/lib/devland';
-
 import {
   GitHubLabelSchema,
   GitHubUserWithAvatarSchema,
@@ -10,7 +9,7 @@ import {
   ProjectPullRequestFeedItemSchema,
   PullRequestCommentSchema,
   type ProjectPullRequestFeed,
-} from './contracts';
+} from '@/types/pull-requests';
 
 const GH_GRAPHQL_CACHE_TTL_SECONDS = 60 * 60;
 

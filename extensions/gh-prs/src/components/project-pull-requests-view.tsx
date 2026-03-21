@@ -4,15 +4,16 @@ import { GitPullRequestArrowIcon } from 'lucide-react';
 
 import type { DevlandRepoContext } from '@devlandapp/sdk';
 
-import type { ProjectPullRequestFeed } from '@/pull-requests/contracts';
 import {
   ProjectFeedScaffold,
   type ProjectFeedDefinition,
-} from '@/renderer/shared/ui/project-feed/project-feed';
-
-import { PullRequestDetailDrawer } from './pull-request-detail-drawer';
+} from '@/components/project-feed';
+import { useProjectPullRequests } from '@/hooks/use-project-pull-requests';
+import type { ProjectPullRequestFeed } from '@/types/pull-requests';
+import {
+  PullRequestDetailDrawer,
+} from './pull-request-detail-drawer';
 import { PullRequestFeedItem } from './pull-request-feed-item';
-import { useProjectPullRequests } from './use-project-pull-requests';
 
 export function ProjectPullRequestsView({
   repo,
