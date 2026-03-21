@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import {
   buildCodexCollaborationMode,
   buildCodexThreadOpenParams,
+  extractActivityFilePaths,
   buildCodexInitializeParams,
   buildCodexTurnStartParams,
   mapCodexRuntimeMode,
@@ -309,6 +310,34 @@ describe('parseCodexResumedThread', () => {
           },
         ],
       },
+    );
+  });
+});
+
+describe('extractActivityFilePaths', () => {
+  it('collects best-effort file paths from nested file-change payloads in order', () => {
+    assert.deepEqual(
+      extractActivityFilePaths('file_change', {
+        path: 'src/one.ts',
+        changes: [
+          { path: 'src/two.ts' },
+          { file_path: 'src/three.ts' },
+        ],
+        edits: {
+          files: [
+            { oldPath: 'src/four-before.ts', path: 'src/four.ts' },
+            { path: 'src/two.ts' },
+          ],
+        },
+      }),
+      ['src/one.ts', 'src/two.ts', 'src/three.ts', 'src/four-before.ts', 'src/four.ts'],
+    );
+  });
+
+  it('returns no file paths for non-file-change activity', () => {
+    assert.deepEqual(
+      extractActivityFilePaths('command_execution', { path: 'src/ignored.ts' }),
+      [],
     );
   });
 });

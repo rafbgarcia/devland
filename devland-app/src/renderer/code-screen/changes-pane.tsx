@@ -63,6 +63,12 @@ function toWorkingTreeSidebarFiles(
     }));
 }
 
+function hasCodexSortOrderAvailable(
+  codexTouchSequenceByPath: Readonly<Record<string, number>>,
+): boolean {
+  return Object.keys(codexTouchSequenceByPath).length > 0;
+}
+
 function ActiveDiffViewport({
   rawDiff,
   renderContext,
@@ -270,6 +276,10 @@ export function ChangesPane({
     ),
     [codexTouchSequenceByPath, workingTreeFiles, workingTreeSortMode],
   );
+  const workingTreeSortAvailable = useMemo(
+    () => hasCodexSortOrderAvailable(codexTouchSequenceByPath),
+    [codexTouchSequenceByPath],
+  );
   const activeSidebarFiles = selection.type === 'working-tree'
     ? workingTreeSidebarFiles
     : activeDiffFiles.map((file) => ({
@@ -411,7 +421,6 @@ export function ChangesPane({
       selectedPath={selectedFilePath}
       onSelectFile={handleFileSelect}
       selectedCommit={selectedCommit}
-      isDiffLoading={activeDiffState.status === 'loading'}
       onRestoreBranchState={handleRestoreWorkingTree}
       emptyMessage={emptyMessage}
       workingTreeCommitState={workingTreeCommitState}
@@ -421,6 +430,7 @@ export function ChangesPane({
       historyError={historyError}
       historySelectedCommitSha={historySelectedCommitSha}
       workingTreeSortMode={workingTreeSortMode}
+      workingTreeSortAvailable={workingTreeSortAvailable}
       onToggleWorkingTreeSortMode={onToggleWorkingTreeSortMode}
       onSelectHistoryCommit={(index) => {
         const commit = historyCommits[index];

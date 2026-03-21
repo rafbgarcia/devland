@@ -34,9 +34,8 @@ import { ChatComposer } from '@/renderer/code-screen/chat-composer';
 import {
   DEFAULT_CODEX_CHANGE_ORDER_STATE,
   reconcileCodexChangeOrderState,
-  recordCodexTouchedFile,
+  recordCodexTouchedFiles,
   toggleCodexChangeSortMode,
-  type CodexChangeOrderState,
 } from '@/renderer/code-screen/codex-change-order';
 import { CodexTabMenu } from '@/renderer/code-screen/codex-tab-menu';
 import { LayerToggle } from '@/renderer/code-screen/layer-toggle';
@@ -71,6 +70,7 @@ import {
   rememberCodePane,
   rememberCodeTarget,
 } from '@/renderer/shared/lib/workspace-view-state';
+import { useRepoCodexChangeOrderState } from '@/renderer/code-screen/use-codex-change-order-state';
 import { useWorkspaceSession } from '@/renderer/projects-shell/use-workspace-session';
 import { useRepos } from '@/renderer/projects-shell/use-repos';
 import { Button } from '@/shadcn/components/ui/button';
@@ -168,12 +168,14 @@ export function CodeWorkspaceScreen({
   const [composerSettingsByTargetId, setComposerSettingsByTargetId] = useState<
     Record<string, CodexComposerSettings>
   >({});
-  const [codexChangeOrderStateByTargetId, setCodexChangeOrderStateByTargetId] = useState<
-    Record<string, CodexChangeOrderState>
-  >({});
   const sidebarWidthAtDragStart = useRef(SIDEBAR_DEFAULT_WIDTH);
   const repos = useRepos();
   const { session, updateSession } = useWorkspaceSession();
+  const {
+    statesByTargetId: codexChangeOrderStateByTargetId,
+    updateTargetState: updateCodexChangeOrderState,
+    pruneTargetStates: pruneCodexChangeOrderStates,
+  } = useRepoCodexChangeOrderState(repoId);
   const storedRepoPaths = useMemo(() => repos.map((repo) => repo.path), [repos]);
   const rememberedTargetId = getRememberedCodeTargetId(session, repoId);
   const activePaneId = getRememberedCodePaneId(session, repoId);
@@ -233,25 +235,6 @@ export function CodeWorkspaceScreen({
   const activeCodexChangeOrderState =
     codexChangeOrderStateByTargetId[activeTarget.id] ?? DEFAULT_CODEX_CHANGE_ORDER_STATE;
 
-  const updateCodexChangeOrderState = useCallback((
-    targetId: string,
-    updater: (state: CodexChangeOrderState) => CodexChangeOrderState,
-  ) => {
-    setCodexChangeOrderStateByTargetId((current) => {
-      const previousState = current[targetId] ?? DEFAULT_CODEX_CHANGE_ORDER_STATE;
-      const nextState = updater(previousState);
-
-      if (nextState === previousState) {
-        return current;
-      }
-
-      return {
-        ...current,
-        [targetId]: nextState,
-      };
-    });
-  }, []);
-
   const rememberActiveTarget = useCallback(
     (targetId: string | null) => {
       updateSession((currentSession) => rememberCodeTarget(currentSession, repoId, targetId));
@@ -299,6 +282,10 @@ export function CodeWorkspaceScreen({
   }), [handleGitStatusRefresh]);
 
   useEffect(() => {
+    pruneCodexChangeOrderStates(targets.map((target) => target.id));
+  }, [pruneCodexChangeOrderStates, targets]);
+
+  useEffect(() => {
     const handleWindowFocus = () => {
       requestGitStatusRefresh({ repoPath, reason: 'window-focus' });
 
@@ -318,13 +305,17 @@ export function CodeWorkspaceScreen({
     if (
       event.type === 'activity' &&
       event.itemType === 'file_change' &&
-      typeof event.filePath === 'string'
+      (Array.isArray(event.filePaths) || typeof event.filePath === 'string')
     ) {
       const target = targets.find((candidate) => candidate.id === event.sessionId);
 
       if (target) {
+        const filePaths =
+          event.filePaths?.filter((candidate) => candidate.trim().length > 0) ??
+          (typeof event.filePath === 'string' ? [event.filePath] : []);
+
         updateCodexChangeOrderState(target.id, (state) =>
-          recordCodexTouchedFile(state, event.filePath ?? ''),
+          recordCodexTouchedFiles(state, filePaths),
         );
       }
     }

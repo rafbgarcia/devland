@@ -19,6 +19,50 @@ export const DEFAULT_CODEX_CHANGE_ORDER_STATE: CodexChangeOrderState = {
   nextSequence: 1,
 };
 
+export function sanitizeCodexChangeOrderState(value: unknown): CodexChangeOrderState {
+  if (typeof value !== 'object' || value === null) {
+    return DEFAULT_CODEX_CHANGE_ORDER_STATE;
+  }
+
+  const record = value as Record<string, unknown>;
+  const touchSequenceByPath = Object.fromEntries(
+    Object.entries(
+      typeof record.touchSequenceByPath === 'object' && record.touchSequenceByPath !== null
+        ? (record.touchSequenceByPath as Record<string, unknown>)
+        : {},
+    ).flatMap(([path, sequence]) => {
+      const normalizedPath = path.trim();
+
+      if (
+        normalizedPath === '' ||
+        typeof sequence !== 'number' ||
+        !Number.isInteger(sequence) ||
+        sequence < 1
+      ) {
+        return [];
+      }
+
+      return [[normalizedPath, sequence] as const];
+    }),
+  );
+  const maxSequence = Math.max(0, ...Object.values(touchSequenceByPath));
+  const requestedNextSequence =
+    typeof record.nextSequence === 'number' &&
+    Number.isInteger(record.nextSequence) &&
+    record.nextSequence >= 1
+      ? record.nextSequence
+      : 1;
+
+  return {
+    sortMode:
+      record.sortMode === 'alphabetical' || record.sortMode === 'codex-first-touch'
+        ? record.sortMode
+        : DEFAULT_CODEX_CHANGE_ORDER_STATE.sortMode,
+    touchSequenceByPath,
+    nextSequence: Math.max(requestedNextSequence, maxSequence + 1),
+  };
+}
+
 function getTrackedSequence(
   touchSequenceByPath: Readonly<Record<string, number>>,
   file: Pick<GitStatusFile, 'path' | 'oldPath'>,
@@ -48,6 +92,8 @@ export function recordCodexTouchedFile(
 ): CodexChangeOrderState {
   const normalizedPath = filePath.trim();
 
+  // Intentionally keep the first Codex touch for each dirty file. The sidebar is meant to
+  // reflect the order Codex initially introduced working-tree changes, not the most recent edit.
   if (normalizedPath.length === 0 || state.touchSequenceByPath[normalizedPath] !== undefined) {
     return state;
   }
@@ -60,6 +106,16 @@ export function recordCodexTouchedFile(
     },
     nextSequence: state.nextSequence + 1,
   };
+}
+
+export function recordCodexTouchedFiles(
+  state: CodexChangeOrderState,
+  filePaths: readonly string[],
+): CodexChangeOrderState {
+  return filePaths.reduce(
+    (currentState, filePath) => recordCodexTouchedFile(currentState, filePath),
+    state,
+  );
 }
 
 export function reconcileCodexChangeOrderState(

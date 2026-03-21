@@ -327,18 +327,100 @@ const extractActivityDetail = (item: Record<string, unknown> | undefined): strin
     asString(item?.text),
   );
 
-const extractActivityFilePath = (
-  itemType: CodexActivityItemType,
-  item: Record<string, unknown> | undefined,
-): string | null => {
-  if (itemType !== 'file_change') {
-    return null;
+const FILE_PATH_FIELD_NAMES = new Set([
+  'path',
+  'filepath',
+  'file_path',
+  'oldpath',
+  'old_path',
+  'newpath',
+  'new_path',
+  'targetpath',
+  'target_path',
+]);
+const FILE_PATH_CONTAINER_FIELD_NAMES = new Set([
+  'file',
+  'files',
+  'change',
+  'changes',
+  'edit',
+  'edits',
+  'result',
+  'results',
+  'target',
+  'targets',
+]);
+
+function normalizeFilePathKey(key: string): string {
+  return key.replace(/[^A-Za-z0-9]+/g, '').toLowerCase();
+}
+
+function appendActivityFilePath(
+  paths: string[],
+  seenPaths: Set<string>,
+  value: unknown,
+): void {
+  if (typeof value !== 'string') {
+    return;
   }
 
-  return coalesceStrings(
-    asString(item?.filePath),
-    asString(item?.path),
-  );
+  const normalizedPath = value.trim();
+
+  if (normalizedPath === '' || seenPaths.has(normalizedPath)) {
+    return;
+  }
+
+  seenPaths.add(normalizedPath);
+  paths.push(normalizedPath);
+}
+
+function collectActivityFilePaths(
+  value: unknown,
+  paths: string[],
+  seenPaths: Set<string>,
+  depth = 0,
+): void {
+  if (depth > 4 || typeof value !== 'object' || value === null) {
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      collectActivityFilePaths(entry, paths, seenPaths, depth + 1);
+    }
+    return;
+  }
+
+  for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+    const normalizedKey = normalizeFilePathKey(key);
+
+    if (FILE_PATH_FIELD_NAMES.has(normalizedKey)) {
+      appendActivityFilePath(paths, seenPaths, nestedValue);
+      continue;
+    }
+
+    if (FILE_PATH_CONTAINER_FIELD_NAMES.has(normalizedKey)) {
+      collectActivityFilePaths(nestedValue, paths, seenPaths, depth + 1);
+    }
+  }
+}
+
+export const extractActivityFilePaths = (
+  itemType: CodexActivityItemType,
+  item: Record<string, unknown> | undefined,
+): string[] => {
+  if (itemType !== 'file_change' || !item) {
+    return [];
+  }
+
+  const paths: string[] = [];
+  const seenPaths = new Set<string>();
+
+  appendActivityFilePath(paths, seenPaths, item.filePath);
+  appendActivityFilePath(paths, seenPaths, item.path);
+  collectActivityFilePaths(item, paths, seenPaths);
+
+  return paths;
 };
 
 const toApprovalKind = (method: PendingApprovalRequest['method']): CodexApprovalKind => {
@@ -1201,7 +1283,8 @@ export class CodexAppServerManager extends EventEmitter<{
         const rawType = asString(item?.type) ?? asString(item?.kind) ?? 'item';
         const itemType = toCodexActivityItemType(rawType);
         const detail = extractActivityDetail(item);
-        const filePath = extractActivityFilePath(itemType, item);
+        const filePaths = extractActivityFilePaths(itemType, item);
+        const filePath = filePaths[0] ?? null;
 
         if (!shouldEmitCodexActivity(itemType)) {
           return;
@@ -1215,6 +1298,7 @@ export class CodexAppServerManager extends EventEmitter<{
           itemId: asString(item?.id) ?? asString(params?.itemId) ?? null,
           itemType,
           filePath,
+          filePaths,
           label: formatCodexActivityLabel({
             itemType,
             rawType,

@@ -17,6 +17,7 @@ import { ChangesHistoryDropdown } from '@/renderer/code-screen/changes-history-d
 import { CommitComposer } from '@/renderer/code-screen/commit-composer';
 import { RelativeTime } from '@/renderer/shared/ui/relative-time';
 import { Button } from '@/shadcn/components/ui/button';
+import { Toggle } from '@/shadcn/components/ui/toggle';
 import {
   Tooltip,
   TooltipContent,
@@ -71,7 +72,6 @@ export const ChangesSidebar = memo(function ChangesSidebar({
   selectedPath,
   onSelectFile,
   selectedCommit,
-  isDiffLoading,
   onRestoreBranchState,
   emptyMessage,
   workingTreeCommitState,
@@ -81,6 +81,7 @@ export const ChangesSidebar = memo(function ChangesSidebar({
   historyError,
   historySelectedCommitSha,
   workingTreeSortMode,
+  workingTreeSortAvailable,
   onToggleWorkingTreeSortMode,
   onSelectHistoryCommit,
 }: {
@@ -88,7 +89,6 @@ export const ChangesSidebar = memo(function ChangesSidebar({
   selectedPath: string | null;
   onSelectFile: (path: string) => void;
   selectedCommit: PrCommit | null;
-  isDiffLoading: boolean;
   onRestoreBranchState: () => void;
   emptyMessage: string;
   workingTreeCommitState?: {
@@ -106,6 +106,7 @@ export const ChangesSidebar = memo(function ChangesSidebar({
   historyError: string | null;
   historySelectedCommitSha: string | null;
   workingTreeSortMode: CodexChangeSortMode;
+  workingTreeSortAvailable: boolean;
   onToggleWorkingTreeSortMode: () => void;
   onSelectHistoryCommit: (index: number) => void;
 }) {
@@ -114,8 +115,13 @@ export const ChangesSidebar = memo(function ChangesSidebar({
     [selectedPath],
   );
   const isCodexSortMode = workingTreeSortMode === 'codex-first-touch';
-  const nextSortModeLabel = isCodexSortMode ? 'alphabetical order' : 'Codex change order';
-  const activeSortModeLabel = isCodexSortMode ? 'Codex change order' : 'alphabetical order';
+  const isCodexSortActive = workingTreeSortAvailable && isCodexSortMode;
+  const nextSortModeLabel = isCodexSortMode ? 'alphabetically' : ' by Codex change';
+  const activeSortModeLabel = workingTreeSortAvailable
+    ? isCodexSortMode
+      ? 'Sorting by Codex change'
+      : 'Sorting alphabetically'
+    : <span className='text-center'>Sorting alphabetically<br/><small>Codex change order not available</small></span>;
 
   return (
     <FilesChangedList
@@ -146,19 +152,24 @@ export const ChangesSidebar = memo(function ChangesSidebar({
           {selectedCommit === null ? (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  type="button"
-                  variant="ghost"
-                  className="size-7"
-                  aria-label={`Sort files by ${nextSortModeLabel}`}
-                  aria-pressed={isCodexSortMode}
-                  onClick={onToggleWorkingTreeSortMode}
-                >
-                  <ArrowDownUpIcon />
-                </Button>
+                <span>
+                  <Toggle
+                    size="sm"
+                    pressed={isCodexSortActive}
+                    disabled={!workingTreeSortAvailable}
+                    aria-label={
+                      workingTreeSortAvailable
+                        ? `Sort files ${nextSortModeLabel}`
+                        : 'Codex change order is unavailable for these files'
+                    }
+                    className="size-7 text-muted-foreground hover:text-foreground data-[state=on]:bg-accent data-[state=on]:text-foreground disabled:opacity-35"
+                    onPressedChange={() => onToggleWorkingTreeSortMode()}
+                  >
+                    <ArrowDownUpIcon className='size-4' />
+                  </Toggle>
+                </span>
               </TooltipTrigger>
-              <TooltipContent>{`Sort: ${activeSortModeLabel}`}</TooltipContent>
+              <TooltipContent>{activeSortModeLabel}</TooltipContent>
             </Tooltip>
           ) : null}
           <ChangesHistoryDropdown

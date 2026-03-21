@@ -4,8 +4,10 @@ import { describe, it } from 'node:test';
 import type { GitStatusFile } from '@/ipc/contracts';
 import {
   DEFAULT_CODEX_CHANGE_ORDER_STATE,
+  recordCodexTouchedFiles,
   reconcileCodexChangeOrderState,
   recordCodexTouchedFile,
+  sanitizeCodexChangeOrderState,
   sortWorkingTreeFiles,
   toggleCodexChangeSortMode,
 } from '@/renderer/code-screen/codex-change-order';
@@ -31,6 +33,42 @@ describe('recordCodexTouchedFile', () => {
       'file1.ts': 2,
     });
     assert.equal(withDuplicateTouch.nextSequence, 3);
+  });
+
+  it('records multiple touched files in event order', () => {
+    const nextState = recordCodexTouchedFiles(
+      DEFAULT_CODEX_CHANGE_ORDER_STATE,
+      ['file2.ts', 'file1.ts', 'file2.ts'],
+    );
+
+    assert.deepEqual(nextState.touchSequenceByPath, {
+      'file2.ts': 1,
+      'file1.ts': 2,
+    });
+    assert.equal(nextState.nextSequence, 3);
+  });
+});
+
+describe('sanitizeCodexChangeOrderState', () => {
+  it('normalizes invalid persisted state', () => {
+    assert.deepEqual(
+      sanitizeCodexChangeOrderState({
+        sortMode: 'invalid',
+        touchSequenceByPath: {
+          ' file1.ts ': 2,
+          '': 3,
+          'file2.ts': 0,
+        },
+        nextSequence: 1,
+      }),
+      {
+        sortMode: 'codex-first-touch',
+        touchSequenceByPath: {
+          'file1.ts': 2,
+        },
+        nextSequence: 3,
+      },
+    );
   });
 });
 
