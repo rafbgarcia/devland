@@ -6,6 +6,7 @@ import {
   buildCodexInitializeParams,
   buildCodexTurnStartParams,
   mapCodexRuntimeMode,
+  parseCodexTurnPlanUpdate,
   parseCodexResumedThread,
   parseCodexThreadSummaries,
   shouldEmitCodexActivity,
@@ -31,6 +32,41 @@ describe('shouldEmitCodexActivity', () => {
     assert.equal(shouldEmitCodexActivity('reasoning'), false);
     assert.equal(shouldEmitCodexActivity('command_execution'), true);
     assert.equal(shouldEmitCodexActivity('plan'), true);
+  });
+});
+
+describe('parseCodexTurnPlanUpdate', () => {
+  it('extracts structured plan steps from turn updates', () => {
+    assert.deepEqual(
+      parseCodexTurnPlanUpdate({
+        turnId: 'turn-1',
+        explanation: 'Implement the plan UI',
+        plan: [
+          { step: 'Inspect current session state', status: 'completed' },
+          { step: 'Render the pinned task card', status: 'inProgress' },
+          { step: 'Verify the animation', status: 'unknown' },
+        ],
+      }),
+      {
+        turnId: 'turn-1',
+        explanation: 'Implement the plan UI',
+        plan: [
+          { step: 'Inspect current session state', status: 'completed' },
+          { step: 'Render the pinned task card', status: 'inProgress' },
+          { step: 'Verify the animation', status: 'pending' },
+        ],
+      },
+    );
+  });
+
+  it('returns null when no valid plan steps are present', () => {
+    assert.equal(
+      parseCodexTurnPlanUpdate({
+        turnId: 'turn-1',
+        plan: [{ status: 'completed' }],
+      }),
+      null,
+    );
   });
 });
 

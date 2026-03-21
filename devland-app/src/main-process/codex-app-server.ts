@@ -5,6 +5,7 @@ import readline from 'node:readline';
 import type {
   CodexApprovalDecision,
   CodexApprovalKind,
+  CodexPlanStep,
   CodexResumedThread,
   CodexSessionEvent,
   CodexSessionStatus,
@@ -117,6 +118,48 @@ export const buildCodexInitializeParams = () => ({
 
 export const shouldEmitCodexActivity = (itemType: CodexActivityItemType): boolean =>
   itemType !== 'reasoning';
+
+export function parseCodexTurnPlanUpdate(params: unknown): {
+  turnId: string | null;
+  explanation: string | null;
+  plan: CodexPlanStep[];
+} | null {
+  const payload = asObject(params);
+  const rawPlan = asArray(payload?.plan);
+
+  if (!rawPlan || rawPlan.length === 0) {
+    return null;
+  }
+
+  const plan = rawPlan.flatMap((entry) => {
+    const record = asObject(entry);
+    const step = coalesceStrings(asString(record?.step));
+
+    if (!step) {
+      return [];
+    }
+
+    return [
+      {
+        step,
+        status:
+          record?.status === 'completed' || record?.status === 'inProgress'
+            ? record.status
+            : 'pending',
+      },
+    ] satisfies CodexPlanStep[];
+  });
+
+  if (plan.length === 0) {
+    return null;
+  }
+
+  return {
+    turnId: asString(payload?.turnId) ?? asString(asObject(payload?.turn)?.id) ?? null,
+    explanation: coalesceStrings(asString(payload?.explanation)),
+    plan,
+  };
+}
 
 export const mapCodexRuntimeMode = (runtimeMode: CodexRuntimeMode) => {
   if (runtimeMode === 'full-access') {
@@ -1078,6 +1121,22 @@ export class CodexAppServerManager extends EventEmitter<{
           itemType,
           label: formatCodexActivityLabel({ itemType, rawType }),
           detail,
+        });
+        return;
+      }
+      case 'turn/plan/updated': {
+        const planUpdate = parseCodexTurnPlanUpdate(params);
+
+        if (!planUpdate) {
+          return;
+        }
+
+        this.emit('event', {
+          type: 'turn-plan-updated',
+          sessionId: context.sessionId,
+          turnId: planUpdate.turnId ?? context.activeTurnId,
+          explanation: planUpdate.explanation,
+          plan: planUpdate.plan,
         });
         return;
       }

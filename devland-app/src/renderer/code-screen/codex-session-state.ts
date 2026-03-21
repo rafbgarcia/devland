@@ -1,4 +1,5 @@
 import type {
+  CodexPlanStep,
   CodexSessionEvent,
   CodexSessionStatus,
   CodexResumedThread,
@@ -60,11 +61,18 @@ export type PendingUserInput = {
   questions: CodexUserInputQuestion[];
 };
 
+export type ActiveCodexPlan = {
+  turnId: string | null;
+  explanation: string | null;
+  plan: CodexPlanStep[];
+};
+
 export type CodexSessionState = {
   status: CodexSessionStatus;
   threadId: string | null;
   turnId: string | null;
   currentTurnStartedAt: string | null;
+  activePlan: ActiveCodexPlan | null;
   transcriptEntries: CodexTranscriptEntry[];
   messages: CodexChatMessage[];
   currentTurnEntries: CodexTranscriptEntry[];
@@ -75,6 +83,7 @@ export type CodexSessionState = {
 
 export type CodexSessionSnapshot = {
   threadId: string | null;
+  activePlan?: ActiveCodexPlan | null;
   transcriptEntries?: CodexTranscriptEntry[];
   messages: CodexChatMessage[];
   updatedAt: string;
@@ -85,6 +94,7 @@ export const DEFAULT_SESSION_STATE: CodexSessionState = {
   threadId: null,
   turnId: null,
   currentTurnStartedAt: null,
+  activePlan: null,
   transcriptEntries: [],
   messages: [],
   currentTurnEntries: [],
@@ -100,7 +110,6 @@ function shouldTrackActivity(event: Extract<CodexSessionEvent, { type: 'activity
 
   return (
     isToolLifecycleItemType(event.itemType) ||
-    event.itemType === 'plan' ||
     event.itemType === 'context_compaction' ||
     event.tone === 'tool'
   );
@@ -468,6 +477,14 @@ export function applyCodexSessionEvent(
             : event.status === 'ready' || event.status === 'closed' || event.status === 'error'
               ? null
               : previous.currentTurnStartedAt,
+        activePlan:
+          event.status === 'closed'
+            ? null
+            : event.status === 'running' &&
+                event.turnId &&
+                event.turnId !== previous.turnId
+              ? null
+              : previous.activePlan,
         error: event.status === 'error' ? event.message ?? previous.error : null,
       };
     case 'assistant-delta':
@@ -479,6 +496,15 @@ export function applyCodexSessionEvent(
           itemId: event.itemId ?? null,
           text: event.text,
         }),
+      };
+    case 'turn-plan-updated':
+      return {
+        ...previous,
+        activePlan: {
+          turnId: event.turnId ?? previous.turnId,
+          explanation: event.explanation ?? null,
+          plan: event.plan,
+        },
       };
     case 'activity':
       if (!shouldTrackActivity(event)) {
@@ -585,6 +611,7 @@ export function toCodexSessionSnapshot(state: CodexSessionState): CodexSessionSn
 
   return {
     threadId: state.threadId,
+    activePlan: state.activePlan,
     transcriptEntries,
     messages,
     updatedAt: new Date().toISOString(),
@@ -605,6 +632,7 @@ export function hydrateCodexSessionState(snapshot: CodexSessionSnapshot | null):
   return {
     ...DEFAULT_SESSION_STATE,
     threadId: snapshot.threadId,
+    activePlan: snapshot.activePlan ?? null,
     transcriptEntries,
     messages:
       snapshot.transcriptEntries && snapshot.transcriptEntries.length > 0

@@ -389,6 +389,16 @@ export const CodexTurnDiffSchema = z.object({
 });
 export type CodexTurnDiff = z.infer<typeof CodexTurnDiffSchema>;
 
+export const CODEX_PLAN_STEP_STATUSES = ['pending', 'inProgress', 'completed'] as const;
+export const CodexPlanStepStatusSchema = z.enum(CODEX_PLAN_STEP_STATUSES);
+export type CodexPlanStepStatus = z.infer<typeof CodexPlanStepStatusSchema>;
+
+export const CodexPlanStepSchema = z.object({
+  step: z.string().min(1),
+  status: CodexPlanStepStatusSchema,
+});
+export type CodexPlanStep = z.infer<typeof CodexPlanStepSchema>;
+
 export const CodexSessionEventSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('state'),
@@ -403,6 +413,13 @@ export const CodexSessionEventSchema = z.discriminatedUnion('type', [
     sessionId: z.string().min(1),
     itemId: z.string().min(1).nullable().optional(),
     text: z.string(),
+  }),
+  z.object({
+    type: z.literal('turn-plan-updated'),
+    sessionId: z.string().min(1),
+    turnId: z.string().min(1).nullable().optional(),
+    explanation: z.string().min(1).nullable().optional(),
+    plan: z.array(CodexPlanStepSchema),
   }),
   z.object({
     type: z.literal('activity'),

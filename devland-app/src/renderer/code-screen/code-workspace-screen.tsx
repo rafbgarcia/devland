@@ -40,6 +40,7 @@ import {
 } from '@/renderer/code-screen/codex-change-order';
 import { CodexTabMenu } from '@/renderer/code-screen/codex-tab-menu';
 import { LayerToggle } from '@/renderer/code-screen/layer-toggle';
+import { LivePlanDock } from '@/renderer/code-screen/live-plan-dock';
 import { SessionAlerts } from '@/renderer/code-screen/session-alerts';
 import { SessionTerminal } from '@/renderer/code-screen/session-terminal';
 import { SessionTranscript } from '@/renderer/code-screen/session-transcript';
@@ -765,6 +766,8 @@ export function CodeWorkspaceScreen({
             }
           }}
         >
+          <LivePlanDock activePlan={sessionState.activePlan} isRunning={isRunning} />
+
           <SessionAlerts
             targetId={activeTarget.id}
             sessionError={sessionState.error}
@@ -804,6 +807,7 @@ export function CodeWorkspaceScreen({
     respondToApproval,
     respondToUserInput,
     resumeThread,
+    sessionState.activePlan,
     sessionState.error,
     sessionState.pendingApprovals,
     sessionState.pendingUserInputs,
