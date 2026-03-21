@@ -496,6 +496,7 @@ export const CodexSessionEventSchema = z.discriminatedUnion('type', [
     detail: z.string().nullable().optional(),
     itemId: z.string().min(1).nullable().optional(),
     itemType: z.string().min(1).nullable().optional(),
+    filePath: z.string().min(1).nullable().optional(),
   }),
   z.object({
     type: z.literal('approval-requested'),

@@ -229,6 +229,20 @@ const extractActivityDetail = (item: Record<string, unknown> | undefined): strin
     asString(item?.text),
   );
 
+const extractActivityFilePath = (
+  itemType: CodexActivityItemType,
+  item: Record<string, unknown> | undefined,
+): string | null => {
+  if (itemType !== 'file_change') {
+    return null;
+  }
+
+  return coalesceStrings(
+    asString(item?.filePath),
+    asString(item?.path),
+  );
+};
+
 const toApprovalKind = (method: PendingApprovalRequest['method']): CodexApprovalKind => {
   switch (method) {
     case 'item/commandExecution/requestApproval':
@@ -1073,6 +1087,7 @@ export class CodexAppServerManager extends EventEmitter<{
         const rawType = asString(item?.type) ?? asString(item?.kind) ?? 'item';
         const itemType = toCodexActivityItemType(rawType);
         const detail = extractActivityDetail(item);
+        const filePath = extractActivityFilePath(itemType, item);
 
         if (!shouldEmitCodexActivity(itemType)) {
           return;
@@ -1085,6 +1100,7 @@ export class CodexAppServerManager extends EventEmitter<{
           tone: isToolLifecycleItemType(itemType) ? 'tool' : 'info',
           itemId: asString(item?.id) ?? asString(params?.itemId) ?? null,
           itemType,
+          filePath,
           label: formatCodexActivityLabel({
             itemType,
             rawType,

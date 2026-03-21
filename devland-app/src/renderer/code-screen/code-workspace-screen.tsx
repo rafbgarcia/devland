@@ -31,6 +31,13 @@ import { BrowserPanel } from '@/renderer/code-screen/browser/browser-panel';
 import { clearBrowserTargetState } from '@/renderer/code-screen/browser/browser-target-state';
 import { ChangesPane } from '@/renderer/code-screen/changes-pane';
 import { ChatComposer } from '@/renderer/code-screen/chat-composer';
+import {
+  DEFAULT_CODEX_CHANGE_ORDER_STATE,
+  reconcileCodexChangeOrderState,
+  recordCodexTouchedFile,
+  toggleCodexChangeSortMode,
+  type CodexChangeOrderState,
+} from '@/renderer/code-screen/codex-change-order';
 import { CodexTabMenu } from '@/renderer/code-screen/codex-tab-menu';
 import { LayerToggle } from '@/renderer/code-screen/layer-toggle';
 import { SessionAlerts } from '@/renderer/code-screen/session-alerts';
@@ -159,6 +166,9 @@ export function CodeWorkspaceScreen({
   const [composerSettingsByTargetId, setComposerSettingsByTargetId] = useState<
     Record<string, CodexComposerSettings>
   >({});
+  const [codexChangeOrderStateByTargetId, setCodexChangeOrderStateByTargetId] = useState<
+    Record<string, CodexChangeOrderState>
+  >({});
   const sidebarWidthAtDragStart = useRef(SIDEBAR_DEFAULT_WIDTH);
   const repos = useRepos();
   const { session, updateSession } = useWorkspaceSession();
@@ -218,6 +228,27 @@ export function CodeWorkspaceScreen({
     : statusState.status === 'error'
       ? statusState.error
       : null;
+  const activeCodexChangeOrderState =
+    codexChangeOrderStateByTargetId[activeTarget.id] ?? DEFAULT_CODEX_CHANGE_ORDER_STATE;
+
+  const updateCodexChangeOrderState = useCallback((
+    targetId: string,
+    updater: (state: CodexChangeOrderState) => CodexChangeOrderState,
+  ) => {
+    setCodexChangeOrderStateByTargetId((current) => {
+      const previousState = current[targetId] ?? DEFAULT_CODEX_CHANGE_ORDER_STATE;
+      const nextState = updater(previousState);
+
+      if (nextState === previousState) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [targetId]: nextState,
+      };
+    });
+  }, []);
 
   const rememberActiveTarget = useCallback(
     (targetId: string | null) => {
@@ -282,6 +313,20 @@ export function CodeWorkspaceScreen({
   }, [activeTarget.cwd, repoPath]);
 
   useEffect(() => window.electronAPI.onCodexSessionEvent((event) => {
+    if (
+      event.type === 'activity' &&
+      event.itemType === 'file_change' &&
+      typeof event.filePath === 'string'
+    ) {
+      const target = targets.find((candidate) => candidate.id === event.sessionId);
+
+      if (target) {
+        updateCodexChangeOrderState(target.id, (state) =>
+          recordCodexTouchedFile(state, event.filePath ?? ''),
+        );
+      }
+    }
+
     if (event.sessionId !== activeTarget.id) {
       return;
     }
@@ -291,7 +336,24 @@ export function CodeWorkspaceScreen({
     if (request !== null) {
       requestGitStatusRefresh(request);
     }
-  }), [activeTarget.cwd, activeTarget.id]);
+  }), [activeTarget.cwd, activeTarget.id, targets, updateCodexChangeOrderState]);
+
+  useEffect(() => {
+    if (statusState.status !== 'ready') {
+      return;
+    }
+
+    updateCodexChangeOrderState(activeTarget.id, (state) =>
+      reconcileCodexChangeOrderState(state, statusState.data.files),
+    );
+  }, [activeTarget.id, statusState, updateCodexChangeOrderState]);
+
+  const handleToggleWorkingTreeSortMode = useCallback(() => {
+    updateCodexChangeOrderState(activeTarget.id, (state) => ({
+      ...state,
+      sortMode: toggleCodexChangeSortMode(state.sortMode),
+    }));
+  }, [activeTarget.id, updateCodexChangeOrderState]);
 
   const targetLabels = useMemo(
     () =>
@@ -890,6 +952,9 @@ export function CodeWorkspaceScreen({
             branchName={visibleChangesStatus.branch}
             headRevision={visibleChangesStatus.headRevision}
             workingTreeFiles={visibleChangesStatus.files}
+            workingTreeSortMode={activeCodexChangeOrderState.sortMode}
+            codexTouchSequenceByPath={activeCodexChangeOrderState.touchSequenceByPath}
+            onToggleWorkingTreeSortMode={handleToggleWorkingTreeSortMode}
             workingTreeStatusRefreshVersion={statusState.refreshVersion}
             isViewportActive={activePaneId === 'changes'}
             onFileSelect={() => rememberActivePane('changes')}

@@ -1,12 +1,14 @@
 import { memo, useMemo } from 'react';
 
 import {
+  ArrowDownUpIcon,
   GitCommitHorizontalIcon,
   Undo2Icon,
 } from 'lucide-react';
 
 import type { PrCommit } from '@/ipc/contracts';
 import type { DiffSelectionType } from '@/lib/diff';
+import type { CodexChangeSortMode } from '@/renderer/code-screen/codex-change-order';
 import {
   FilesChangedList,
   type DiffListFile,
@@ -78,6 +80,8 @@ export const ChangesSidebar = memo(function ChangesSidebar({
   historyIsRefreshing,
   historyError,
   historySelectedCommitSha,
+  workingTreeSortMode,
+  onToggleWorkingTreeSortMode,
   onSelectHistoryCommit,
 }: {
   diffFiles: DiffListFile[];
@@ -101,12 +105,17 @@ export const ChangesSidebar = memo(function ChangesSidebar({
   historyIsRefreshing: boolean;
   historyError: string | null;
   historySelectedCommitSha: string | null;
+  workingTreeSortMode: CodexChangeSortMode;
+  onToggleWorkingTreeSortMode: () => void;
   onSelectHistoryCommit: (index: number) => void;
 }) {
   const selectedFiles = useMemo(
     () => selectedPath === null ? new Set<string>() : new Set([selectedPath]),
     [selectedPath],
   );
+  const isCodexSortMode = workingTreeSortMode === 'codex-first-touch';
+  const nextSortModeLabel = isCodexSortMode ? 'alphabetical order' : 'Codex change order';
+  const activeSortModeLabel = isCodexSortMode ? 'Codex change order' : 'alphabetical order';
 
   return (
     <FilesChangedList
@@ -133,15 +142,35 @@ export const ChangesSidebar = memo(function ChangesSidebar({
         />
       ) : undefined}
       actions={(
-        <ChangesHistoryDropdown
-          commits={historyCommits}
-          isLoading={historyIsLoading}
-          isRefreshing={historyIsRefreshing}
-          error={historyError}
-          selectedCommitSha={historySelectedCommitSha}
-          onSelectCommit={onSelectHistoryCommit}
-          onRestoreWorkingTree={onRestoreBranchState}
-        />
+        <>
+          {selectedCommit === null ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  type="button"
+                  variant="ghost"
+                  className="size-7"
+                  aria-label={`Sort files by ${nextSortModeLabel}`}
+                  aria-pressed={isCodexSortMode}
+                  onClick={onToggleWorkingTreeSortMode}
+                >
+                  <ArrowDownUpIcon />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{`Sort: ${activeSortModeLabel}`}</TooltipContent>
+            </Tooltip>
+          ) : null}
+          <ChangesHistoryDropdown
+            commits={historyCommits}
+            isLoading={historyIsLoading}
+            isRefreshing={historyIsRefreshing}
+            error={historyError}
+            selectedCommitSha={historySelectedCommitSha}
+            onSelectCommit={onSelectHistoryCommit}
+            onRestoreWorkingTree={onRestoreBranchState}
+          />
+        </>
       )}
     />
   );

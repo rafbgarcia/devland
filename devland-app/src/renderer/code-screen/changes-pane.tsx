@@ -6,6 +6,10 @@ import {
   type DiffCommentAnchor,
   type DiffSelectionSide,
 } from '@/lib/diff';
+import {
+  sortWorkingTreeFiles,
+  type CodexChangeSortMode,
+} from '@/renderer/code-screen/codex-change-order';
 import { ChangesSidebar } from '@/renderer/code-screen/changes-sidebar';
 import {
   useGitBranchHistory,
@@ -45,9 +49,12 @@ type CodeChangesRenderProps = {
   viewport: ReactNode;
 };
 
-function toWorkingTreeSidebarFiles(files: GitStatusFile[]) {
-  return [...files]
-    .sort((left, right) => left.path.localeCompare(right.path))
+function toWorkingTreeSidebarFiles(
+  files: GitStatusFile[],
+  sortMode: CodexChangeSortMode,
+  codexTouchSequenceByPath: Readonly<Record<string, number>>,
+) {
+  return sortWorkingTreeFiles(files, sortMode, codexTouchSequenceByPath)
     .map((file) => ({
       path: file.path,
       status: file.status,
@@ -172,6 +179,9 @@ export function ChangesPane({
   branchName,
   headRevision,
   workingTreeFiles,
+  workingTreeSortMode,
+  codexTouchSequenceByPath,
+  onToggleWorkingTreeSortMode,
   workingTreeStatusRefreshVersion,
   isViewportActive,
   children,
@@ -183,6 +193,9 @@ export function ChangesPane({
   branchName: string;
   headRevision: string | null;
   workingTreeFiles: GitStatusFile[];
+  workingTreeSortMode: CodexChangeSortMode;
+  codexTouchSequenceByPath: Readonly<Record<string, number>>;
+  onToggleWorkingTreeSortMode: () => void;
   workingTreeStatusRefreshVersion: number;
   isViewportActive: boolean;
   children: (props: CodeChangesRenderProps) => ReactNode;
@@ -250,8 +263,12 @@ export function ChangesPane({
     [activeDiffState],
   );
   const workingTreeSidebarFiles = useMemo(
-    () => toWorkingTreeSidebarFiles(workingTreeFiles),
-    [workingTreeFiles],
+    () => toWorkingTreeSidebarFiles(
+      workingTreeFiles,
+      workingTreeSortMode,
+      codexTouchSequenceByPath,
+    ),
+    [codexTouchSequenceByPath, workingTreeFiles, workingTreeSortMode],
   );
   const activeSidebarFiles = selection.type === 'working-tree'
     ? workingTreeSidebarFiles
@@ -403,6 +420,8 @@ export function ChangesPane({
       historyIsRefreshing={historyIsRefreshing}
       historyError={historyError}
       historySelectedCommitSha={historySelectedCommitSha}
+      workingTreeSortMode={workingTreeSortMode}
+      onToggleWorkingTreeSortMode={onToggleWorkingTreeSortMode}
       onSelectHistoryCommit={(index) => {
         const commit = historyCommits[index];
         if (commit) {
