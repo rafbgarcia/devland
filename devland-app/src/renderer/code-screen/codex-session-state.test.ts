@@ -236,6 +236,93 @@ describe('applyCodexSessionEvent', () => {
 });
 
 describe('Codex session snapshot persistence', () => {
+  it('preserves durable attachment previews while stripping transient data urls', () => {
+    const state = {
+      ...DEFAULT_SESSION_STATE,
+      threadId: 'thread-1',
+      status: 'ready' as const,
+      messages: [
+        {
+          id: 'user-1',
+          role: 'user' as const,
+          text: 'Use this screenshot.',
+          attachments: [
+            {
+              type: 'image' as const,
+              name: 'persisted.png',
+              mimeType: 'image/png',
+              sizeBytes: 128,
+              previewUrl: 'devland-codex-attachment://asset/session-1/batch-1/01-persisted.png',
+            },
+            {
+              type: 'image' as const,
+              name: 'transient.png',
+              mimeType: 'image/png',
+              sizeBytes: 64,
+              previewUrl: 'data:image/png;base64,AA==',
+            },
+          ],
+          createdAt: '2026-03-21T12:00:00.000Z',
+          completedAt: null,
+          turnId: null,
+          itemId: null,
+          diff: null,
+          activities: [],
+        },
+      ],
+      transcriptEntries: [
+        {
+          id: 'user-1',
+          kind: 'message' as const,
+          message: {
+            id: 'user-1',
+            role: 'user' as const,
+            text: 'Use this screenshot.',
+            attachments: [
+              {
+                type: 'image' as const,
+                name: 'persisted.png',
+                mimeType: 'image/png',
+                sizeBytes: 128,
+                previewUrl: 'devland-codex-attachment://asset/session-1/batch-1/01-persisted.png',
+              },
+              {
+                type: 'image' as const,
+                name: 'transient.png',
+                mimeType: 'image/png',
+                sizeBytes: 64,
+                previewUrl: 'data:image/png;base64,AA==',
+              },
+            ],
+            createdAt: '2026-03-21T12:00:00.000Z',
+            completedAt: null,
+            turnId: null,
+            itemId: null,
+            diff: null,
+            activities: [],
+          },
+        },
+      ],
+    };
+
+    const snapshot = toCodexSessionSnapshot(state);
+
+    assert.ok(snapshot);
+    assert.equal(
+      snapshot.messages[0]?.attachments[0]?.previewUrl,
+      'devland-codex-attachment://asset/session-1/batch-1/01-persisted.png',
+    );
+    assert.equal(snapshot.messages[0]?.attachments[1]?.previewUrl, null);
+
+    const hydratedState = hydrateCodexSessionState(snapshot);
+
+    assert.equal(
+      hydratedState.messages[0]?.attachments[0]?.previewUrl,
+      'devland-codex-attachment://asset/session-1/batch-1/01-persisted.png',
+    );
+    assert.equal(hydratedState.messages[0]?.attachments[1]?.previewUrl, null);
+  });
+
   it('preserves the active plan across snapshot hydration', () => {
     const state = {
       ...DEFAULT_SESSION_STATE,

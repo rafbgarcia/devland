@@ -21,6 +21,10 @@ import {
   DEVLAND_EXTENSION_PROTOCOL,
   resolveExtensionAssetPath,
 } from './main-process/extensions/protocol';
+import {
+  DEVLAND_CODEX_ATTACHMENT_PROTOCOL,
+  resolveCodexAttachmentPath,
+} from './main-process/codex-attachments';
 import { registerAppIpcHandlers } from './main-process/ipc';
 import { targetBrowserManager } from './main-process/browser/target-browser-manager';
 import { terminalSessionManager } from './main-process/terminal-session-manager';
@@ -28,6 +32,15 @@ import { terminalSessionManager } from './main-process/terminal-session-manager'
 protocol.registerSchemesAsPrivileged([
   {
     scheme: DEVLAND_EXTENSION_PROTOCOL,
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+    },
+  },
+  {
+    scheme: DEVLAND_CODEX_ATTACHMENT_PROTOCOL,
     privileges: {
       standard: true,
       secure: true,
@@ -51,7 +64,7 @@ const developmentContentSecurityPolicy = [
   "default-src 'self'",
   "script-src 'self' 'sha256-Z2/iFzh9VMlVkEOar1f/oSHWwQk3ve1qk/C2WdsC4Xk='",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: https://*.githubusercontent.com",
+  `img-src 'self' data: https://*.githubusercontent.com ${DEVLAND_CODEX_ATTACHMENT_PROTOCOL}:`,
   "font-src 'self' data:",
   `frame-src 'self' ${DEVLAND_EXTENSION_PROTOCOL}: http://127.0.0.1:* http://localhost:* https:`,
   `connect-src 'self' ${devServerOrigin} ${devServerOrigin?.replace(/^http/, 'ws') ?? ''}`,
@@ -77,6 +90,10 @@ const isAppUrl = (targetUrl: string): boolean => {
   }
 
   if (targetUrl.startsWith(`${DEVLAND_EXTENSION_PROTOCOL}://`)) {
+    return true;
+  }
+
+  if (targetUrl.startsWith(`${DEVLAND_CODEX_ATTACHMENT_PROTOCOL}://`)) {
     return true;
   }
 
@@ -202,6 +219,24 @@ const registerExtensionProtocol = (): void => {
   });
 };
 
+const registerCodexAttachmentProtocol = (): void => {
+  protocol.handle(DEVLAND_CODEX_ATTACHMENT_PROTOCOL, async (request) => {
+    const assetPath = resolveCodexAttachmentPath(request.url);
+
+    if (assetPath === null) {
+      return new Response('Attachment not found.', { status: 404 });
+    }
+
+    try {
+      await access(assetPath);
+
+      return net.fetch(pathToFileURL(assetPath).toString());
+    } catch {
+      return new Response('Attachment not found.', { status: 404 });
+    }
+  });
+};
+
 const createWindow = async (): Promise<BrowserWindow> => {
   if (mainWindow && !mainWindow.isDestroyed()) {
     return mainWindow;
@@ -298,6 +333,7 @@ app.whenReady().then(async () => {
   app.setAppUserModelId(app.name);
   configureMacDockIcon();
   registerExtensionProtocol();
+  registerCodexAttachmentProtocol();
   configureSessionSecurity();
   registerAppIpcHandlers(() => mainWindow);
   await createWindow();

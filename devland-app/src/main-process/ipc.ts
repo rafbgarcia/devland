@@ -42,6 +42,7 @@ import {
   GET_REPO_EXTENSIONS_CHANNEL,
   INSTALL_REPO_EXTENSION_CHANNEL,
   RUN_EXTENSION_COMMAND_CHANNEL,
+  PERSIST_CODEX_ATTACHMENTS_CHANNEL,
   START_GIT_STATE_WATCH_CHANNEL,
   STOP_GIT_STATE_WATCH_CHANNEL,
   LIST_CODEX_THREADS_CHANNEL,
@@ -72,6 +73,7 @@ import {
 } from '../ipc/contracts';
 import { targetBrowserManager } from './browser/target-browser-manager';
 import { codexAppServerManager } from './codex-app-server';
+import { persistCodexAttachments } from './codex-attachments';
 import { searchCodexPaths } from './codex-path-search';
 import { codexExecutable } from './codex-cli';
 import { suggestGitWorktreeBranchName } from './codex-use-cases/worktree-branch-name';
@@ -348,6 +350,11 @@ export const registerAppIpcHandlers = (
   ipcMain.handle(
     RUN_EXTENSION_COMMAND_CHANNEL,
     (_event, input) => runExtensionCommand(input),
+  );
+  ipcMain.handle(
+    PERSIST_CODEX_ATTACHMENTS_CHANNEL,
+    (_event, input: { sessionId: string; attachments: CodexImageAttachmentInput[] }) =>
+      persistCodexAttachments(input.sessionId, input.attachments),
   );
   ipcMain.handle(
     SEND_CODEX_SESSION_PROMPT_CHANNEL,

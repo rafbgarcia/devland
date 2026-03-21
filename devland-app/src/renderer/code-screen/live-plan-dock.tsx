@@ -148,7 +148,7 @@ export const LivePlanDock = memo(function LivePlanDock({
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 12 }}
-        transition={{ type: 'spring', damping: 24, stiffness: 300 }}
+        transition={{ type: 'tween', ease: 'easeOut', duration: 0.2}}
         className="mb-2 overflow-hidden rounded-lg border border-border/60 bg-muted/20"
       >
         {/* Header */}
@@ -179,7 +179,7 @@ export const LivePlanDock = memo(function LivePlanDock({
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              transition={{ type: 'spring', damping: 24, stiffness: 300 }}
+              transition={{ type: 'tween', ease: 'easeOut', duration: 0.2}}
               className="overflow-hidden"
             >
               <div className="space-y-0.5 px-1 pb-2">
@@ -198,7 +198,7 @@ export const LivePlanDock = memo(function LivePlanDock({
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              transition={{ type: 'spring', damping: 24, stiffness: 300 }}
+              transition={{ type: 'tween', ease: 'easeOut', duration: 0.2}}
               className="overflow-hidden"
             >
               <div className="px-1 pb-2">

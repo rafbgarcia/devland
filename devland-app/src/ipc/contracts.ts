@@ -3,6 +3,7 @@ import { type DevlandRunCommandResult } from '@devlandapp/sdk';
 
 import type {
   CodexComposerSettings,
+  CodexChatImageAttachment,
   CodexImageAttachmentInput,
 } from '@/lib/codex-chat';
 import {
@@ -42,6 +43,7 @@ export const GENERATE_PR_REVIEW_CHANNEL = 'app:generate-pr-review';
 export const SYNC_REPO_REVIEW_REFS_CHANNEL = 'app:sync-repo-review-refs';
 export const CREATE_GITHUB_PR_REVIEW_THREAD_CHANNEL = 'app:create-github-pr-review-thread';
 export const SEND_CODEX_SESSION_PROMPT_CHANNEL = 'app:send-codex-session-prompt';
+export const PERSIST_CODEX_ATTACHMENTS_CHANNEL = 'app:persist-codex-attachments';
 export const LIST_CODEX_THREADS_CHANNEL = 'app:list-codex-threads';
 export const RESUME_CODEX_THREAD_CHANNEL = 'app:resume-codex-thread';
 export const SEARCH_CODEX_PATHS_CHANNEL = 'app:search-codex-paths';
@@ -712,6 +714,10 @@ export interface ElectronApi {
   runExtensionCommand: (
     input: RunExtensionCommandInput,
   ) => Promise<DevlandRunCommandResult>;
+  persistCodexAttachments: (input: {
+    sessionId: string;
+    attachments: CodexImageAttachmentInput[];
+  }) => Promise<CodexChatImageAttachment[]>;
   sendCodexSessionPrompt: (input: {
     sessionId: string;
     cwd: string;

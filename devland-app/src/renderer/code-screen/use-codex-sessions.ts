@@ -57,6 +57,18 @@ function getSessionState(get: Getter, sessionId: string) {
   return readSessionState(get(sessionStatesAtom), get(persistedSessionSnapshotsAtom), sessionId);
 }
 
+function toTransientChatAttachments(
+  attachments: ReadonlyArray<CodexPromptSubmission['attachments'][number]>,
+): CodexChatImageAttachment[] {
+  return attachments.map((attachment) => ({
+    type: attachment.type,
+    name: attachment.name,
+    mimeType: attachment.mimeType,
+    sizeBytes: attachment.sizeBytes,
+    previewUrl: attachment.dataUrl,
+  }));
+}
+
 function writeSessionState(
   get: Getter,
   set: Setter,
@@ -261,6 +273,18 @@ export function useCodexSessionActions() {
     },
   ) => {
     const previous = appJotaiStore.get(getSessionStateAtom(sessionId));
+    const persistedAttachments =
+      submission.attachments.length === 0
+        ? []
+        : await window.electronAPI
+            .persistCodexAttachments({
+              sessionId,
+              attachments: submission.attachments,
+            })
+            .catch((error) => {
+              console.error('Failed to persist Codex chat attachments:', error);
+              return toTransientChatAttachments(submission.attachments);
+            });
     const transcriptBootstrap =
       previous.threadId && previous.messages.length > 0
         ? buildSessionHistoryBootstrap(
@@ -282,13 +306,7 @@ export function useCodexSessionActions() {
     registerUserPrompt({
       sessionId,
       prompt: submission.prompt,
-      attachments: submission.attachments.map((attachment) => ({
-        type: attachment.type,
-        name: attachment.name,
-        mimeType: attachment.mimeType,
-        sizeBytes: attachment.sizeBytes,
-        previewUrl: attachment.dataUrl,
-      })),
+      attachments: persistedAttachments,
     });
 
     const previousChain = pendingPromptChains.get(sessionId) ?? Promise.resolve();

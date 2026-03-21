@@ -391,12 +391,20 @@ function truncateDiff(diff: CodexTurnDiff): CodexTurnDiff {
   };
 }
 
+function sanitizePersistedAttachmentPreviewUrl(previewUrl: string | null): string | null {
+  if (previewUrl === null) {
+    return null;
+  }
+
+  return previewUrl.startsWith('data:') || previewUrl.startsWith('blob:') ? null : previewUrl;
+}
+
 function sanitizeMessageForSnapshot(message: CodexChatMessage): CodexChatMessage {
   return {
     ...message,
     attachments: (message.attachments ?? []).map((attachment) => ({
       ...attachment,
-      previewUrl: null,
+      previewUrl: sanitizePersistedAttachmentPreviewUrl(attachment.previewUrl),
     })),
     diff: message.diff === null ? null : truncateDiff(message.diff),
   };
