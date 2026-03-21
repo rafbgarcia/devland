@@ -772,6 +772,7 @@ export function CodeWorkspaceScreen({
             pendingUserInputs={sessionState.pendingUserInputs}
             onRespondToApproval={respondToApproval}
             onRespondToUserInput={respondToUserInput}
+            onDismissUserInput={() => interruptSession(activeTarget.id)}
           />
 
           <ChatComposer
