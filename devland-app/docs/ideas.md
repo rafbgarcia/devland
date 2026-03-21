@@ -4,7 +4,7 @@ MLP
   - Handle add repo
     - Read remote repo's `devland.json` to install extensions for remote repos
     - Show README
-
+- Issues extension: button solve on worktree/local
 - `devland.json` "suggestedPrompts"
 - Extract PRs/Issues/Channels into extensions
 - Channels needs auth

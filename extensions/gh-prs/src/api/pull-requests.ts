@@ -11,8 +11,6 @@ import {
   type ProjectPullRequestFeed,
 } from '@/types/pull-requests';
 
-const GH_GRAPHQL_CACHE_TTL_SECONDS = 60 * 60;
-
 const GitHubNodeIdSchema = z.union([z.string(), z.number()]).transform(String);
 
 const PullRequestCommentResponseSchema = PullRequestCommentSchema.extend({
@@ -63,16 +61,8 @@ const PullRequestsResponseSchema = z.object({
   }),
 });
 
-const buildPullRequestQueryArgs = (
-  owner: string,
-  name: string,
-  skipCache: boolean,
-): string[] => {
+const buildPullRequestQueryArgs = (owner: string, name: string): string[] => {
   const args = ['api', 'graphql'];
-
-  if (!skipCache) {
-    args.push('--cache', `${GH_GRAPHQL_CACHE_TTL_SECONDS}s`);
-  }
 
   args.push(
     '-f',
@@ -89,28 +79,19 @@ const buildPullRequestQueryArgs = (
 const fetchPullRequests = async (
   owner: string,
   name: string,
-  skipCache: boolean,
 ) =>
   await runJsonCommand(
     {
       command: 'gh',
-      args: buildPullRequestQueryArgs(owner, name, skipCache),
+      args: buildPullRequestQueryArgs(owner, name),
     },
     PullRequestsResponseSchema,
   );
 
 export async function getProjectPullRequests(
   repo: Pick<DevlandRepoContext, 'owner' | 'name'>,
-  skipCache = false,
 ): Promise<ProjectPullRequestFeed> {
-  const response = await fetchPullRequests(repo.owner, repo.name, skipCache)
-    .catch(async (error: unknown) => {
-      if (skipCache) {
-        throw error;
-      }
-
-      return await fetchPullRequests(repo.owner, repo.name, true);
-    });
+  const response = await fetchPullRequests(repo.owner, repo.name);
 
   return ProjectPullRequestFeedSchema.parse({
     fetchedAt: Date.now(),

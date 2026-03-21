@@ -11,8 +11,6 @@ import {
   type ProjectIssueFeed,
 } from '@/types/issues';
 
-const GH_GRAPHQL_CACHE_TTL_SECONDS = 60 * 60;
-
 const GitHubNodeIdSchema = z.union([z.string(), z.number()]).transform(String);
 
 const IssueCommentResponseSchema = IssueCommentSchema.extend({
@@ -56,16 +54,8 @@ const IssuesResponseSchema = z.object({
   }),
 });
 
-const buildIssueQueryArgs = (
-  owner: string,
-  name: string,
-  skipCache: boolean,
-): string[] => {
+const buildIssueQueryArgs = (owner: string, name: string): string[] => {
   const args = ['api', 'graphql'];
-
-  if (!skipCache) {
-    args.push('--cache', `${GH_GRAPHQL_CACHE_TTL_SECONDS}s`);
-  }
 
   args.push(
     '-f',
@@ -79,31 +69,19 @@ const buildIssueQueryArgs = (
   return args;
 };
 
-const fetchIssues = async (
-  owner: string,
-  name: string,
-  skipCache: boolean,
-) =>
+const fetchIssues = async (owner: string, name: string) =>
   await runJsonCommand(
     {
       command: 'gh',
-      args: buildIssueQueryArgs(owner, name, skipCache),
+      args: buildIssueQueryArgs(owner, name),
     },
     IssuesResponseSchema,
   );
 
 export async function getProjectIssues(
   repo: Pick<DevlandRepoContext, 'owner' | 'name'>,
-  skipCache = false,
 ): Promise<ProjectIssueFeed> {
-  const response = await fetchIssues(repo.owner, repo.name, skipCache)
-    .catch(async (error: unknown) => {
-      if (skipCache) {
-        throw error;
-      }
-
-      return await fetchIssues(repo.owner, repo.name, true);
-    });
+  const response = await fetchIssues(repo.owner, repo.name);
 
   return ProjectIssueFeedSchema.parse({
     fetchedAt: Date.now(),
