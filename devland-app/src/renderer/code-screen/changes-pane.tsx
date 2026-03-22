@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import type { GitStatusFile, PrCommit } from '@/ipc/contracts';
+import type {
+  ExternalEditorPreference,
+  GitStatusFile,
+  PrCommit,
+} from '@/ipc/contracts';
 import {
   getDiffChangeGroupSelectableLineNumbers,
   type DiffCommentAnchor,
@@ -22,6 +26,7 @@ import { SingleFileDiffView } from '@/renderer/shared/ui/diff/single-file-diff-v
 import { getExpandedDiffHighlightLineFilters } from '@/renderer/shared/ui/diff/diff-expansion';
 import { useDiffExpansionState } from '@/renderer/shared/ui/diff/use-diff-expansion-state';
 import { useDiffRenderFiles } from '@/renderer/shared/ui/diff/use-diff-render-files';
+import { resolveDetectedExternalEditorPreference } from '@/renderer/shared/use-app-preferences';
 
 function lineFiltersEqual(left: readonly number[], right: readonly number[]) {
   if (left.length !== right.length) {
@@ -193,6 +198,9 @@ export function ChangesPane({
   children,
   onFileSelect,
   onSubmitDiffComment,
+  externalEditorPreference,
+  onExternalEditorPreferenceChange,
+  onRequestConfigureExternalEditor,
 }: {
   repoPath: string;
   baseBranchName: string;
@@ -207,9 +215,13 @@ export function ChangesPane({
   children: (props: CodeChangesRenderProps) => ReactNode;
   onFileSelect?: () => void;
   onSubmitDiffComment?: ((anchor: DiffCommentAnchor, body: string) => Promise<void>) | undefined;
+  externalEditorPreference: ExternalEditorPreference | null;
+  onExternalEditorPreferenceChange?: (preference: ExternalEditorPreference) => void;
+  onRequestConfigureExternalEditor?: () => void;
 }) {
   const [selection, setSelection] = useState<CodeChangesSelection>({ type: 'working-tree' });
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
+  const [openFileError, setOpenFileError] = useState<string | null>(null);
 
   const { historyState } = useGitBranchHistory({
     repoPath,
@@ -229,6 +241,7 @@ export function ChangesPane({
   useEffect(() => {
     setSelection({ type: 'working-tree' });
     setSelectedFilePath(null);
+    setOpenFileError(null);
   }, [baseBranchName, branchName, repoPath]);
 
   const activeDiffState = selection.type === 'working-tree'
@@ -375,17 +388,53 @@ export function ChangesPane({
   const handleRestoreWorkingTree = useCallback(() => {
     setSelection({ type: 'working-tree' });
     setSelectedFilePath(null);
+    setOpenFileError(null);
   }, []);
 
   const handleSelectHistoryCommit = useCallback((commit: PrCommit) => {
     setSelection({ type: 'commit', commit });
     setSelectedFilePath(null);
+    setOpenFileError(null);
   }, []);
 
   const handleFileSelect = useCallback((path: string) => {
     setSelectedFilePath(path);
+    setOpenFileError(null);
     onFileSelect?.();
   }, [onFileSelect]);
+
+  const handleOpenFile = useCallback(async (path: string) => {
+    try {
+      const resolvedPreference = externalEditorPreference ??
+        await resolveDetectedExternalEditorPreference();
+
+      if (resolvedPreference === null) {
+        setOpenFileError('Choose an external editor in settings first.');
+        onRequestConfigureExternalEditor?.();
+        return;
+      }
+
+      if (externalEditorPreference === null) {
+        onExternalEditorPreferenceChange?.(resolvedPreference);
+      }
+
+      await window.electronAPI.openFileInExternalEditor({
+        repoPath,
+        relativeFilePath: path,
+        preference: resolvedPreference,
+      });
+      setOpenFileError(null);
+    } catch (error) {
+      setOpenFileError(
+        error instanceof Error ? error.message : 'Could not open that file.',
+      );
+    }
+  }, [
+    externalEditorPreference,
+    onExternalEditorPreferenceChange,
+    onRequestConfigureExternalEditor,
+    repoPath,
+  ]);
 
   const handleCommitSelection = useCallback((
     draft: { summary: string; description: string },
@@ -438,6 +487,8 @@ export function ChangesPane({
           handleSelectHistoryCommit(commit);
         }
       }}
+      onOpenFile={(path) => void handleOpenFile(path)}
+      openFileError={openFileError}
     />
   );
 

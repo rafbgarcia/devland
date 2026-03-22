@@ -1,6 +1,7 @@
 import { memo, useMemo } from 'react';
 
 import {
+  AlertCircleIcon,
   ArrowDownUpIcon,
   GitCommitHorizontalIcon,
   Undo2Icon,
@@ -16,6 +17,7 @@ import {
 import { ChangesHistoryDropdown } from '@/renderer/code-screen/changes-history-dropdown';
 import { CommitComposer } from '@/renderer/code-screen/commit-composer';
 import { RelativeTime } from '@/renderer/shared/ui/relative-time';
+import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';
 import { Button } from '@/shadcn/components/ui/button';
 import { Toggle } from '@/shadcn/components/ui/toggle';
 import {
@@ -84,6 +86,8 @@ export const ChangesSidebar = memo(function ChangesSidebar({
   workingTreeSortAvailable,
   onToggleWorkingTreeSortMode,
   onSelectHistoryCommit,
+  onOpenFile,
+  openFileError,
 }: {
   diffFiles: DiffListFile[];
   selectedPath: string | null;
@@ -109,6 +113,8 @@ export const ChangesSidebar = memo(function ChangesSidebar({
   workingTreeSortAvailable: boolean;
   onToggleWorkingTreeSortMode: () => void;
   onSelectHistoryCommit: (index: number) => void;
+  onOpenFile?: ((path: string) => void) | undefined;
+  openFileError?: string | null;
 }) {
   const selectedFiles = useMemo(
     () => selectedPath === null ? new Set<string>() : new Set([selectedPath]),
@@ -129,15 +135,31 @@ export const ChangesSidebar = memo(function ChangesSidebar({
       files={diffFiles}
       visibleFiles={selectedFiles}
       onSelectFile={onSelectFile}
+      onOpenFile={onOpenFile}
       getFileSelectionType={workingTreeCommitState?.getFileSelectionType}
       onToggleFileSelection={workingTreeCommitState?.onToggleFileSelection}
       emptyMessage={emptyMessage}
-      topContent={selectedCommit ? (
-        <HistorySnapshotBanner
-          commit={selectedCommit}
-          onRestoreBranchState={onRestoreBranchState}
-        />
-      ) : undefined}
+      topContent={
+        selectedCommit || openFileError ? (
+          <>
+            {selectedCommit ? (
+              <HistorySnapshotBanner
+                commit={selectedCommit}
+                onRestoreBranchState={onRestoreBranchState}
+              />
+            ) : null}
+            {openFileError ? (
+              <div className="border-b border-border px-3 py-2">
+                <Alert variant="destructive">
+                  <AlertCircleIcon />
+                  <AlertTitle>Could not open file</AlertTitle>
+                  <AlertDescription>{openFileError}</AlertDescription>
+                </Alert>
+              </div>
+            ) : null}
+          </>
+        ) : undefined
+      }
       bottomContent={workingTreeCommitState ? (
         <CommitComposer
           selectedFileCount={workingTreeCommitState.selectedFileCount}

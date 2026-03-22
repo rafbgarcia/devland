@@ -36,6 +36,10 @@ import {
   GET_REPO_EXTENSIONS_CHANNEL,
   INSTALL_REPO_EXTENSION_CHANNEL,
   RUN_EXTENSION_COMMAND_CHANNEL,
+  LIST_AVAILABLE_EXTERNAL_EDITORS_CHANNEL,
+  PICK_EXTERNAL_EDITOR_PATH_CHANNEL,
+  VALIDATE_EXTERNAL_EDITOR_PATH_CHANNEL,
+  OPEN_FILE_IN_EXTERNAL_EDITOR_CHANNEL,
   PERSIST_CODEX_ATTACHMENTS_CHANNEL,
   GitStateChangedEventSchema,
   LIST_CODEX_THREADS_CHANNEL,
@@ -159,6 +163,14 @@ export const electronApi: ElectronApi = {
     ipcRenderer.invoke(INSTALL_REPO_EXTENSION_CHANNEL, input),
   runExtensionCommand: (input) =>
     ipcRenderer.invoke(RUN_EXTENSION_COMMAND_CHANNEL, input),
+  listAvailableExternalEditors: () =>
+    ipcRenderer.invoke(LIST_AVAILABLE_EXTERNAL_EDITORS_CHANNEL),
+  pickExternalEditorPath: () =>
+    ipcRenderer.invoke(PICK_EXTERNAL_EDITOR_PATH_CHANNEL),
+  validateExternalEditorPath: (editorPath) =>
+    ipcRenderer.invoke(VALIDATE_EXTERNAL_EDITOR_PATH_CHANNEL, editorPath),
+  openFileInExternalEditor: (input) =>
+    ipcRenderer.invoke(OPEN_FILE_IN_EXTERNAL_EDITOR_CHANNEL, input),
   persistCodexAttachments: (input) =>
     ipcRenderer.invoke(PERSIST_CODEX_ATTACHMENTS_CHANNEL, input),
   sendCodexSessionPrompt: (input) =>

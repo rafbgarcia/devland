@@ -74,6 +74,10 @@ export const GET_COMMIT_PARENT_CHANNEL = 'app:get-commit-parent';
 export const GET_REPO_EXTENSIONS_CHANNEL = 'app:get-repo-extensions';
 export const INSTALL_REPO_EXTENSION_CHANNEL = 'app:install-repo-extension';
 export const RUN_EXTENSION_COMMAND_CHANNEL = 'app:run-extension-command';
+export const LIST_AVAILABLE_EXTERNAL_EDITORS_CHANNEL = 'app:list-available-external-editors';
+export const PICK_EXTERNAL_EDITOR_PATH_CHANNEL = 'app:pick-external-editor-path';
+export const VALIDATE_EXTERNAL_EDITOR_PATH_CHANNEL = 'app:validate-external-editor-path';
+export const OPEN_FILE_IN_EXTERNAL_EDITOR_CHANNEL = 'app:open-file-in-external-editor';
 
 export const PROJECT_VIEW_TABS = [
   'code',
@@ -190,6 +194,59 @@ export const WorkspaceSessionSchema = z.object({
   repoViewById: z.record(z.string().min(1), RepoWorkspaceStateSchema),
 });
 export type WorkspaceSession = z.infer<typeof WorkspaceSessionSchema>;
+
+export const EXTERNAL_EDITOR_TARGET_PATH_ARGUMENT = '%TARGET_PATH%';
+
+export const AvailableExternalEditorSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+});
+export type AvailableExternalEditor = z.infer<typeof AvailableExternalEditorSchema>;
+
+export const CustomExternalEditorSchema = z.object({
+  path: z.string().min(1),
+  arguments: z.string(),
+  bundleId: z.string().min(1).optional(),
+});
+export type CustomExternalEditor = z.infer<typeof CustomExternalEditorSchema>;
+
+export const ExternalEditorPreferenceSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('detected'),
+    editorId: z.string().min(1),
+    editorName: z.string().min(1),
+  }),
+  z.object({
+    kind: z.literal('custom'),
+    path: z.string().min(1),
+    arguments: z.string(),
+    bundleId: z.string().min(1).optional(),
+  }),
+]);
+export type ExternalEditorPreference = z.infer<typeof ExternalEditorPreferenceSchema>;
+
+export const PickedExternalEditorPathSchema = z.object({
+  path: z.string().min(1),
+  bundleId: z.string().min(1).optional(),
+});
+export type PickedExternalEditorPath = z.infer<typeof PickedExternalEditorPathSchema>;
+
+export const ValidateExternalEditorPathResultSchema = z.object({
+  isValid: z.boolean(),
+  bundleId: z.string().min(1).optional(),
+});
+export type ValidateExternalEditorPathResult = z.infer<
+  typeof ValidateExternalEditorPathResultSchema
+>;
+
+export const OpenFileInExternalEditorInputSchema = z.object({
+  repoPath: z.string().min(1),
+  relativeFilePath: z.string().min(1),
+  preference: ExternalEditorPreferenceSchema,
+});
+export type OpenFileInExternalEditorInput = z.infer<
+  typeof OpenFileInExternalEditorInputSchema
+>;
 
 export const AppBootstrapSchema = z.object({
   ghCliAvailable: z.boolean(),
@@ -646,6 +703,12 @@ export interface ElectronApi {
   runExtensionCommand: (
     input: RunExtensionCommandInput,
   ) => Promise<DevlandRunCommandResult>;
+  listAvailableExternalEditors: () => Promise<AvailableExternalEditor[]>;
+  pickExternalEditorPath: () => Promise<PickedExternalEditorPath | null>;
+  validateExternalEditorPath: (
+    editorPath: string,
+  ) => Promise<ValidateExternalEditorPathResult>;
+  openFileInExternalEditor: (input: OpenFileInExternalEditorInput) => Promise<void>;
   persistCodexAttachments: (input: {
     sessionId: string;
     attachments: CodexImageAttachmentInput[];

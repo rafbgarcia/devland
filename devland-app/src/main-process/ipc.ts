@@ -38,6 +38,10 @@ import {
   GET_REPO_EXTENSIONS_CHANNEL,
   INSTALL_REPO_EXTENSION_CHANNEL,
   RUN_EXTENSION_COMMAND_CHANNEL,
+  LIST_AVAILABLE_EXTERNAL_EDITORS_CHANNEL,
+  PICK_EXTERNAL_EDITOR_PATH_CHANNEL,
+  VALIDATE_EXTERNAL_EDITOR_PATH_CHANNEL,
+  OPEN_FILE_IN_EXTERNAL_EDITOR_CHANNEL,
   PERSIST_CODEX_ATTACHMENTS_CHANNEL,
   START_GIT_STATE_WATCH_CHANNEL,
   STOP_GIT_STATE_WATCH_CHANNEL,
@@ -103,6 +107,12 @@ import {
 import { gitStateWatcher } from './git-state-watcher';
 import { terminalSessionManager } from './terminal-session-manager';
 import { readRepoConfig } from './repo-config';
+import {
+  listAvailableExternalEditors,
+  openFileInExternalEditor,
+  pickExternalEditorPath,
+  validateExternalEditorPath,
+} from './external-editor';
 
 const getAppBootstrap = (): AppBootstrap => {
   return { ghCliAvailable: ghExecutable !== null };
@@ -115,6 +125,28 @@ const pickRepoDirectory = async (
     title: 'Select a local repository',
     buttonLabel: 'Use this folder',
     properties: ['openDirectory', 'dontAddToRecent'],
+  };
+  const result = mainWindow
+    ? await dialog.showOpenDialog(mainWindow, dialogOptions)
+    : await dialog.showOpenDialog(dialogOptions);
+
+  if (result.canceled) {
+    return null;
+  }
+
+  return result.filePaths[0] ?? null;
+};
+
+const pickCustomExternalEditorPath = async (
+  mainWindow: BrowserWindow | null,
+): Promise<string | null> => {
+  const dialogOptions: OpenDialogOptions = {
+    title: 'Select an external editor',
+    buttonLabel: 'Use this editor',
+    properties:
+      process.platform === 'darwin'
+        ? ['openFile', 'openDirectory', 'dontAddToRecent']
+        : ['openFile', 'dontAddToRecent'],
   };
   const result = mainWindow
     ? await dialog.showOpenDialog(mainWindow, dialogOptions)
@@ -300,6 +332,22 @@ export const registerAppIpcHandlers = (
   ipcMain.handle(
     RUN_EXTENSION_COMMAND_CHANNEL,
     (_event, input) => runExtensionCommand(input),
+  );
+  ipcMain.handle(
+    LIST_AVAILABLE_EXTERNAL_EDITORS_CHANNEL,
+    () => listAvailableExternalEditors(),
+  );
+  ipcMain.handle(
+    PICK_EXTERNAL_EDITOR_PATH_CHANNEL,
+    () => pickExternalEditorPath(() => pickCustomExternalEditorPath(getMainWindow())),
+  );
+  ipcMain.handle(
+    VALIDATE_EXTERNAL_EDITOR_PATH_CHANNEL,
+    (_event, editorPath: string) => validateExternalEditorPath(editorPath),
+  );
+  ipcMain.handle(
+    OPEN_FILE_IN_EXTERNAL_EDITOR_CHANNEL,
+    (_event, input) => openFileInExternalEditor(input),
   );
   ipcMain.handle(
     PERSIST_CODEX_ATTACHMENTS_CHANNEL,

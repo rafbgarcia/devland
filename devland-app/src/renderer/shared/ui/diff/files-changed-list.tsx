@@ -79,6 +79,7 @@ export function FilesChangedList({
   emptyMessage = 'No changed files.',
   getFileSelectionType,
   onToggleFileSelection,
+  onOpenFile,
 }: {
   title?: string;
   files: DiffListFile[];
@@ -90,6 +91,7 @@ export function FilesChangedList({
   emptyMessage?: string;
   getFileSelectionType?: ((path: string) => DiffSelectionType) | undefined;
   onToggleFileSelection?: ((path: string) => void) | undefined;
+  onOpenFile?: ((path: string) => void) | undefined;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
   const [focusedIndex, setFocusedIndex] = useState(-1);
@@ -211,8 +213,9 @@ export function FilesChangedList({
               role="option"
               aria-selected={isSelected}
               onClick={() => handleRowClick(index, file.path)}
+              onDoubleClick={() => onOpenFile?.(file.path)}
               className={cn(
-                'flex min-w-0 w-full cursor-default items-center gap-2 px-2 py-1.25 text-xs',
+                'flex min-w-0 w-full cursor-default select-none items-center gap-2 px-2 py-1.25 text-xs',
                 isSelected
                   ? 'bg-primary/20 text-foreground'
                   : 'text-foreground/90 hover:bg-accent',
@@ -224,7 +227,9 @@ export function FilesChangedList({
                   onClick={() => onToggleFileSelection(file.path)}
                 />
               ) : null}
-              <TruncatedFilePath path={file.path} className="min-w-0 flex-1 text-xs" />
+              <div className="min-w-0 flex-1">
+                <TruncatedFilePath path={file.path} className="text-xs" />
+              </div>
               <span
                 className={cn(
                   'inline-flex size-[18px] shrink-0 items-center justify-center rounded-[3px] border border-current/20 text-[9px] font-bold leading-none',

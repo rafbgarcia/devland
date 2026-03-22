@@ -13,6 +13,7 @@ import {
   GitBranchPlusIcon,
   LoaderCircleIcon,
   PlusIcon,
+  Settings2Icon,
   XIcon,
 } from 'lucide-react';
 import { AnimatePresence, motion, Reorder } from 'motion/react';
@@ -52,6 +53,7 @@ import { buildPlanImplementationPrompt } from '@/renderer/code-screen/proposed-p
 import { SessionAlerts } from '@/renderer/code-screen/session-alerts';
 import { SessionTerminal } from '@/renderer/code-screen/session-terminal';
 import { SessionTranscript } from '@/renderer/code-screen/session-transcript';
+import { ExternalEditorDialog } from '@/renderer/code-screen/external-editor-dialog';
 import { useCodeTargets } from '@/renderer/code-screen/use-code-targets';
 import {
   useCodexSessionActions,
@@ -81,6 +83,10 @@ import {
 import { useRepoCodexChangeOrderState } from '@/renderer/code-screen/use-codex-change-order-state';
 import { useWorkspaceSession } from '@/renderer/projects-shell/use-workspace-session';
 import { useRepos } from '@/renderer/projects-shell/use-repos';
+import {
+  useAppPreferences,
+  useEnsureExternalEditorPreference,
+} from '@/renderer/shared/use-app-preferences';
 import { Button } from '@/shadcn/components/ui/button';
 import {
   Dialog,
@@ -172,6 +178,7 @@ export function CodeWorkspaceScreen({
   const [isCreatingWorktree, setIsCreatingWorktree] = useState(false);
   const [pendingWorktreeRemoval, setPendingWorktreeRemoval] = useState<PendingWorktreeRemoval | null>(null);
   const [isRemovingWorktree, setIsRemovingWorktree] = useState(false);
+  const [isExternalEditorDialogOpen, setIsExternalEditorDialogOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
   const [composerSettingsByTargetId, setComposerSettingsByTargetId] = useState<
     Record<string, CodexComposerSettings>
@@ -182,6 +189,8 @@ export function CodeWorkspaceScreen({
   const sidebarWidthAtDragStart = useRef(SIDEBAR_DEFAULT_WIDTH);
   const repos = useRepos();
   const { session, updateSession } = useWorkspaceSession();
+  const { preferences, setExternalEditorPreference } = useAppPreferences();
+  useEnsureExternalEditorPreference();
   const {
     statesByTargetId: codexChangeOrderStateByTargetId,
     updateTargetState: updateCodexChangeOrderState,
@@ -190,6 +199,15 @@ export function CodeWorkspaceScreen({
   const storedRepoPaths = useMemo(() => repos.map((repo) => repo.path), [repos]);
   const rememberedTargetId = getRememberedCodeTargetId(session, repoId);
   const activePaneId = getRememberedCodePaneId(session, repoId);
+  const externalEditorLabel = useMemo(() => {
+    if (preferences.externalEditor === null) {
+      return 'Choose external editor';
+    }
+
+    return preferences.externalEditor.kind === 'detected'
+      ? preferences.externalEditor.editorName
+      : 'Custom editor';
+  }, [preferences.externalEditor]);
 
   const {
     rootTarget,
@@ -902,6 +920,13 @@ export function CodeWorkspaceScreen({
         </DialogContent>
       </Dialog>
 
+      <ExternalEditorDialog
+        open={isExternalEditorDialogOpen}
+        onOpenChange={setIsExternalEditorDialogOpen}
+        preference={preferences.externalEditor}
+        onSave={setExternalEditorPreference}
+      />
+
       <div className="flex h-full min-h-0 flex-col">
       <Tabs className="gap-0" value={activeTargetId} onValueChange={handleActiveTargetChange}>
         <div className="flex items-center gap-1 border-b border-border bg-muted/20 px-2 py-1.5">
@@ -1019,6 +1044,20 @@ export function CodeWorkspaceScreen({
                 </TooltipTrigger>
                 <TooltipContent>{`New worktree from ${worktreeBaseBranchLabel}`}</TooltipContent>
               </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => setIsExternalEditorDialogOpen(true)}
+                    className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/40 transition-colors hover:bg-background/50 hover:text-muted-foreground"
+                    aria-label="External editor settings"
+                  >
+                    <Settings2Icon className="size-3" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>{externalEditorLabel}</TooltipContent>
+              </Tooltip>
             </TooltipProvider>
           </div>
         </div>
@@ -1048,6 +1087,9 @@ export function CodeWorkspaceScreen({
             isViewportActive={activePaneId === 'changes'}
             onFileSelect={() => rememberActivePane('changes')}
             onSubmitDiffComment={(anchor, body) => handleSubmitDiffComment(anchor, body)}
+            externalEditorPreference={preferences.externalEditor}
+            onExternalEditorPreferenceChange={setExternalEditorPreference}
+            onRequestConfigureExternalEditor={() => setIsExternalEditorDialogOpen(true)}
           >
             {({ sidebar, viewport }) => renderWorkspaceLayout(sidebar, viewport)}
           </ChangesPane>
