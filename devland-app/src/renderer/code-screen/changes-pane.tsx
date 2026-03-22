@@ -13,10 +13,6 @@ import {
   type DiffCommentAnchor,
   type DiffSelectionSide,
 } from '@/lib/diff';
-import {
-  sortWorkingTreeFiles,
-  type CodexChangeSortMode,
-} from '@/renderer/code-screen/codex-change-order';
 import { ChangesSidebar } from '@/renderer/code-screen/changes-sidebar';
 import {
   useGitBranchHistory,
@@ -59,22 +55,15 @@ type CodeChangesRenderProps = {
 
 function toWorkingTreeSidebarFiles(
   files: GitStatusFile[],
-  sortMode: CodexChangeSortMode,
-  codexTouchSequenceByPath: Readonly<Record<string, number>>,
 ) {
-  return sortWorkingTreeFiles(files, sortMode, codexTouchSequenceByPath)
+  return [...files]
+    .sort((left, right) => left.path.localeCompare(right.path))
     .map((file) => ({
       path: file.path,
       status: file.status,
       additions: 0,
       deletions: 0,
     }));
-}
-
-function hasCodexSortOrderAvailable(
-  codexTouchSequenceByPath: Readonly<Record<string, number>>,
-): boolean {
-  return Object.keys(codexTouchSequenceByPath).length > 0;
 }
 
 function ActiveDiffViewport({
@@ -193,9 +182,6 @@ export function ChangesPane({
   branchName,
   headRevision,
   workingTreeFiles,
-  workingTreeSortMode,
-  codexTouchSequenceByPath,
-  onToggleWorkingTreeSortMode,
   workingTreeStatusRefreshVersion,
   isViewportActive,
   children,
@@ -210,9 +196,6 @@ export function ChangesPane({
   branchName: string;
   headRevision: string | null;
   workingTreeFiles: GitStatusFile[];
-  workingTreeSortMode: CodexChangeSortMode;
-  codexTouchSequenceByPath: Readonly<Record<string, number>>;
-  onToggleWorkingTreeSortMode: () => void;
   workingTreeStatusRefreshVersion: number;
   isViewportActive: boolean;
   children: (props: CodeChangesRenderProps) => ReactNode;
@@ -313,16 +296,8 @@ export function ChangesPane({
     [activeDiffState],
   );
   const workingTreeSidebarFiles = useMemo(
-    () => toWorkingTreeSidebarFiles(
-      workingTreeFiles,
-      workingTreeSortMode,
-      codexTouchSequenceByPath,
-    ),
-    [codexTouchSequenceByPath, workingTreeFiles, workingTreeSortMode],
-  );
-  const workingTreeSortAvailable = useMemo(
-    () => hasCodexSortOrderAvailable(codexTouchSequenceByPath),
-    [codexTouchSequenceByPath],
+    () => toWorkingTreeSidebarFiles(workingTreeFiles),
+    [workingTreeFiles],
   );
   const activeSidebarFiles = selection.type === 'working-tree'
     ? workingTreeSidebarFiles
@@ -498,9 +473,6 @@ export function ChangesPane({
       historyIsRefreshing={historyIsRefreshing}
       historyError={historyError}
       historySelectedCommitSha={historySelectedCommitSha}
-      workingTreeSortMode={workingTreeSortMode}
-      workingTreeSortAvailable={workingTreeSortAvailable}
-      onToggleWorkingTreeSortMode={onToggleWorkingTreeSortMode}
       onSelectHistoryCommit={(index) => {
         const commit = historyCommits[index];
         if (commit) {

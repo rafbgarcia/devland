@@ -158,7 +158,7 @@ const ToolEntryInline = memo(function ToolEntryInline({
       {showFileLink ? (
         <button
           type="button"
-          className="max-w-[22rem] truncate rounded-sm font-mono text-xs text-primary transition-colors hover:text-foreground"
+          className="rounded-sm font-mono text-xs text-primary transition-colors hover:text-foreground"
           onClick={() => onOpenFile?.(primaryFilePath)}
           title={primaryFilePath ?? undefined}
         >
