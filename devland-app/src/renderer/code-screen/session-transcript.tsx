@@ -355,8 +355,8 @@ function EmptyState({
       : suggestedPrompts ?? DEFAULT_SUGGESTION_PROMPTS;
 
   return (
-    <div className="flex h-full flex-col items-center justify-center px-8">
-      <div className="flex max-w-md flex-col items-center gap-6">
+    <div className="flex h-full flex-col items-center px-8">
+      <div className="flex flex-1 max-w-md flex-col items-center justify-center gap-6">
         <motion.div
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
@@ -404,6 +404,19 @@ function EmptyState({
           <span>for a new session</span>
         </motion.p>
       </div>
+
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.4, delay: 0.3, ease: 'easeOut' }}
+        className="shrink-0 pb-3 text-[11px] text-muted-foreground/40"
+      >
+        <code className="rounded border border-border/40 bg-muted/30 px-1 py-0.5 text-[10px]">@file</code>
+        {' '}to search this project
+        {' · '}
+        <code className="rounded border border-border/40 bg-muted/30 px-1 py-0.5 text-[10px]">@/file</code>
+        {' '}to search all projects
+      </motion.p>
     </div>
   );
 }

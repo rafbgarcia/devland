@@ -632,7 +632,6 @@ export const ChatComposer = memo(function ChatComposer({
           ) : null}
         </form>
 
-        <p className='text-xs text-muted-foreground mt-0.5 ml-10'>"@file" to search on the active project ⋅ "@/file" to search on all projects</p>
       </div>
 
       {composerNotice ? (
