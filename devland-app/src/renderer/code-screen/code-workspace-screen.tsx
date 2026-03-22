@@ -40,7 +40,11 @@ import {
 import { BrowserPanel } from '@/renderer/code-screen/browser/browser-panel';
 import { clearBrowserTargetState } from '@/renderer/code-screen/browser/browser-target-state';
 import { ChangesPane } from '@/renderer/code-screen/changes-pane';
-import { ChatComposer } from '@/renderer/code-screen/chat-composer';
+import {
+  ChatComposer,
+  type ChatComposerHandle,
+} from '@/renderer/code-screen/chat-composer';
+import { formatAnchoredDiffCommentPrompt } from '@/renderer/code-screen/chat-composer-prompt';
 import {
   DEFAULT_CODEX_CHANGE_ORDER_STATE,
   reconcileCodexChangeOrderState,
@@ -195,6 +199,7 @@ export function CodeWorkspaceScreen({
     RepoSuggestedPrompt[] | null | undefined
   >(null);
   const sidebarWidthAtDragStart = useRef(SIDEBAR_DEFAULT_WIDTH);
+  const composerRef = useRef<ChatComposerHandle | null>(null);
   const repos = useRepos();
   const { session, updateSession } = useWorkspaceSession();
   const { preferences, setExternalEditorPreference } = useAppPreferences();
@@ -684,30 +689,15 @@ export function CodeWorkspaceScreen({
     },
     body: string,
   ) => {
-    const payload = JSON.stringify(
-      {
-        kind: 'diff-comment',
-        path: anchor.path,
-        side: anchor.side,
-        startLine: anchor.startLine,
-        endLine: anchor.endLine,
-        excerpt: anchor.excerpt,
-      },
-      null,
-      2,
+    composerRef.current?.appendPromptBlock(
+      formatAnchoredDiffCommentPrompt({
+        filepath: anchor.path,
+        lineStart: anchor.startLine,
+        lineEnd: anchor.endLine,
+        comment: body,
+      }),
     );
-
-    await handleSendPrompt({
-      prompt: `Process this anchored diff comment.\n\nContext:\n\`\`\`json\n${payload}\n\`\`\`\n\nUser comment:\n${body}`,
-      settings: composerSettings,
-      attachments: [],
-    });
-    rememberActivePane('codex');
-  }, [
-    composerSettings,
-    handleSendPrompt,
-    rememberActivePane,
-  ]);
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
@@ -882,6 +872,7 @@ export function CodeWorkspaceScreen({
 
           <ChatComposer
             key={activeTarget.id}
+            ref={composerRef}
             activeRepoPath={activeTarget.cwd}
             storedRepoPaths={storedRepoPaths}
             settings={composerSettings}

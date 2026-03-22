@@ -1,7 +1,9 @@
 import {
+  forwardRef,
   memo,
   useEffect,
   useId,
+  useImperativeHandle,
   useRef,
   useState,
   type ChangeEvent,
@@ -36,6 +38,7 @@ import {
   createComposerImageAttachment,
   type ComposerImageAttachment,
 } from '@/renderer/code-screen/chat-composer-attachments';
+import { appendPromptBlock as appendPromptBlockText } from '@/renderer/code-screen/chat-composer-prompt';
 import { VscodeEntryIcon } from '@/renderer/shared/ui/vscode-entry-icon';
 import {
   Dialog,
@@ -47,6 +50,10 @@ import { cn } from '@/shadcn/lib/utils';
 
 const TAG_SEARCH_DEBOUNCE_MS = 120;
 const TAG_SEARCH_LIMIT = 40;
+
+export type ChatComposerHandle = {
+  appendPromptBlock: (block: string) => void;
+};
 
 function getComposerTagIconTheme(): 'light' | 'dark' {
   if (typeof document === 'undefined') {
@@ -147,21 +154,23 @@ function PathSuggestionMenu({
   );
 }
 
-export const ChatComposer = memo(function ChatComposer({
-  activeRepoPath,
-  storedRepoPaths,
-  settings,
-  isRunning,
-  onSendPrompt,
-  onInterrupt,
-}: {
+type ChatComposerProps = {
   activeRepoPath: string;
   storedRepoPaths: string[];
   settings: CodexComposerSettings;
   isRunning: boolean;
   onSendPrompt: (submission: CodexPromptSubmission) => Promise<void>;
   onInterrupt: () => Promise<void>;
-}) {
+};
+
+export const ChatComposer = memo(forwardRef<ChatComposerHandle, ChatComposerProps>(function ChatComposer({
+  activeRepoPath,
+  storedRepoPaths,
+  settings,
+  isRunning,
+  onSendPrompt,
+  onInterrupt,
+}, ref) {
   const [prompt, setPrompt] = useState('');
   const [attachments, setAttachments] = useState<ComposerImageAttachment[]>([]);
   const [openAttachmentId, setOpenAttachmentId] = useState<string | null>(null);
@@ -174,6 +183,7 @@ export const ChatComposer = memo(function ChatComposer({
   const [isTagSearchLoading, setIsTagSearchLoading] = useState(false);
   const dragDepthRef = useRef(0);
   const attachmentsRef = useRef<ComposerImageAttachment[]>([]);
+  const promptRef = useRef('');
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const fileInputId = useId();
@@ -246,6 +256,32 @@ export const ChatComposer = memo(function ChatComposer({
     attachmentsRef.current = attachments;
   }, [attachments]);
 
+  useEffect(() => {
+    promptRef.current = prompt;
+  }, [prompt]);
+
+  useImperativeHandle(ref, () => ({
+    appendPromptBlock(block: string) {
+      const nextPrompt = appendPromptBlockText(promptRef.current, block);
+
+      if (nextPrompt === promptRef.current) {
+        return;
+      }
+
+      promptRef.current = nextPrompt;
+      setPrompt(nextPrompt);
+      setTagTrigger(null);
+      setTagSuggestions([]);
+      setActiveTagSuggestionIndex(0);
+      setComposerNotice(null);
+
+      window.requestAnimationFrame(() => {
+        textareaRef.current?.focus();
+        textareaRef.current?.setSelectionRange(nextPrompt.length, nextPrompt.length);
+      });
+    },
+  }), []);
+
   const appendAttachments = async (files: readonly File[]) => {
     const acceptedFiles: File[] = [];
     let nextImageCount = attachmentsRef.current.length;
@@ -317,6 +353,7 @@ export const ChatComposer = memo(function ChatComposer({
     const pendingAttachments = attachments;
 
     setIsSending(true);
+    promptRef.current = '';
     setPrompt('');
     setAttachments([]);
     setOpenAttachmentId(null);
@@ -341,6 +378,7 @@ export const ChatComposer = memo(function ChatComposer({
         attachments: nextAttachments,
       });
     } catch (error) {
+      promptRef.current = pendingPrompt;
       setPrompt(pendingPrompt);
       setAttachments(pendingAttachments);
       setComposerNotice('Failed to send prompt.');
@@ -388,6 +426,7 @@ export const ChatComposer = memo(function ChatComposer({
             replacement,
           );
 
+          promptRef.current = nextState.value;
           setPrompt(nextState.value);
           setTagTrigger(null);
           setTagSuggestions([]);
@@ -484,6 +523,7 @@ export const ChatComposer = memo(function ChatComposer({
     const nextPrompt = event.target.value;
     const nextCursor = event.target.selectionStart ?? nextPrompt.length;
 
+    promptRef.current = nextPrompt;
     setPrompt(nextPrompt);
     setResolvedTagTrigger(detectComposerTagTrigger(nextPrompt, nextCursor));
     setActiveTagSuggestionIndex(0);
@@ -518,6 +558,7 @@ export const ChatComposer = memo(function ChatComposer({
       replacement,
     );
 
+    promptRef.current = nextState.value;
     setPrompt(nextState.value);
     setTagTrigger(null);
     setTagSuggestions([]);
@@ -674,4 +715,6 @@ export const ChatComposer = memo(function ChatComposer({
       </Dialog>
     </div>
   );
-});
+}));
+
+ChatComposer.displayName = 'ChatComposer';

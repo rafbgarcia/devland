@@ -59,6 +59,8 @@ type DiffCommentDraft = {
   isSubmitting: boolean;
 };
 
+type CommentRangePosition = 'first' | 'middle' | 'last' | 'only';
+
 type LineSelectionProps = {
   rowIndex: number;
   side: Exclude<DiffSelectionSide, 'all'>;
@@ -196,11 +198,9 @@ function findScrollContainer(element: HTMLElement | null) {
 }
 
 function CommentButton({
-  active,
   onMouseDown,
   onMouseEnter,
 }: {
-  active: boolean;
   onMouseDown: () => void;
   onMouseEnter: () => void;
 }) {
@@ -212,18 +212,16 @@ function CommentButton({
         onMouseDown();
       }}
       onMouseEnter={onMouseEnter}
-      className={cn(
-        'flex size-6 items-center justify-center rounded-md border border-primary/30 bg-background text-primary opacity-0 shadow-sm group-hover/column:opacity-100',
-        active && 'opacity-100',
-      )}
+      className="flex size-[18px] items-center justify-center rounded bg-blue-600 text-white shadow-sm hover:bg-blue-500"
       aria-label="Add diff comment"
     >
-      <PlusIcon className="size-3.5" />
+      <PlusIcon className="size-3" />
     </button>
   );
 }
 
 function InlineCommentComposer({
+  lineRangeLabel,
   onCancel,
   onSubmit,
   body,
@@ -231,6 +229,7 @@ function InlineCommentComposer({
   isSubmitting,
   onBodyChange,
 }: {
+  lineRangeLabel?: string | undefined;
   onCancel: () => void;
   onSubmit: () => void;
   body: string;
@@ -239,31 +238,39 @@ function InlineCommentComposer({
   onBodyChange: (body: string) => void;
 }) {
   return (
-    <div className="border-t border-border/50 bg-amber-500/5 p-3">
+    <div className="my-2 ml-[112px] mr-2 overflow-hidden rounded-lg border border-border bg-muted/30">
+      {lineRangeLabel ? (
+        <div className="border-b border-border/50 px-3 py-1.5 text-xs text-muted-foreground">
+          {lineRangeLabel}
+        </div>
+      ) : null}
       {error ? (
-        <Alert className="mb-3">
+        <Alert className="m-3 mb-0">
           <AlertTitle>Comment failed</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2 p-3">
         <Textarea
           value={body}
           onChange={(event) => onBodyChange(event.target.value)}
           placeholder="Leave a comment"
-          rows={4}
+          rows={3}
           disabled={isSubmitting}
+          className="bg-background/60 text-xs"
+          autoFocus
         />
         <div className="flex items-center justify-end gap-2">
-          <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
+          <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={isSubmitting}>
             Cancel
           </Button>
           <Button
             type="button"
+            size="sm"
             onClick={onSubmit}
             disabled={isSubmitting || body.trim().length === 0}
           >
-            {isSubmitting ? 'Sending…' : 'Add comment'}
+            {isSubmitting ? 'Adding…' : 'Add to prompt'}
           </Button>
         </div>
       </div>
@@ -359,6 +366,7 @@ function UnifiedLine({
   selection,
   commentButton,
   commentHighlighted = false,
+  commentRangePosition,
   onCommentLaneEnter,
 }: {
   oldLineNumber: number | null;
@@ -370,6 +378,7 @@ function UnifiedLine({
   selection?: LineSelectionProps | undefined;
   commentButton?: ReactNode;
   commentHighlighted?: boolean;
+  commentRangePosition?: CommentRangePosition | undefined;
   onCommentLaneEnter?: (() => void) | undefined;
 }) {
   return (
@@ -377,12 +386,34 @@ function UnifiedLine({
       <div
         className={cn(
           'group/column flex-1',
-          commentHighlighted && 'bg-amber-500/10 ring-1 ring-inset ring-amber-500/30',
+          commentHighlighted && 'bg-blue-500/8',
           className,
         )}
         onMouseEnter={onCommentLaneEnter}
       >
-        <div className={cn('flex', ROW_BASE_CLASS)}>
+        <div className={cn('relative flex', ROW_BASE_CLASS)}>
+          {/* Hover-only gutter button (no active selection) */}
+          {commentButton && !commentRangePosition ? (
+            <span className="absolute left-[112px] top-0 z-20 flex h-full w-5 items-center justify-center opacity-0 group-hover/column:opacity-100">
+              {commentButton}
+            </span>
+          ) : null}
+          {/* Active selection: connector line + button on first/last/only */}
+          {commentRangePosition ? (
+            <span className="absolute left-[112px] top-0 z-20 flex h-full w-5 items-center justify-center">
+              {commentRangePosition !== 'only' ? (
+                <span
+                  className={cn(
+                    'absolute left-1/2 w-0.5 -translate-x-1/2 bg-blue-500',
+                    commentRangePosition === 'first' && 'top-1/2 bottom-0',
+                    commentRangePosition === 'middle' && 'inset-y-0',
+                    commentRangePosition === 'last' && 'top-0 bottom-1/2',
+                  )}
+                />
+              ) : null}
+              {commentRangePosition !== 'middle' && commentButton ? commentButton : null}
+            </span>
+          ) : null}
           <UnifiedLineNumberBox
             oldLineNumber={oldLineNumber}
             newLineNumber={newLineNumber}
@@ -391,14 +422,9 @@ function UnifiedLine({
           />
           <span className={MARKER_CLASS}>{marker}</span>
           <span className="relative flex-1">
-            <span className="diff-syntax whitespace-pre px-2 pr-8">
+            <span className="diff-syntax whitespace-pre px-2">
               {content}
             </span>
-            {commentButton ? (
-              <span className="absolute right-1 top-1/2 -translate-y-1/2">
-                {commentButton}
-              </span>
-            ) : null}
           </span>
         </div>
       </div>
@@ -545,12 +571,14 @@ function UnifiedContextRow({
   row,
   afterCommentButton,
   afterCommentHighlighted = false,
+  afterCommentRangePosition,
   onAfterCommentLaneEnter,
 }: {
   file: DiffRenderFile;
   row: Extract<DiffRenderFile['rows'][number], { kind: 'context' }>;
   afterCommentButton?: ReactNode;
   afterCommentHighlighted?: boolean;
+  afterCommentRangePosition?: CommentRangePosition | undefined;
   onAfterCommentLaneEnter?: (() => void) | undefined;
 }) {
   const oldTokens = getHighlightTokensForLine(row.beforeLineNumber, file.syntaxTokens?.oldTokens);
@@ -564,6 +592,7 @@ function UnifiedContextRow({
       content={renderHighlightedText(row.content, [newTokens ?? oldTokens])}
       commentButton={afterCommentButton}
       commentHighlighted={afterCommentHighlighted}
+      commentRangePosition={afterCommentRangePosition}
       onCommentLaneEnter={onAfterCommentLaneEnter}
     />
   );
@@ -575,6 +604,7 @@ function UnifiedDeletedRow({
   oldSelection,
   beforeCommentButton,
   beforeCommentHighlighted = false,
+  beforeCommentRangePosition,
   onBeforeCommentLaneEnter,
 }: {
   file: DiffRenderFile;
@@ -582,6 +612,7 @@ function UnifiedDeletedRow({
   oldSelection?: LineSelectionProps | undefined;
   beforeCommentButton?: ReactNode;
   beforeCommentHighlighted?: boolean;
+  beforeCommentRangePosition?: CommentRangePosition | undefined;
   onBeforeCommentLaneEnter?: (() => void) | undefined;
 }) {
   const syntaxTokens = getHighlightTokensForLine(row.data.lineNumber, file.syntaxTokens?.oldTokens);
@@ -597,6 +628,7 @@ function UnifiedDeletedRow({
       content={renderHighlightedText(row.data.content, [syntaxTokens])}
       commentButton={beforeCommentButton}
       commentHighlighted={beforeCommentHighlighted}
+      commentRangePosition={beforeCommentRangePosition}
       onCommentLaneEnter={onBeforeCommentLaneEnter}
     />
   );
@@ -608,6 +640,7 @@ function UnifiedAddedRow({
   newSelection,
   afterCommentButton,
   afterCommentHighlighted = false,
+  afterCommentRangePosition,
   onAfterCommentLaneEnter,
 }: {
   file: DiffRenderFile;
@@ -615,6 +648,7 @@ function UnifiedAddedRow({
   newSelection?: LineSelectionProps | undefined;
   afterCommentButton?: ReactNode;
   afterCommentHighlighted?: boolean;
+  afterCommentRangePosition?: CommentRangePosition | undefined;
   onAfterCommentLaneEnter?: (() => void) | undefined;
 }) {
   const syntaxTokens = getHighlightTokensForLine(row.data.lineNumber, file.syntaxTokens?.newTokens);
@@ -630,6 +664,7 @@ function UnifiedAddedRow({
       content={renderHighlightedText(row.data.content, [syntaxTokens])}
       commentButton={afterCommentButton}
       commentHighlighted={afterCommentHighlighted}
+      commentRangePosition={afterCommentRangePosition}
       onCommentLaneEnter={onAfterCommentLaneEnter}
     />
   );
@@ -644,6 +679,8 @@ function UnifiedModifiedRow({
   afterCommentButton,
   beforeCommentHighlighted = false,
   afterCommentHighlighted = false,
+  beforeCommentRangePosition,
+  afterCommentRangePosition,
   onBeforeCommentLaneEnter,
   onAfterCommentLaneEnter,
 }: {
@@ -655,6 +692,8 @@ function UnifiedModifiedRow({
   afterCommentButton?: ReactNode;
   beforeCommentHighlighted?: boolean;
   afterCommentHighlighted?: boolean;
+  beforeCommentRangePosition?: CommentRangePosition | undefined;
+  afterCommentRangePosition?: CommentRangePosition | undefined;
   onBeforeCommentLaneEnter?: (() => void) | undefined;
   onAfterCommentLaneEnter?: (() => void) | undefined;
 }) {
@@ -679,6 +718,7 @@ function UnifiedModifiedRow({
         ])}
         commentButton={beforeCommentButton}
         commentHighlighted={beforeCommentHighlighted}
+        commentRangePosition={beforeCommentRangePosition}
         onCommentLaneEnter={onBeforeCommentLaneEnter}
       />
       <UnifiedLine
@@ -694,6 +734,7 @@ function UnifiedModifiedRow({
         ])}
         commentButton={afterCommentButton}
         commentHighlighted={afterCommentHighlighted}
+        commentRangePosition={afterCommentRangePosition}
         onCommentLaneEnter={onAfterCommentLaneEnter}
       />
     </>
@@ -710,6 +751,8 @@ function DiffBodyRow({
   afterCommentButton,
   beforeCommentHighlighted = false,
   afterCommentHighlighted = false,
+  beforeCommentRangePosition,
+  afterCommentRangePosition,
   onBeforeCommentLaneEnter,
   onAfterCommentLaneEnter,
 }: {
@@ -722,6 +765,8 @@ function DiffBodyRow({
   afterCommentButton?: ReactNode;
   beforeCommentHighlighted?: boolean;
   afterCommentHighlighted?: boolean;
+  beforeCommentRangePosition?: CommentRangePosition | undefined;
+  afterCommentRangePosition?: CommentRangePosition | undefined;
   onBeforeCommentLaneEnter?: (() => void) | undefined;
   onAfterCommentLaneEnter?: (() => void) | undefined;
 }) {
@@ -746,6 +791,7 @@ function DiffBodyRow({
           row={row}
           afterCommentButton={afterCommentButton}
           afterCommentHighlighted={afterCommentHighlighted}
+          afterCommentRangePosition={afterCommentRangePosition}
           onAfterCommentLaneEnter={onAfterCommentLaneEnter}
         />
       );
@@ -757,6 +803,7 @@ function DiffBodyRow({
           oldSelection={oldSelection}
           beforeCommentButton={beforeCommentButton}
           beforeCommentHighlighted={beforeCommentHighlighted}
+          beforeCommentRangePosition={beforeCommentRangePosition}
           onBeforeCommentLaneEnter={onBeforeCommentLaneEnter}
         />
       );
@@ -768,6 +815,7 @@ function DiffBodyRow({
           newSelection={newSelection}
           afterCommentButton={afterCommentButton}
           afterCommentHighlighted={afterCommentHighlighted}
+          afterCommentRangePosition={afterCommentRangePosition}
           onAfterCommentLaneEnter={onAfterCommentLaneEnter}
         />
       );
@@ -782,6 +830,8 @@ function DiffBodyRow({
           afterCommentButton={afterCommentButton}
           beforeCommentHighlighted={beforeCommentHighlighted}
           afterCommentHighlighted={afterCommentHighlighted}
+          beforeCommentRangePosition={beforeCommentRangePosition}
+          afterCommentRangePosition={afterCommentRangePosition}
           onBeforeCommentLaneEnter={onBeforeCommentLaneEnter}
           onAfterCommentLaneEnter={onAfterCommentLaneEnter}
         />
@@ -1035,6 +1085,36 @@ export function DiffFileSection({
     [commentDraft, commentRange, renderItems],
   );
 
+  const commentRangePositions = useMemo(() => {
+    if (commentDraft === null || commentRange === null) {
+      return new Map<number, CommentRangePosition>();
+    }
+
+    const positions = new Map<number, CommentRangePosition>();
+    const commentableIndices: number[] = [];
+
+    for (let i = commentRange.from; i <= commentRange.to; i++) {
+      const item = renderItems[i];
+      if (item?.kind === 'row' && getCommentableLineNumber(item.row, commentDraft.side) !== null) {
+        commentableIndices.push(i);
+      }
+    }
+
+    commentableIndices.forEach((idx, i) => {
+      if (commentableIndices.length === 1) {
+        positions.set(idx, 'only');
+      } else if (i === 0) {
+        positions.set(idx, 'first');
+      } else if (i === commentableIndices.length - 1) {
+        positions.set(idx, 'last');
+      } else {
+        positions.set(idx, 'middle');
+      }
+    });
+
+    return positions;
+  }, [commentDraft, commentRange, renderItems]);
+
   const handleStartCommentSelection = (side: DiffCommentSide, rowIndex: number) => {
     setCommentDraft({
       side,
@@ -1095,16 +1175,16 @@ export function DiffFileSection({
       return undefined;
     }
 
-    const isActive =
-      commentDraft !== null &&
-      commentDraft.side === side &&
-      commentRange !== null &&
-      rowIndex >= commentRange.from &&
-      rowIndex <= commentRange.to;
+    const rangePosition = commentDraft?.side === side
+      ? commentRangePositions.get(rowIndex)
+      : undefined;
+
+    if (rangePosition === 'middle') {
+      return undefined;
+    }
 
     return (
       <CommentButton
-        active={isActive}
         onMouseDown={() => handleStartCommentSelection(side, rowIndex)}
         onMouseEnter={() => handleExtendCommentSelection(side, rowIndex)}
       />
@@ -1142,7 +1222,7 @@ export function DiffFileSection({
         </div>
       ) : null}
       <div className="overflow-x-auto overflow-y-hidden">
-        <div className="min-w-[720px] w-max">
+        <div className="min-w-full w-max">
           {renderItems.map((item, renderIndex) => {
             const hasHunkGutter = getRowSelectionType !== undefined;
 
@@ -1259,21 +1339,40 @@ export function DiffFileSection({
                       renderIndex <= commentRange.to &&
                       getCommentableLineNumber(row, 'new') !== null
                     }
+                    beforeCommentRangePosition={
+                      commentDraft?.side === 'old' ? commentRangePositions.get(renderIndex) : undefined
+                    }
+                    afterCommentRangePosition={
+                      commentDraft?.side === 'new' ? commentRangePositions.get(renderIndex) : undefined
+                    }
                   />
-                  {showComposer && commentDraft ? (
-                    <InlineCommentComposer
-                      body={commentDraft.body}
-                      error={commentDraft.error}
-                      isSubmitting={commentDraft.isSubmitting}
-                      onBodyChange={(body) =>
-                        setCommentDraft((current) => current === null ? null : { ...current, body })
-                      }
-                      onCancel={() => setCommentDraft(null)}
-                      onSubmit={() => {
-                        void handleSubmitComment();
-                      }}
-                    />
-                  ) : null}
+                  {showComposer && commentDraft ? (() => {
+                    const firstRow = commentRows[0];
+                    const lastRow = commentRows[commentRows.length - 1];
+                    const firstLine = firstRow ? getCommentableLineNumber(firstRow, commentDraft.side) : null;
+                    const lastLine = lastRow ? getCommentableLineNumber(lastRow, commentDraft.side) : null;
+                    const lineLabel = firstLine !== null && lastLine !== null
+                      ? firstLine === lastLine
+                        ? `Comment on line ${firstLine}`
+                        : `Comment on lines ${firstLine}–${lastLine}`
+                      : undefined;
+
+                    return (
+                      <InlineCommentComposer
+                        lineRangeLabel={lineLabel}
+                        body={commentDraft.body}
+                        error={commentDraft.error}
+                        isSubmitting={commentDraft.isSubmitting}
+                        onBodyChange={(body) =>
+                          setCommentDraft((current) => current === null ? null : { ...current, body })
+                        }
+                        onCancel={() => setCommentDraft(null)}
+                        onSubmit={() => {
+                          void handleSubmitComment();
+                        }}
+                      />
+                    );
+                  })() : null}
                 </div>
               </div>
             );
