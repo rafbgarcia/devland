@@ -5,6 +5,7 @@ import type { CodexSessionEvent } from '@/ipc/contracts';
 import {
   applyCodexSessionEvent,
   DEFAULT_SESSION_STATE,
+  hydrateResumedCodexThreadState,
   hydrateCodexSessionState,
   toCodexSessionSnapshot,
 } from '@/renderer/code-screen/codex-session-state';
@@ -308,6 +309,34 @@ describe('applyCodexSessionEvent', () => {
 });
 
 describe('Codex session snapshot persistence', () => {
+  it('preserves attachments when hydrating a resumed thread', () => {
+    const state = hydrateResumedCodexThreadState({
+      threadId: 'thread-1',
+      messages: [
+        {
+          id: 'user-1',
+          role: 'user',
+          text: 'Inspect this screenshot',
+          attachments: [
+            {
+              type: 'image',
+              name: 'persisted.png',
+              mimeType: 'image/png',
+              sizeBytes: 128,
+              previewUrl: 'devland-codex-attachment://asset/ab/cd.png',
+            },
+          ],
+          createdAt: '2026-03-21T12:00:00.000Z',
+          completedAt: '2026-03-21T12:00:00.000Z',
+          turnId: 'turn-1',
+          itemId: 'user-1',
+        },
+      ],
+    });
+
+    assert.equal(state.messages[0]?.attachments[0]?.previewUrl, 'devland-codex-attachment://asset/ab/cd.png');
+  });
+
   it('preserves durable attachment previews while stripping transient data urls', () => {
     const state = {
       ...DEFAULT_SESSION_STATE,

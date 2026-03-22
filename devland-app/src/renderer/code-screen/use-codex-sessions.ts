@@ -330,6 +330,7 @@ export function useCodexSessionActions() {
             prompt: submission.prompt,
             settings: submission.settings,
             attachments: submission.attachments,
+            persistedAttachments,
             resumeThreadId: previous.threadId,
             transcriptBootstrap,
           });

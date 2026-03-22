@@ -184,10 +184,19 @@ export const ListCodexThreadsInputSchema = z.object({
 });
 export type ListCodexThreadsInput = z.infer<typeof ListCodexThreadsInputSchema>;
 
+export const CodexResumedThreadImageAttachmentSchema = z.object({
+  type: z.literal('image'),
+  name: z.string(),
+  mimeType: z.string(),
+  sizeBytes: z.number().int().nonnegative(),
+  previewUrl: z.string().min(1).nullable(),
+});
+
 export const CodexResumedThreadMessageSchema = z.object({
   id: z.string().min(1),
   role: z.enum(['user', 'assistant']),
   text: z.string(),
+  attachments: z.array(CodexResumedThreadImageAttachmentSchema),
   createdAt: z.string().min(1),
   completedAt: z.string().min(1).nullable(),
   turnId: z.string().min(1).nullable(),
@@ -763,6 +772,7 @@ export interface ElectronApi {
     prompt: string;
     settings: CodexComposerSettings;
     attachments: CodexImageAttachmentInput[];
+    persistedAttachments?: CodexChatImageAttachment[];
     resumeThreadId?: string | null;
     transcriptBootstrap?: string | null;
   }) => Promise<void>;

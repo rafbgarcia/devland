@@ -1,6 +1,7 @@
 import { BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent, type OpenDialogOptions } from 'electron';
 
 import type {
+  CodexChatImageAttachment,
   CodexComposerSettings,
   CodexImageAttachmentInput,
 } from '@/lib/codex-chat';
@@ -369,6 +370,7 @@ export const registerAppIpcHandlers = (
         prompt: string;
         settings: CodexComposerSettings;
         attachments: CodexImageAttachmentInput[];
+        persistedAttachments?: CodexChatImageAttachment[];
         resumeThreadId?: string | null;
         transcriptBootstrap?: string | null;
       },
@@ -379,6 +381,7 @@ export const registerAppIpcHandlers = (
         input.prompt,
         input.settings,
         input.attachments,
+        input.persistedAttachments ?? [],
         input.resumeThreadId ?? null,
         input.transcriptBootstrap ?? null,
       ),

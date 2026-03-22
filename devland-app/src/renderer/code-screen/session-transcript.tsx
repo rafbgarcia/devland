@@ -22,6 +22,7 @@ import {
   SquarePenIcon,
   TerminalIcon,
   WrenchIcon,
+  XIcon,
   ZapIcon,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
@@ -41,6 +42,12 @@ import {
 import { openRepoFileInExternalEditor } from '@/renderer/shared/lib/open-file-in-external-editor';
 import { ProposedPlanCard } from '@/renderer/code-screen/proposed-plan-card';
 import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogTitle,
+} from '@/shadcn/components/ui/dialog';
 import { cn } from '@/shadcn/lib/utils';
 
 const MAX_COLLAPSED_TOOL_ENTRIES = 3;
@@ -238,6 +245,8 @@ const UserMessageRow = memo(function UserMessageRow({
   text: string;
   attachments: CodexSessionState['messages'][number]['attachments'];
 }) {
+  const [previewUrl, setPreviewUrl] = useState<{ url: string; name: string } | null>(null);
+
   return (
     <div className="flex justify-end py-1.5">
       <div className="flex max-w-[72%] flex-col gap-3 rounded-2xl rounded-br-md bg-primary/90 px-3.5 py-2 text-[13px] leading-relaxed text-primary-foreground">
@@ -249,11 +258,18 @@ const UserMessageRow = memo(function UserMessageRow({
                 className="overflow-hidden rounded-lg border border-primary-foreground/15 bg-primary-foreground/8"
               >
                 {attachment.previewUrl ? (
-                  <img
-                    src={attachment.previewUrl}
-                    alt={attachment.name}
-                    className="size-16 object-cover"
-                  />
+                  <button
+                    type="button"
+                    onClick={() => setPreviewUrl({ url: attachment.previewUrl!, name: attachment.name })}
+                    className="block cursor-zoom-in"
+                    aria-label={`Open ${attachment.name}`}
+                  >
+                    <img
+                      src={attachment.previewUrl}
+                      alt={attachment.name}
+                      className="size-16 object-cover"
+                    />
+                  </button>
                 ) : (
                   <div className="flex size-16 items-center justify-center px-2 text-center text-[10px] leading-tight text-primary-foreground/85">
                     {attachment.name}
@@ -267,6 +283,39 @@ const UserMessageRow = memo(function UserMessageRow({
           <span className="whitespace-pre-wrap">{text}</span>
         ) : null}
       </div>
+
+      <Dialog
+        open={previewUrl !== null}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            setPreviewUrl(null);
+          }
+        }}
+      >
+        <DialogContent
+          backdropClassName="cursor-zoom-out bg-black/72"
+          className="max-w-none w-auto border-0 bg-transparent p-0 shadow-none"
+        >
+          <DialogTitle className="sr-only">
+            {previewUrl ? `Preview ${previewUrl.name}` : 'Image preview'}
+          </DialogTitle>
+          {previewUrl ? (
+            <div className="relative">
+              <img
+                src={previewUrl.url}
+                alt={previewUrl.name}
+                className="max-h-[92vh] max-w-[92vw] rounded-xl object-contain"
+              />
+              <DialogClose
+                className="absolute right-3 top-3 flex size-9 items-center justify-center rounded-full bg-background/88 text-foreground shadow-sm backdrop-blur-sm transition-colors hover:bg-background"
+                aria-label={`Close ${previewUrl.name}`}
+              >
+                <XIcon className="size-4" />
+              </DialogClose>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 });

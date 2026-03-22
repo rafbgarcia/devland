@@ -13,6 +13,7 @@ import type {
   CodexUserInputQuestion,
 } from '@/ipc/contracts';
 import type {
+  CodexChatImageAttachment,
   CodexComposerSettings,
   CodexImageAttachmentInput,
   CodexInteractionMode,
@@ -28,6 +29,10 @@ import {
   captureGitWorkingTreeSnapshot,
   getGitSnapshotDiff,
 } from '@/main-process/git';
+import {
+  hydrateCodexThreadFromStore,
+  recordCodexThreadUserMessage,
+} from '@/main-process/codex-thread-store';
 
 import { codexExecutable } from './codex-cli';
 
@@ -533,6 +538,79 @@ function userInputToText(value: Record<string, unknown>): string | null {
   }
 }
 
+function inferImageMimeTypeFromUrl(value: string | null | undefined): string {
+  if (!value) {
+    return '';
+  }
+
+  if (value.startsWith('data:')) {
+    const commaIndex = value.indexOf(',');
+    const metadata = commaIndex === -1 ? value.slice('data:'.length) : value.slice('data:'.length, commaIndex);
+    const mimeType = metadata.replace(/;base64$/u, '').trim();
+    return mimeType.startsWith('image/') ? mimeType : '';
+  }
+
+  return '';
+}
+
+function userInputToAttachment(value: Record<string, unknown>): CodexChatImageAttachment | null {
+  const type = asString(value.type);
+
+  switch (type) {
+    case 'image': {
+      const url = asString(value.url);
+      return {
+        type: 'image',
+        name: 'Attached image',
+        mimeType: inferImageMimeTypeFromUrl(url),
+        sizeBytes: 0,
+        previewUrl: null,
+      };
+    }
+    case 'localImage': {
+      const imagePath = asString(value.path);
+      return {
+        type: 'image',
+        name: imagePath ? basenameOfPath(imagePath) : 'Attached image',
+        mimeType: '',
+        sizeBytes: 0,
+        previewUrl: null,
+      };
+    }
+    default:
+      return null;
+  }
+}
+
+function parseUserMessageContent(content: readonly unknown[]): {
+  text: string;
+  attachments: CodexChatImageAttachment[];
+} {
+  const textParts: string[] = [];
+  const attachments: CodexChatImageAttachment[] = [];
+
+  for (const contentItem of content) {
+    const item = asObject(contentItem) ?? {};
+    const attachment = userInputToAttachment(item);
+
+    if (attachment) {
+      attachments.push(attachment);
+      continue;
+    }
+
+    const nextText = userInputToText(item);
+
+    if (nextText) {
+      textParts.push(nextText);
+    }
+  }
+
+  return {
+    text: textParts.join('\n\n'),
+    attachments,
+  };
+}
+
 export function parseCodexThreadSummaries(result: unknown): CodexThreadSummary[] {
   const threads = asArray(asObject(result)?.data) ?? [];
 
@@ -589,12 +667,8 @@ export function parseCodexResumedThread(result: unknown): CodexResumedThread {
 
       if (itemType === 'userMessage') {
         const content = asArray(item?.content) ?? [];
-        const text = content
-          .flatMap((contentItem) => {
-            const nextText = userInputToText(asObject(contentItem) ?? {});
-            return nextText ? [nextText] : [];
-          })
-          .join('\n\n');
+        const parsedContent = parseUserMessageContent(content);
+        const text = parsedContent.text;
         const itemId = asString(item?.id) ?? null;
         const existingIndex = itemId ? messageIndexByItemId.get(itemId) : undefined;
 
@@ -617,6 +691,7 @@ export function parseCodexResumedThread(result: unknown): CodexResumedThread {
           id: messageId,
           role: 'user',
           text,
+          attachments: parsedContent.attachments,
           createdAt,
           completedAt: createdAt,
           turnId,
@@ -656,6 +731,7 @@ export function parseCodexResumedThread(result: unknown): CodexResumedThread {
           id: messageId,
           role: 'assistant',
           text,
+          attachments: [],
           createdAt,
           completedAt,
           turnId,
@@ -718,7 +794,7 @@ export class CodexAppServerManager extends EventEmitter<{
       throw new Error('Codex could not resume the selected thread.');
     }
 
-    return parseCodexResumedThread(threadResponse);
+    return hydrateCodexThreadFromStore(parseCodexResumedThread(threadResponse));
   }
 
   async sendPrompt(
@@ -727,6 +803,7 @@ export class CodexAppServerManager extends EventEmitter<{
     prompt: string,
     settings: CodexComposerSettings,
     attachments: readonly CodexImageAttachmentInput[],
+    persistedAttachments: readonly CodexChatImageAttachment[] = [],
     resumeThreadId: string | null = null,
     transcriptBootstrap: string | null = null,
   ): Promise<void> {
@@ -776,6 +853,12 @@ export class CodexAppServerManager extends EventEmitter<{
         }),
       );
       const turnId = asString(asObject(asObject(response)?.turn)?.id);
+      await recordCodexThreadUserMessage({
+        threadId: context.threadId,
+        turnId: turnId ?? null,
+        prompt,
+        attachments: persistedAttachments,
+      });
       context.status = 'running';
       context.activeTurnId = turnId ?? null;
       this.emitState(context, 'running', turnId ?? null, null);

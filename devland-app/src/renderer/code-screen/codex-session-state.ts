@@ -503,7 +503,7 @@ export function hydrateResumedCodexThreadState(thread: CodexResumedThread): Code
     id: message.id,
     role: message.role,
     text: message.text,
-    attachments: [],
+    attachments: message.attachments,
     createdAt: message.createdAt,
     completedAt: message.completedAt,
     turnId: message.turnId,

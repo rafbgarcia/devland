@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { app } from 'electron';
@@ -26,9 +26,6 @@ const MIME_EXTENSION_BY_TYPE: Record<string, string> = {
   'image/webp': '.webp',
 };
 
-const sanitizeSegment = (value: string): string =>
-  value.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'attachment';
-
 const encodeRelativePath = (relativePath: string): string =>
   relativePath
     .split(/[\\/]+/)
@@ -46,13 +43,10 @@ const decodeRelativePath = (pathname: string): string =>
 const getAttachmentsRoot = (): string =>
   path.join(app.getPath('userData'), ATTACHMENTS_ROOT_DIRNAME);
 
-const buildStoredFileName = (index: number, name: string, mimeType: string): string => {
+const buildStoredFileExtension = (name: string, mimeType: string): string => {
   const trimmedName = name.trim();
   const providedExtension = path.extname(trimmedName);
-  const baseName = sanitizeSegment(path.basename(trimmedName, providedExtension)) || 'image';
-  const extension = providedExtension || MIME_EXTENSION_BY_TYPE[mimeType] || '';
-
-  return `${String(index + 1).padStart(2, '0')}-${baseName}${extension}`;
+  return providedExtension || MIME_EXTENSION_BY_TYPE[mimeType] || '';
 };
 
 const parseImageDataUrl = (dataUrl: string): { mimeType: string; bytes: Buffer } => {
@@ -115,30 +109,44 @@ export const resolveCodexAttachmentPathFromRoot = (
 export const resolveCodexAttachmentPath = (requestUrl: string): string | null =>
   resolveCodexAttachmentPathFromRoot(getAttachmentsRoot(), requestUrl);
 
+const buildAttachmentStoragePath = (
+  bytes: Buffer,
+  name: string,
+  mimeType: string,
+): string => {
+  const digest = createHash('sha256').update(bytes).digest('hex');
+  const extension = buildStoredFileExtension(name, mimeType);
+
+  return path.join(digest.slice(0, 2), `${digest}${extension}`);
+};
+
 export const persistCodexAttachments = async (
-  sessionId: string,
+  _sessionId: string,
   attachments: readonly CodexImageAttachmentInput[],
 ): Promise<CodexChatImageAttachment[]> => {
   if (attachments.length === 0) {
     return [];
   }
 
-  const sessionKey = sanitizeSegment(sessionId);
-  const batchKey = randomUUID();
-  const relativeBatchDir = path.join(sessionKey, batchKey);
-  const batchDir = path.join(getAttachmentsRoot(), relativeBatchDir);
-
-  await mkdir(batchDir, { recursive: true });
+  const attachmentsRoot = getAttachmentsRoot();
+  await mkdir(attachmentsRoot, { recursive: true });
 
   return Promise.all(
-    attachments.map(async (attachment, index) => {
+    attachments.map(async (attachment) => {
       const { mimeType: parsedMimeType, bytes } = parseImageDataUrl(attachment.dataUrl);
       const mimeType = attachment.mimeType.trim() || parsedMimeType;
-      const fileName = buildStoredFileName(index, attachment.name, mimeType);
-      const absolutePath = path.join(batchDir, fileName);
-      const relativeFilePath = path.join(relativeBatchDir, fileName);
+      const relativeFilePath = buildAttachmentStoragePath(bytes, attachment.name, mimeType);
+      const absolutePath = path.join(attachmentsRoot, relativeFilePath);
 
-      await writeFile(absolutePath, bytes);
+      await mkdir(path.dirname(absolutePath), { recursive: true });
+
+      try {
+        await writeFile(absolutePath, bytes, { flag: 'wx' });
+      } catch (error) {
+        if (!(error instanceof Error) || !('code' in error) || error.code !== 'EEXIST') {
+          throw error;
+        }
+      }
 
       return {
         type: 'image',
