@@ -516,10 +516,6 @@ export const SessionTranscript = memo(function SessionTranscript({
   const nonVirtualizedRows = rows.slice(virtualizedRowCount);
 
   useEffect(() => {
-    rowVirtualizer.measure();
-  }, [rowVirtualizer, rows, timelineWidthPx]);
-
-  useEffect(() => {
     const element = scrollRef.current;
 
     if (!element || !shouldAutoScrollRef.current) {

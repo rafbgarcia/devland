@@ -165,15 +165,13 @@ export function deriveSessionTimelineRows(sessionState: CodexSessionState): Sess
 
   appendTranscriptRows(sessionState.transcriptEntries);
 
-  if (sessionState.status === 'running') {
-    if (sessionState.currentTurnEntries.length > 0) {
-      appendTranscriptRows(sessionState.currentTurnEntries);
-    } else {
-      rows.push({
-        id: 'current-turn:working',
-        kind: 'working',
-      });
-    }
+  if (sessionState.currentTurnEntries.length > 0) {
+    appendTranscriptRows(sessionState.currentTurnEntries);
+  } else if (sessionState.status === 'running') {
+    rows.push({
+      id: 'current-turn:working',
+      kind: 'working',
+    });
   }
 
   return rows;
@@ -181,10 +179,14 @@ export function deriveSessionTimelineRows(sessionState: CodexSessionState): Sess
 
 const USER_CHARS_PER_LINE_FALLBACK = 42;
 const ASSISTANT_CHARS_PER_LINE_FALLBACK = 74;
-const USER_BASE_HEIGHT_PX = 88;
-const ASSISTANT_BASE_HEIGHT_PX = 56;
-const WORK_ENTRY_HEIGHT_PX = 34;
-const WORK_GROUP_BASE_HEIGHT_PX = 52;
+const USER_BASE_HEIGHT_PX = 28;
+const USER_LINE_HEIGHT_PX = 22;
+const USER_ATTACHMENT_TILE_SIZE_PX = 64;
+const USER_ATTACHMENT_ROW_GAP_PX = 8;
+const ASSISTANT_BASE_HEIGHT_PX = 18;
+const ASSISTANT_LINE_HEIGHT_PX = 28;
+const WORK_ENTRY_HEIGHT_PX = 18;
+const WORK_GROUP_BASE_HEIGHT_PX = 12;
 
 function estimateWrappedLineCount(text: string, charsPerLine: number): number {
   if (text.length === 0) {
@@ -224,6 +226,21 @@ function estimateCharsPerLineForAssistant(viewportWidthPx: number | null): numbe
   return Math.max(28, Math.floor((viewportWidthPx - 24) / 7.2));
 }
 
+function estimateAttachmentHeight(attachmentCount: number, viewportWidthPx: number | null): number {
+  if (attachmentCount <= 0) {
+    return 0;
+  }
+
+  const availableWidthPx = viewportWidthPx ? viewportWidthPx * 0.72 : 320;
+  const columns = Math.max(
+    1,
+    Math.floor((availableWidthPx + USER_ATTACHMENT_ROW_GAP_PX) / (USER_ATTACHMENT_TILE_SIZE_PX + USER_ATTACHMENT_ROW_GAP_PX)),
+  );
+  const rowCount = Math.ceil(attachmentCount / columns);
+
+  return rowCount * USER_ATTACHMENT_TILE_SIZE_PX + (rowCount - 1) * USER_ATTACHMENT_ROW_GAP_PX;
+}
+
 export function estimateSessionTimelineRowHeight(
   row: SessionTimelineRow,
   viewportWidthPx: number | null,
@@ -252,11 +269,25 @@ export function estimateSessionTimelineRowHeight(
 
   if (row.message.role === 'user') {
     const charsPerLine = estimateCharsPerLineForUser(viewportWidthPx);
-    const estimatedLines = estimateWrappedLineCount(row.message.text, charsPerLine);
-    return USER_BASE_HEIGHT_PX + estimatedLines * 22;
+    const estimatedLines =
+      row.message.text.trim().length > 0
+        ? estimateWrappedLineCount(row.message.text, charsPerLine)
+        : 0;
+    const attachmentHeight = estimateAttachmentHeight(
+      row.message.attachments.length,
+      viewportWidthPx,
+    );
+    const attachmentGap = attachmentHeight > 0 && estimatedLines > 0 ? 12 : 0;
+
+    return (
+      USER_BASE_HEIGHT_PX +
+      estimatedLines * USER_LINE_HEIGHT_PX +
+      attachmentHeight +
+      attachmentGap
+    );
   }
 
   const charsPerLine = estimateCharsPerLineForAssistant(viewportWidthPx);
   const estimatedLines = estimateWrappedLineCount(row.message.text, charsPerLine);
-  return ASSISTANT_BASE_HEIGHT_PX + estimatedLines * 24;
+  return ASSISTANT_BASE_HEIGHT_PX + estimatedLines * ASSISTANT_LINE_HEIGHT_PX;
 }

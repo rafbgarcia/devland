@@ -527,6 +527,7 @@ export function parseCodexResumedThread(result: unknown): CodexResumedThread {
     Math.floor(Date.now() / 1000);
   const turns = asArray(thread?.turns) ?? [];
   const messages: CodexResumedThread['messages'] = [];
+  const messageIndexByItemId = new Map<string, number>();
   let messageOffset = 0;
 
   for (const turnCandidate of turns) {
@@ -549,29 +550,76 @@ export function parseCodexResumedThread(result: unknown): CodexResumedThread {
             return nextText ? [nextText] : [];
           })
           .join('\n\n');
+        const itemId = asString(item?.id) ?? null;
+        const existingIndex = itemId ? messageIndexByItemId.get(itemId) : undefined;
+
+        if (existingIndex !== undefined) {
+          const existingMessage = messages[existingIndex];
+
+          if (existingMessage) {
+            messages[existingIndex] = {
+              ...existingMessage,
+              text: text || existingMessage.text,
+            };
+          }
+
+          continue;
+        }
+
+        const messageId = itemId ?? `${threadId}:user:${messages.length}`;
 
         messages.push({
-          id: asString(item?.id) ?? `${threadId}:user:${messages.length}`,
+          id: messageId,
           role: 'user',
           text,
           createdAt,
           completedAt: createdAt,
           turnId,
-          itemId: asString(item?.id) ?? null,
+          itemId,
         });
+
+        if (itemId) {
+          messageIndexByItemId.set(itemId, messages.length - 1);
+        }
         continue;
       }
 
       if (itemType === 'agentMessage') {
+        const itemId = asString(item?.id) ?? null;
+        const text = asString(item?.text) ?? '';
+        const completedAt = turnStatus === 'inProgress' ? null : createdAt;
+        const existingIndex = itemId ? messageIndexByItemId.get(itemId) : undefined;
+
+        if (existingIndex !== undefined) {
+          const existingMessage = messages[existingIndex];
+
+          if (existingMessage) {
+            messages[existingIndex] = {
+              ...existingMessage,
+              text: text || existingMessage.text,
+              completedAt: completedAt ?? existingMessage.completedAt,
+              itemId,
+            };
+          }
+
+          continue;
+        }
+
+        const messageId = itemId ?? `${threadId}:assistant:${messages.length}`;
+
         messages.push({
-          id: asString(item?.id) ?? `${threadId}:assistant:${messages.length}`,
+          id: messageId,
           role: 'assistant',
-          text: asString(item?.text) ?? '',
+          text,
           createdAt,
-          completedAt: turnStatus === 'inProgress' ? null : createdAt,
+          completedAt,
           turnId,
-          itemId: asString(item?.id) ?? null,
+          itemId,
         });
+
+        if (itemId) {
+          messageIndexByItemId.set(itemId, messages.length - 1);
+        }
       }
     }
   }
@@ -1194,12 +1242,6 @@ export class CodexAppServerManager extends EventEmitter<{
         const diff = await this.captureTurnDiff(context);
         context.status = status === 'failed' ? 'error' : 'ready';
         context.activeTurnId = null;
-        this.emitState(
-          context,
-          status === 'failed' ? 'error' : 'ready',
-          asString(turn?.id) ?? null,
-          errorMessage,
-        );
         this.emit('event', {
           type: 'turn-completed',
           sessionId: context.sessionId,
@@ -1216,6 +1258,12 @@ export class CodexAppServerManager extends EventEmitter<{
           completedAt: new Date().toISOString(),
           diff,
         });
+        this.emitState(
+          context,
+          status === 'failed' ? 'error' : 'ready',
+          asString(turn?.id) ?? null,
+          errorMessage,
+        );
         return;
       }
       case 'item/agentMessage/delta': {

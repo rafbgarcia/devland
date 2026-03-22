@@ -17,6 +17,8 @@ import {
   type CodexComposerSettings,
   codexInteractionModeLabel,
   codexReasoningEffortLabel,
+  codexRuntimeModeLabel,
+  codexFastModeLabel,
 } from '@/lib/codex-chat';
 import type { CodexThreadSummary } from '@/ipc/contracts';
 import {
@@ -252,136 +254,170 @@ export function CodexTabMenu({
         <DropdownMenuSeparator />
 
         <DropdownMenuGroup>
-          <DropdownMenuLabel>Mode</DropdownMenuLabel>
-          <DropdownMenuRadioGroup
-            value={settings.interactionMode}
-            onValueChange={(interactionMode) => {
-              if (!interactionMode || interactionMode === settings.interactionMode) return;
-              onSettingsChange({
-                ...settings,
-                interactionMode: interactionMode as CodexComposerSettings['interactionMode'],
-              });
-            }}
-          >
-            {['default', 'plan'].map((interactionMode) => (
-              <DropdownMenuRadioItem
-                key={interactionMode}
-                value={interactionMode}
-                closeOnClick={false}
+          <DropdownMenuSubmenu>
+            <DropdownMenuSubmenuTrigger>
+              Mode
+              <span className="ml-auto text-xs text-muted-foreground">
+                {codexInteractionModeLabel(settings.interactionMode)}
+              </span>
+              <ChevronRightIcon className="size-3.5 text-muted-foreground" />
+            </DropdownMenuSubmenuTrigger>
+            <DropdownMenuContent side="right" sideOffset={2} align="start" className="w-44">
+              <DropdownMenuRadioGroup
+                value={settings.interactionMode}
+                onValueChange={(interactionMode) => {
+                  if (!interactionMode || interactionMode === settings.interactionMode) return;
+                  onSettingsChange({
+                    ...settings,
+                    interactionMode: interactionMode as CodexComposerSettings['interactionMode'],
+                  });
+                }}
               >
-                {codexInteractionModeLabel(
-                  interactionMode as CodexComposerSettings['interactionMode'],
-                )}
-                <DropdownMenuRadioItemIndicator className="ml-auto">
-                  <CheckIcon className="size-3.5" />
-                </DropdownMenuRadioItemIndicator>
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuGroup>
+                {['default', 'plan'].map((interactionMode) => (
+                  <DropdownMenuRadioItem
+                    key={interactionMode}
+                    value={interactionMode}
+                    closeOnClick={false}
+                  >
+                    {codexInteractionModeLabel(
+                      interactionMode as CodexComposerSettings['interactionMode'],
+                    )}
+                    <DropdownMenuRadioItemIndicator className="ml-auto">
+                      <CheckIcon className="size-3.5" />
+                    </DropdownMenuRadioItemIndicator>
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenuSubmenu>
 
-        <DropdownMenuSeparator />
-
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>Model</DropdownMenuLabel>
-          <DropdownMenuRadioGroup
-            value={settings.model}
-            onValueChange={(model) => {
-              if (!model || model === settings.model) return;
-              onSettingsChange({ ...settings, model });
-            }}
-          >
-            {CODEX_MODEL_OPTIONS.map((modelOption) => (
-              <DropdownMenuRadioItem
-                key={modelOption.value}
-                value={modelOption.value}
-                closeOnClick={false}
+          <DropdownMenuSubmenu>
+            <DropdownMenuSubmenuTrigger>
+              Model
+              <span className="ml-auto text-xs text-muted-foreground">
+                {CODEX_MODEL_OPTIONS.find((o) => o.value === settings.model)?.label ?? settings.model}
+              </span>
+              <ChevronRightIcon className="size-3.5 text-muted-foreground" />
+            </DropdownMenuSubmenuTrigger>
+            <DropdownMenuContent side="right" sideOffset={2} align="start" className="w-52">
+              <DropdownMenuRadioGroup
+                value={settings.model}
+                onValueChange={(model) => {
+                  if (!model || model === settings.model) return;
+                  onSettingsChange({ ...settings, model });
+                }}
               >
-                <ZapIcon className="size-3.5 text-amber-400" />
-                {modelOption.label}
-                <DropdownMenuRadioItemIndicator className="ml-auto">
-                  <CheckIcon className="size-3.5" />
-                </DropdownMenuRadioItemIndicator>
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuGroup>
+                {CODEX_MODEL_OPTIONS.map((modelOption) => (
+                  <DropdownMenuRadioItem
+                    key={modelOption.value}
+                    value={modelOption.value}
+                    closeOnClick={false}
+                  >
+                    <ZapIcon className="size-3.5 text-amber-400" />
+                    {modelOption.label}
+                    <DropdownMenuRadioItemIndicator className="ml-auto">
+                      <CheckIcon className="size-3.5" />
+                    </DropdownMenuRadioItemIndicator>
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenuSubmenu>
 
-        <DropdownMenuSeparator />
+          <DropdownMenuSubmenu>
+            <DropdownMenuSubmenuTrigger>
+              Reasoning
+              <span className="ml-auto text-xs text-muted-foreground">
+                {codexReasoningEffortLabel(settings.reasoningEffort)}
+              </span>
+              <ChevronRightIcon className="size-3.5 text-muted-foreground" />
+            </DropdownMenuSubmenuTrigger>
+            <DropdownMenuContent side="right" sideOffset={2} align="start" className="w-44">
+              <DropdownMenuRadioGroup
+                value={settings.reasoningEffort}
+                onValueChange={(reasoningEffort) => {
+                  if (!reasoningEffort || reasoningEffort === settings.reasoningEffort) return;
+                  onSettingsChange({
+                    ...settings,
+                    reasoningEffort: reasoningEffort as CodexComposerSettings['reasoningEffort'],
+                  });
+                }}
+              >
+                {CODEX_REASONING_EFFORTS.map((effort) => (
+                  <DropdownMenuRadioItem key={effort} value={effort} closeOnClick={false}>
+                    {codexReasoningEffortLabel(effort)}
+                    <DropdownMenuRadioItemIndicator className="ml-auto">
+                      <CheckIcon className="size-3.5" />
+                    </DropdownMenuRadioItemIndicator>
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenuSubmenu>
 
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>Reasoning</DropdownMenuLabel>
-          <DropdownMenuRadioGroup
-            value={settings.reasoningEffort}
-            onValueChange={(reasoningEffort) => {
-              if (!reasoningEffort || reasoningEffort === settings.reasoningEffort) return;
-              onSettingsChange({
-                ...settings,
-                reasoningEffort: reasoningEffort as CodexComposerSettings['reasoningEffort'],
-              });
-            }}
-          >
-            {CODEX_REASONING_EFFORTS.map((effort) => (
-              <DropdownMenuRadioItem key={effort} value={effort} closeOnClick={false}>
-                {codexReasoningEffortLabel(effort)}
-                <DropdownMenuRadioItemIndicator className="ml-auto">
-                  <CheckIcon className="size-3.5" />
-                </DropdownMenuRadioItemIndicator>
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuGroup>
+          <DropdownMenuSubmenu>
+            <DropdownMenuSubmenuTrigger>
+              Fast mode
+              <span className="ml-auto text-xs text-muted-foreground">
+                {codexFastModeLabel(settings.fastMode)}
+              </span>
+              <ChevronRightIcon className="size-3.5 text-muted-foreground" />
+            </DropdownMenuSubmenuTrigger>
+            <DropdownMenuContent side="right" sideOffset={2} align="start" className="w-36">
+              <DropdownMenuRadioGroup
+                value={settings.fastMode ? 'on' : 'off'}
+                onValueChange={(value) => {
+                  onSettingsChange({ ...settings, fastMode: value === 'on' });
+                }}
+              >
+                {['off', 'on'].map((value) => (
+                  <DropdownMenuRadioItem key={value} value={value} closeOnClick={false}>
+                    {value === 'on' ? 'On' : 'Off'}
+                    <DropdownMenuRadioItemIndicator className="ml-auto">
+                      <CheckIcon className="size-3.5" />
+                    </DropdownMenuRadioItemIndicator>
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenuSubmenu>
 
-        <DropdownMenuSeparator />
-
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>Fast mode</DropdownMenuLabel>
-          <DropdownMenuRadioGroup
-            value={settings.fastMode ? 'on' : 'off'}
-            onValueChange={(value) => {
-              onSettingsChange({ ...settings, fastMode: value === 'on' });
-            }}
-          >
-            {['off', 'on'].map((value) => (
-              <DropdownMenuRadioItem key={value} value={value} closeOnClick={false}>
-                {value}
-                <DropdownMenuRadioItemIndicator className="ml-auto">
-                  <CheckIcon className="size-3.5" />
-                </DropdownMenuRadioItemIndicator>
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuGroup>
-
-        <DropdownMenuSeparator />
-
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>Access</DropdownMenuLabel>
-          <DropdownMenuRadioGroup
-            value={settings.runtimeMode}
-            onValueChange={(runtimeMode) => {
-              if (!runtimeMode || runtimeMode === settings.runtimeMode) return;
-              onSettingsChange({
-                ...settings,
-                runtimeMode: runtimeMode as CodexComposerSettings['runtimeMode'],
-              });
-            }}
-          >
-            <DropdownMenuRadioItem value="approval-required" closeOnClick={false}>
-              <ShieldCheckIcon className="size-3.5" />
-              Supervised
-              <DropdownMenuRadioItemIndicator className="ml-auto">
-                <CheckIcon className="size-3.5" />
-              </DropdownMenuRadioItemIndicator>
-            </DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="full-access" closeOnClick={false}>
-              <ShieldCheckIcon className="size-3.5" />
-              Full access
-              <DropdownMenuRadioItemIndicator className="ml-auto">
-                <CheckIcon className="size-3.5" />
-              </DropdownMenuRadioItemIndicator>
-            </DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
+          <DropdownMenuSubmenu>
+            <DropdownMenuSubmenuTrigger>
+              Access
+              <span className="ml-auto text-xs text-muted-foreground">
+                {codexRuntimeModeLabel(settings.runtimeMode)}
+              </span>
+              <ChevronRightIcon className="size-3.5 text-muted-foreground" />
+            </DropdownMenuSubmenuTrigger>
+            <DropdownMenuContent side="right" sideOffset={2} align="start" className="w-48">
+              <DropdownMenuRadioGroup
+                value={settings.runtimeMode}
+                onValueChange={(runtimeMode) => {
+                  if (!runtimeMode || runtimeMode === settings.runtimeMode) return;
+                  onSettingsChange({
+                    ...settings,
+                    runtimeMode: runtimeMode as CodexComposerSettings['runtimeMode'],
+                  });
+                }}
+              >
+                <DropdownMenuRadioItem value="approval-required" closeOnClick={false}>
+                  <ShieldCheckIcon className="size-3.5" />
+                  Supervised
+                  <DropdownMenuRadioItemIndicator className="ml-auto">
+                    <CheckIcon className="size-3.5" />
+                  </DropdownMenuRadioItemIndicator>
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="full-access" closeOnClick={false}>
+                  <ShieldCheckIcon className="size-3.5" />
+                  Full access
+                  <DropdownMenuRadioItemIndicator className="ml-auto">
+                    <CheckIcon className="size-3.5" />
+                  </DropdownMenuRadioItemIndicator>
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenuSubmenu>
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>

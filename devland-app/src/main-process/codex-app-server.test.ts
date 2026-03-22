@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
+import EventEmitter from 'node:events';
 import { describe, it } from 'node:test';
 
 import {
   buildCodexCollaborationMode,
   buildCodexThreadOpenParams,
+  CodexAppServerManager,
   extractActivityFilePaths,
   buildCodexInitializeParams,
   buildCodexTurnStartParams,
@@ -312,6 +314,103 @@ describe('parseCodexResumedThread', () => {
       },
     );
   });
+
+  it('dedupes repeated upstream item ids when resumed turns replay prior messages', () => {
+    assert.deepEqual(
+      parseCodexResumedThread({
+        thread: {
+          id: 'thread-1',
+          createdAt: 1710000000,
+          updatedAt: 1710000300,
+          turns: [
+            {
+              id: 'turn-1',
+              status: 'completed',
+              items: [
+                {
+                  id: '689a3c40-8985-4135-904f-f1e0cccdec33:root:user:4',
+                  type: 'userMessage',
+                  content: [{ type: 'text', text: 'First prompt' }],
+                },
+                {
+                  id: '689a3c40-8985-4135-904f-f1e0cccdec33:root:assistant:5',
+                  type: 'agentMessage',
+                  text: 'First answer',
+                },
+              ],
+            },
+            {
+              id: 'turn-2',
+              status: 'completed',
+              items: [
+                {
+                  id: '689a3c40-8985-4135-904f-f1e0cccdec33:root:user:4',
+                  type: 'userMessage',
+                  content: [{ type: 'text', text: 'First prompt' }],
+                },
+                {
+                  id: '689a3c40-8985-4135-904f-f1e0cccdec33:root:assistant:5',
+                  type: 'agentMessage',
+                  text: 'First answer, revised',
+                },
+                {
+                  id: '689a3c40-8985-4135-904f-f1e0cccdec33:root:user:6',
+                  type: 'userMessage',
+                  content: [{ type: 'text', text: 'Second prompt' }],
+                },
+                {
+                  id: '689a3c40-8985-4135-904f-f1e0cccdec33:root:assistant:7',
+                  type: 'agentMessage',
+                  text: 'Second answer',
+                },
+              ],
+            },
+          ],
+        },
+      }),
+      {
+        threadId: 'thread-1',
+        messages: [
+          {
+            id: '689a3c40-8985-4135-904f-f1e0cccdec33:root:user:4',
+            role: 'user',
+            text: 'First prompt',
+            createdAt: '2024-03-09T16:00:00.000Z',
+            completedAt: '2024-03-09T16:00:00.000Z',
+            turnId: 'turn-1',
+            itemId: '689a3c40-8985-4135-904f-f1e0cccdec33:root:user:4',
+          },
+          {
+            id: '689a3c40-8985-4135-904f-f1e0cccdec33:root:assistant:5',
+            role: 'assistant',
+            text: 'First answer, revised',
+            createdAt: '2024-03-09T16:00:01.000Z',
+            completedAt: '2024-03-09T16:00:03.000Z',
+            turnId: 'turn-1',
+            itemId: '689a3c40-8985-4135-904f-f1e0cccdec33:root:assistant:5',
+          },
+          {
+            id: '689a3c40-8985-4135-904f-f1e0cccdec33:root:user:6',
+            role: 'user',
+            text: 'Second prompt',
+            createdAt: '2024-03-09T16:00:04.000Z',
+            completedAt: '2024-03-09T16:00:04.000Z',
+            turnId: 'turn-2',
+            itemId: '689a3c40-8985-4135-904f-f1e0cccdec33:root:user:6',
+          },
+          {
+            id: '689a3c40-8985-4135-904f-f1e0cccdec33:root:assistant:7',
+            role: 'assistant',
+            text: 'Second answer',
+            createdAt: '2024-03-09T16:00:05.000Z',
+            completedAt: '2024-03-09T16:00:05.000Z',
+            turnId: 'turn-2',
+            itemId: '689a3c40-8985-4135-904f-f1e0cccdec33:root:assistant:7',
+          },
+        ],
+      },
+    );
+  });
 });
 
 describe('extractActivityFilePaths', () => {
@@ -339,5 +438,52 @@ describe('extractActivityFilePaths', () => {
       extractActivityFilePaths('command_execution', { path: 'src/ignored.ts' }),
       [],
     );
+  });
+});
+
+describe('CodexAppServerManager turn completion events', () => {
+  it('emits turn-completed before the ready state so transcript rows do not flicker', async () => {
+    const manager = new CodexAppServerManager();
+    const events: Array<{ type: string }> = [];
+
+    manager.on('event', (event) => {
+      events.push(event);
+    });
+
+    (manager as unknown as { captureTurnDiff: () => Promise<null> }).captureTurnDiff =
+      async () => null;
+
+    await (
+      manager as unknown as {
+        handleNotification: (context: Record<string, unknown>, notification: Record<string, unknown>) => Promise<void>;
+      }
+    ).handleNotification(
+      {
+        sessionId: 'session-1',
+        cwd: '/repo',
+        threadId: 'thread-1',
+        status: 'running',
+        activeTurnId: 'turn-1',
+        activeTurnStartSnapshot: null,
+        child: { stderr: new EventEmitter() },
+        output: null,
+        pending: new Map(),
+        pendingApprovals: new Map(),
+        pendingUserInputs: new Map(),
+        stopped: false,
+      },
+      {
+        method: 'turn/completed',
+        params: {
+          turn: {
+            id: 'turn-1',
+            status: 'completed',
+          },
+        },
+      },
+    );
+
+    assert.equal(events[0]?.type, 'turn-completed');
+    assert.equal(events[1]?.type, 'state');
   });
 });

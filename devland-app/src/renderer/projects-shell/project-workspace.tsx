@@ -3,6 +3,8 @@ import { getRouteApi, useRouter, useRouterState } from '@tanstack/react-router';
 import { AnimatePresence, Reorder } from 'motion/react';
 import { CodeIcon, FolderOpenIcon, PlusIcon, XIcon } from 'lucide-react';
 
+import { CodeTabMenu } from '@/renderer/code-screen/code-tab-menu';
+import { ExternalEditorDialog } from '@/renderer/code-screen/external-editor-dialog';
 import { MissingGhCli } from '@/renderer/shared/ui/missing-gh-cli';
 
 import type { AppShortcutCommand, ProjectViewTab, Repo } from '@/ipc/contracts';
@@ -34,6 +36,7 @@ import { isRootCodeTargetId } from '@/renderer/shared/lib/workspace-shortcuts';
 import { useProjectExtensions } from '@/renderer/extensions-screen/use-project-extensions';
 import { ExtensionTabIcon } from '@/renderer/shared/ui/extension-tab-icon';
 import { ShortcutHintsOverlay } from '@/renderer/shared/ui/shortcut-hints-overlay';
+import { useAppPreferences } from '@/renderer/shared/use-app-preferences';
 import { useRepoActions, useRepos } from './use-repos';
 import { useProjectRepo } from './use-project-repo';
 import { useWorkspaceSession } from './use-workspace-session';
@@ -229,6 +232,8 @@ export function ProjectWorkspace({
     select: (state) => state.matches.at(-1) ?? null,
   });
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isExternalEditorDialogOpen, setIsExternalEditorDialogOpen] = useState(false);
+  const { preferences, setExternalEditorPreference } = useAppPreferences();
   const activeTabId = getProjectTabIdFromRouteMatch({
     fullPath: activeRouteMatch?.fullPath,
     extensionId: (() => {
@@ -403,7 +408,7 @@ export function ProjectWorkspace({
                   }}
                   layout
                   className={cn(
-                    'group relative flex max-w-50 cursor-default items-center gap-1 overflow-hidden rounded-t-lg px-3 py-1.5 text-[13px]',
+                    'group relative flex max-w-50 cursor-default items-center gap-1 overflow-hidden rounded-t-lg px-3 py-1.5 text-xs',
                     isActive
                       ? 'bg-card text-foreground shadow-[0_-1px_3px_-1px_rgba(0,0,0,0.08)]'
                       : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground',
@@ -451,16 +456,40 @@ export function ProjectWorkspace({
             <nav className="-mb-px flex gap-1">
               {tabs.map((tab) => {
                 const isActive = tab.tabId === activeTabId;
+                const tabClassName = cn(
+                  'relative flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-xs font-medium transition-colors',
+                  isActive
+                    ? 'border-foreground text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground',
+                );
+
+                if (tab.tabId === 'code') {
+                  return (
+                    <div
+                      key={tab.key}
+                      className={cn(
+                        'relative flex cursor-default items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors',
+                        isActive
+                          ? 'border-foreground text-foreground'
+                          : 'border-transparent text-muted-foreground hover:text-foreground',
+                      )}
+                      onClick={() => navigateToTab(activeRepoId!, tab.tabId)}
+                    >
+                      {tab.icon}
+                      {tab.label}
+                      <CodeTabMenu
+                        preference={preferences.externalEditor}
+                        onSelectEditor={setExternalEditorPreference}
+                        onConfigureCustomEditor={() => setIsExternalEditorDialogOpen(true)}
+                      />
+                    </div>
+                  );
+                }
 
                 return (
                   <button
                     key={tab.key}
-                    className={cn(
-                      'relative flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-[13px] font-medium transition-colors',
-                      isActive
-                        ? 'border-foreground text-foreground'
-                        : 'border-transparent text-muted-foreground hover:text-foreground',
-                    )}
+                    className={tabClassName}
                     onClick={() => {
                       navigateToTab(activeRepoId!, tab.tabId);
                     }}
@@ -490,6 +519,13 @@ export function ProjectWorkspace({
         onOpenChange={setIsAddDialogOpen}
         onProjectAdded={handleProjectAdded}
         onSaveRepo={addRepo}
+      />
+
+      <ExternalEditorDialog
+        open={isExternalEditorDialogOpen}
+        onOpenChange={setIsExternalEditorDialogOpen}
+        preference={preferences.externalEditor}
+        onSave={setExternalEditorPreference}
       />
 
       <ShortcutHintsOverlay

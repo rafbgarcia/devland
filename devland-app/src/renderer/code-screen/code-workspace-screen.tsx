@@ -13,7 +13,6 @@ import {
   GitBranchPlusIcon,
   LoaderCircleIcon,
   PlusIcon,
-  Settings2Icon,
   XIcon,
 } from 'lucide-react';
 import { AnimatePresence, motion, Reorder } from 'motion/react';
@@ -212,15 +211,6 @@ export function CodeWorkspaceScreen({
   const storedRepoPaths = useMemo(() => repos.map((repo) => repo.path), [repos]);
   const rememberedTargetId = getRememberedCodeTargetId(session, repoId);
   const activePaneId = getRememberedCodePaneId(session, repoId);
-  const externalEditorLabel = useMemo(() => {
-    if (preferences.externalEditor === null) {
-      return 'Choose external editor';
-    }
-
-    return preferences.externalEditor.kind === 'detected'
-      ? preferences.externalEditor.editorName
-      : 'Custom editor';
-  }, [preferences.externalEditor]);
   const {
     rootTarget,
     targets,
@@ -292,6 +282,14 @@ export function CodeWorkspaceScreen({
     },
     [repoId, updateSession],
   );
+
+  useEffect(() => {
+    if (activePaneId !== 'codex') {
+      return;
+    }
+
+    composerRef.current?.focus();
+  }, [activePaneId, activeTarget.id]);
 
   useEffect(() => {
     if (rememberedTargetId === activeTargetId) {
@@ -1073,19 +1071,6 @@ export function CodeWorkspaceScreen({
                 <TooltipContent>{`New worktree from ${worktreeBaseBranchLabel}`}</TooltipContent>
               </Tooltip>
 
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    onClick={() => setIsExternalEditorDialogOpen(true)}
-                    className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/40 transition-colors hover:bg-background/50 hover:text-muted-foreground"
-                    aria-label="External editor settings"
-                  >
-                    <Settings2Icon className="size-3" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>{externalEditorLabel}</TooltipContent>
-              </Tooltip>
             </TooltipProvider>
           </div>
         </div>

@@ -5,6 +5,7 @@ import { DEFAULT_SESSION_STATE } from '@/renderer/code-screen/codex-session-stat
 import {
   compactSessionActivities,
   deriveSessionTimelineRows,
+  estimateSessionTimelineRowHeight,
 } from '@/renderer/code-screen/session-timeline';
 
 describe('compactSessionActivities', () => {
@@ -286,6 +287,35 @@ describe('deriveSessionTimelineRows', () => {
     assert.equal(rows[1]?.kind === 'message' ? rows[1].isStreaming : false, true);
   });
 
+  it('keeps current turn entries visible if the session flips ready before turn completion is applied', () => {
+    const rows = deriveSessionTimelineRows({
+      ...DEFAULT_SESSION_STATE,
+      status: 'ready',
+      currentTurnEntries: [
+        {
+          id: 'assistant-current',
+          kind: 'message',
+          message: {
+            id: 'assistant-current',
+            role: 'assistant',
+            text: 'Final answer',
+            attachments: [],
+            createdAt: '2026-03-16T12:00:00.000Z',
+            completedAt: null,
+            turnId: 'turn-2',
+            itemId: 'assistant-item-current',
+            diff: null,
+            activities: [],
+          },
+        },
+      ],
+    });
+
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0]?.kind, 'message');
+    assert.equal(rows[0]?.kind === 'message' ? rows[0].message.text : null, 'Final answer');
+  });
+
   it('surfaces proposed plan assistant messages as dedicated timeline rows', () => {
     const rows = deriveSessionTimelineRows({
       ...DEFAULT_SESSION_STATE,
@@ -320,5 +350,71 @@ describe('deriveSessionTimelineRows', () => {
     assert.equal(rows.length, 1);
     assert.equal(rows[0]?.kind, 'proposed-plan');
     assert.equal(rows[0]?.kind === 'proposed-plan' ? rows[0].isLatest : false, true);
+  });
+});
+
+describe('estimateSessionTimelineRowHeight', () => {
+  it('keeps compact single-line message rows close to their rendered size', () => {
+    const userHeight = estimateSessionTimelineRowHeight(
+      {
+        id: 'user-row',
+        kind: 'message',
+        isStreaming: false,
+        message: {
+          id: 'user-1',
+          role: 'user',
+          text: '1',
+          attachments: [],
+          createdAt: '2026-03-16T12:00:00.000Z',
+          completedAt: null,
+          turnId: 'turn-1',
+          itemId: null,
+          diff: null,
+          activities: [],
+        },
+      },
+      1200,
+    );
+    const assistantHeight = estimateSessionTimelineRowHeight(
+      {
+        id: 'assistant-row',
+        kind: 'message',
+        isStreaming: false,
+        message: {
+          id: 'assistant-1',
+          role: 'assistant',
+          text: '1',
+          attachments: [],
+          createdAt: '2026-03-16T12:00:00.000Z',
+          completedAt: '2026-03-16T12:00:01.000Z',
+          turnId: 'turn-1',
+          itemId: 'assistant-item-1',
+          diff: null,
+          activities: [],
+        },
+      },
+      1200,
+    );
+    const workHeight = estimateSessionTimelineRowHeight(
+      {
+        id: 'work-row',
+        kind: 'work',
+        entries: [
+          {
+            id: 'tool-1',
+            label: 'Run command',
+            detail: 'git status',
+            tone: 'tool',
+            itemType: 'command_execution',
+            status: 'completed',
+          },
+        ],
+      },
+      1200,
+    );
+
+    assert.equal(userHeight, 50);
+    assert.equal(assistantHeight, 46);
+    assert.equal(workHeight, 30);
   });
 });

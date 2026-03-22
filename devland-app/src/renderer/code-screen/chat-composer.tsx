@@ -38,6 +38,7 @@ import {
   createComposerImageAttachment,
   type ComposerImageAttachment,
 } from '@/renderer/code-screen/chat-composer-attachments';
+import { deriveChatComposerRuntimeState } from '@/renderer/code-screen/chat-composer.logic';
 import { appendPromptBlock as appendPromptBlockText } from '@/renderer/code-screen/chat-composer-prompt';
 import { VscodeEntryIcon } from '@/renderer/shared/ui/vscode-entry-icon';
 import {
@@ -53,6 +54,7 @@ const TAG_SEARCH_LIMIT = 40;
 
 export type ChatComposerHandle = {
   appendPromptBlock: (block: string) => void;
+  focus: () => void;
 };
 
 function getComposerTagIconTheme(): 'light' | 'dark' {
@@ -188,7 +190,10 @@ export const ChatComposer = memo(forwardRef<ChatComposerHandle, ChatComposerProp
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const fileInputId = useId();
 
-  const isInputDisabled = isRunning || isSending;
+  const { canSubmitPrompt, isInputDisabled, showInterruptAction } = deriveChatComposerRuntimeState({
+    isRunning,
+    isSending,
+  });
   const placeholder = '♪ You know the rules and so do I...';
   const tagMenuQuery = tagTrigger?.query.trim() ?? '';
   const isTagMenuOpen = tagTrigger !== null && tagMenuQuery.length > 0;
@@ -280,6 +285,19 @@ export const ChatComposer = memo(forwardRef<ChatComposerHandle, ChatComposerProp
         textareaRef.current?.setSelectionRange(nextPrompt.length, nextPrompt.length);
       });
     },
+    focus() {
+      window.requestAnimationFrame(() => {
+        const textarea = textareaRef.current;
+
+        if (!textarea) {
+          return;
+        }
+
+        textarea.focus();
+        const cursor = textarea.value.length;
+        textarea.setSelectionRange(cursor, cursor);
+      });
+    },
   }), []);
 
   const appendAttachments = async (files: readonly File[]) => {
@@ -339,7 +357,7 @@ export const ChatComposer = memo(forwardRef<ChatComposerHandle, ChatComposerProp
   const handleSubmit = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
 
-    if (isSending || isRunning) {
+    if (!canSubmitPrompt) {
       return;
     }
 
@@ -661,7 +679,7 @@ export const ChatComposer = memo(forwardRef<ChatComposerHandle, ChatComposerProp
             rows={1}
           />
 
-          {isRunning ? (
+          {showInterruptAction ? (
             <button
               type="button"
               onClick={() => void onInterrupt()}
