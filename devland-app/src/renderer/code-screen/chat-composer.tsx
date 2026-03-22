@@ -27,13 +27,17 @@ import {
   type CodexComposerSettings,
   type CodexPromptSubmission,
 } from '@/lib/codex-chat';
-import type { CodexPathSearchResultItem } from '@/ipc/contracts';
+import type {
+  CodexPathSearchResultItem,
+  CodexThreadTokenUsage,
+} from '@/ipc/contracts';
 import {
   areComposerTagTriggersEqual,
   detectComposerTagTrigger,
   replaceTextRange,
   type ComposerTagTrigger,
 } from '@/renderer/code-screen/chat-composer-tags';
+import { ChatContextWindowIndicator } from '@/renderer/code-screen/chat-context-window-indicator';
 import {
   createComposerImageAttachment,
   type ComposerImageAttachment,
@@ -161,6 +165,7 @@ type ChatComposerProps = {
   storedRepoPaths: string[];
   settings: CodexComposerSettings;
   isRunning: boolean;
+  tokenUsage: CodexThreadTokenUsage | null;
   onSendPrompt: (submission: CodexPromptSubmission) => Promise<void>;
   onInterrupt: () => Promise<void>;
 };
@@ -170,6 +175,7 @@ export const ChatComposer = memo(forwardRef<ChatComposerHandle, ChatComposerProp
   storedRepoPaths,
   settings,
   isRunning,
+  tokenUsage,
   onSendPrompt,
   onInterrupt,
 }, ref) {
@@ -194,7 +200,7 @@ export const ChatComposer = memo(forwardRef<ChatComposerHandle, ChatComposerProp
     isRunning,
     isSending,
   });
-  const placeholder = '♪ You know the rules and so do I...';
+  const placeholder = '♪ You know the [AI text field] rules and so do I...';
   const tagMenuQuery = tagTrigger?.query.trim() ?? '';
   const isTagMenuOpen = tagTrigger !== null && tagMenuQuery.length > 0;
   const openAttachment =
@@ -634,62 +640,66 @@ export const ChatComposer = memo(forwardRef<ChatComposerHandle, ChatComposerProp
           </div>
         ) : null}
 
-        <form
-          className={cn(
-            'flex items-end gap-0 rounded-lg bg-muted/40 transition-colors',
-            isDragOver && 'ring-2 ring-primary/40',
-          )}
-          onSubmit={handleSubmit}
-          onDragEnter={handleDragEnter}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-        >
-          <input
-            ref={fileInputRef}
-            id={fileInputId}
-            type="file"
-            accept="image/*"
-            multiple
-            className="hidden"
-            onChange={handleFilesSelected}
-          />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isInputDisabled}
-            className="ml-1 mb-1 flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-            aria-label="Attach images"
+        <div className="flex items-end gap-2">
+          <form
+            className={cn(
+              'flex min-w-0 flex-1 items-end gap-0 rounded-lg bg-muted/40 transition-colors',
+              isDragOver && 'ring-2 ring-primary/40',
+            )}
+            onSubmit={handleSubmit}
+            onDragEnter={handleDragEnter}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
           >
-            <ImagePlusIcon className="size-[18px]" />
-          </button>
-
-          <textarea
-            ref={textareaRef}
-            className="field-sizing-content max-h-40 min-h-[2.5rem] min-w-0 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-2 py-2.5 text-sm leading-normal text-foreground outline-none placeholder:text-muted-foreground/40"
-            placeholder={placeholder}
-            value={prompt}
-            onChange={handlePromptChange}
-            onClick={syncTextareaSelection}
-            onKeyDown={handleKeyDown}
-            onKeyUp={syncTextareaSelection}
-            onPaste={handlePaste}
-            onSelect={syncTextareaSelection}
-            disabled={isInputDisabled}
-            rows={1}
-          />
-
-          {showInterruptAction ? (
+            <input
+              ref={fileInputRef}
+              id={fileInputId}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={handleFilesSelected}
+            />
             <button
               type="button"
-              onClick={() => void onInterrupt()}
-              className="my-auto mr-1 flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-              aria-label="Stop"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isInputDisabled}
+              className="ml-1 mb-1 flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+              aria-label="Attach images"
             >
-              <SquareIcon className="size-3.5 fill-current" />
+              <ImagePlusIcon className="size-[18px]" />
             </button>
-          ) : null}
-        </form>
+
+            <textarea
+              ref={textareaRef}
+              className="field-sizing-content max-h-40 min-h-[2.5rem] min-w-0 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-2 py-2.5 text-sm leading-normal text-foreground outline-none placeholder:text-muted-foreground/40"
+              placeholder={placeholder}
+              value={prompt}
+              onChange={handlePromptChange}
+              onClick={syncTextareaSelection}
+              onKeyDown={handleKeyDown}
+              onKeyUp={syncTextareaSelection}
+              onPaste={handlePaste}
+              onSelect={syncTextareaSelection}
+              disabled={isInputDisabled}
+              rows={1}
+            />
+
+            {showInterruptAction ? (
+              <button
+                type="button"
+                onClick={() => void onInterrupt()}
+                className="my-auto mr-1 flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                aria-label="Stop"
+              >
+                <SquareIcon className="size-3.5 fill-current" />
+              </button>
+            ) : null}
+          </form>
+
+          <ChatContextWindowIndicator tokenUsage={tokenUsage} className="mb-2" />
+        </div>
 
       </div>
 

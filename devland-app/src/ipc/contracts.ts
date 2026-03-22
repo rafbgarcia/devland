@@ -437,6 +437,22 @@ export const CodexTurnDiffSchema = z.object({
 });
 export type CodexTurnDiff = z.infer<typeof CodexTurnDiffSchema>;
 
+export const CodexTokenUsageBreakdownSchema = z.object({
+  cachedInputTokens: z.number().int().nonnegative(),
+  inputTokens: z.number().int().nonnegative(),
+  outputTokens: z.number().int().nonnegative(),
+  reasoningOutputTokens: z.number().int().nonnegative(),
+  totalTokens: z.number().int().nonnegative(),
+});
+export type CodexTokenUsageBreakdown = z.infer<typeof CodexTokenUsageBreakdownSchema>;
+
+export const CodexThreadTokenUsageSchema = z.object({
+  last: CodexTokenUsageBreakdownSchema,
+  total: CodexTokenUsageBreakdownSchema,
+  modelContextWindow: z.number().int().positive().nullable(),
+});
+export type CodexThreadTokenUsage = z.infer<typeof CodexThreadTokenUsageSchema>;
+
 export const CODEX_PLAN_STEP_STATUSES = ['pending', 'inProgress', 'completed'] as const;
 export const CodexPlanStepStatusSchema = z.enum(CODEX_PLAN_STEP_STATUSES);
 export type CodexPlanStepStatus = z.infer<typeof CodexPlanStepStatusSchema>;
@@ -461,6 +477,13 @@ export const CodexSessionEventSchema = z.discriminatedUnion('type', [
     sessionId: z.string().min(1),
     itemId: z.string().min(1).nullable().optional(),
     text: z.string(),
+  }),
+  z.object({
+    type: z.literal('thread-token-usage-updated'),
+    sessionId: z.string().min(1),
+    threadId: z.string().min(1).nullable().optional(),
+    turnId: z.string().min(1).nullable().optional(),
+    tokenUsage: CodexThreadTokenUsageSchema,
   }),
   z.object({
     type: z.literal('turn-plan-updated'),

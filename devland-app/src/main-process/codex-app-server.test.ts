@@ -486,4 +486,82 @@ describe('CodexAppServerManager turn completion events', () => {
     assert.equal(events[0]?.type, 'turn-completed');
     assert.equal(events[1]?.type, 'state');
   });
+
+  it('emits thread token usage updates as first-class session events', async () => {
+    const manager = new CodexAppServerManager();
+    const events: Array<Record<string, unknown>> = [];
+
+    manager.on('event', (event) => {
+      events.push(event);
+    });
+
+    await (
+      manager as unknown as {
+        handleNotification: (context: Record<string, unknown>, notification: Record<string, unknown>) => Promise<void>;
+      }
+    ).handleNotification(
+      {
+        sessionId: 'session-1',
+        cwd: '/repo',
+        threadId: 'thread-1',
+        status: 'running',
+        activeTurnId: 'turn-1',
+        activeTurnStartSnapshot: null,
+        child: { stderr: new EventEmitter() },
+        output: null,
+        pending: new Map(),
+        pendingApprovals: new Map(),
+        pendingUserInputs: new Map(),
+        stopped: false,
+      },
+      {
+        method: 'thread/tokenUsage/updated',
+        params: {
+          threadId: 'thread-1',
+          turnId: 'turn-1',
+          tokenUsage: {
+            last: {
+              cachedInputTokens: 20,
+              inputTokens: 80,
+              outputTokens: 12,
+              reasoningOutputTokens: 8,
+              totalTokens: 100,
+            },
+            total: {
+              cachedInputTokens: 40,
+              inputTokens: 160,
+              outputTokens: 24,
+              reasoningOutputTokens: 16,
+              totalTokens: 200,
+            },
+            modelContextWindow: 256000,
+          },
+        },
+      },
+    );
+
+    assert.deepEqual(events[0], {
+      type: 'thread-token-usage-updated',
+      sessionId: 'session-1',
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      tokenUsage: {
+        last: {
+          cachedInputTokens: 20,
+          inputTokens: 80,
+          outputTokens: 12,
+          reasoningOutputTokens: 8,
+          totalTokens: 100,
+        },
+        total: {
+          cachedInputTokens: 40,
+          inputTokens: 160,
+          outputTokens: 24,
+          reasoningOutputTokens: 16,
+          totalTokens: 200,
+        },
+        modelContextWindow: 256000,
+      },
+    });
+  });
 });

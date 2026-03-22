@@ -105,6 +105,52 @@ describe('applyCodexSessionEvent', () => {
     assert.equal(workEntry?.kind === 'work' ? workEntry.activities[0]?.label : null, 'Run command');
   });
 
+  it('stores the latest thread token usage payload', () => {
+    const state = applyCodexSessionEvent(DEFAULT_SESSION_STATE, {
+      type: 'thread-token-usage-updated',
+      sessionId: 'session-1',
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      tokenUsage: {
+        last: {
+          cachedInputTokens: 15,
+          inputTokens: 80,
+          outputTokens: 5,
+          reasoningOutputTokens: 3,
+          totalTokens: 85,
+        },
+        total: {
+          cachedInputTokens: 45,
+          inputTokens: 210,
+          outputTokens: 16,
+          reasoningOutputTokens: 9,
+          totalTokens: 226,
+        },
+        modelContextWindow: 258000,
+      },
+    });
+
+    assert.equal(state.threadId, 'thread-1');
+    assert.equal(state.turnId, 'turn-1');
+    assert.deepEqual(state.tokenUsage, {
+      last: {
+        cachedInputTokens: 15,
+        inputTokens: 80,
+        outputTokens: 5,
+        reasoningOutputTokens: 3,
+        totalTokens: 85,
+      },
+      total: {
+        cachedInputTokens: 45,
+        inputTokens: 210,
+        outputTokens: 16,
+        reasoningOutputTokens: 9,
+        totalTokens: 226,
+      },
+      modelContextWindow: 258000,
+    });
+  });
+
   it('preserves assistant messages and tool work in turn order', () => {
     const startingState = {
       ...DEFAULT_SESSION_STATE,
@@ -328,6 +374,23 @@ describe('Codex session snapshot persistence', () => {
       ...DEFAULT_SESSION_STATE,
       threadId: 'thread-1',
       status: 'ready' as const,
+      tokenUsage: {
+        last: {
+          cachedInputTokens: 100,
+          inputTokens: 1500,
+          outputTokens: 120,
+          reasoningOutputTokens: 80,
+          totalTokens: 1620,
+        },
+        total: {
+          cachedInputTokens: 400,
+          inputTokens: 6200,
+          outputTokens: 420,
+          reasoningOutputTokens: 260,
+          totalTokens: 6620,
+        },
+        modelContextWindow: 256000,
+      },
       activePlan: {
         turnId: 'turn-1',
         explanation: 'Keep the last plan visible after restart',
@@ -373,10 +436,12 @@ describe('Codex session snapshot persistence', () => {
     const snapshot = toCodexSessionSnapshot(state);
 
     assert.ok(snapshot);
+    assert.deepEqual(snapshot.tokenUsage, state.tokenUsage);
     assert.deepEqual(snapshot.activePlan, state.activePlan);
 
     const hydratedState = hydrateCodexSessionState(snapshot);
 
+    assert.deepEqual(hydratedState.tokenUsage, state.tokenUsage);
     assert.deepEqual(hydratedState.activePlan, state.activePlan);
     assert.equal(hydratedState.threadId, 'thread-1');
     assert.equal(hydratedState.messages[0]?.text, 'Plan is ready.');

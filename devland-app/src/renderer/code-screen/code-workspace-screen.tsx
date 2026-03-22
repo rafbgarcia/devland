@@ -875,6 +875,7 @@ export function CodeWorkspaceScreen({
             storedRepoPaths={storedRepoPaths}
             settings={composerSettings}
             isRunning={isRunning}
+            tokenUsage={sessionState.tokenUsage}
             onSendPrompt={handleSendPrompt}
             onInterrupt={() => interruptSession(activeTarget.id)}
           />
@@ -903,6 +904,7 @@ export function CodeWorkspaceScreen({
     sessionState.pendingApprovals,
     sessionState.pendingUserInputs,
     sessionState.threadId,
+    sessionState.tokenUsage,
     sidebarWidth,
     storedRepoPaths,
   ]);

@@ -3,6 +3,7 @@ import type {
   CodexSessionEvent,
   CodexSessionStatus,
   CodexResumedThread,
+  CodexThreadTokenUsage,
   CodexTurnDiff,
   CodexUserInputQuestion,
 } from '@/ipc/contracts';
@@ -81,6 +82,7 @@ export type CodexSessionState = {
   threadId: string | null;
   turnId: string | null;
   currentTurnStartedAt: string | null;
+  tokenUsage: CodexThreadTokenUsage | null;
   activePlan: ActiveCodexPlan | null;
   latestProposedPlan: ProposedCodexPlan | null;
   transcriptEntries: CodexTranscriptEntry[];
@@ -93,6 +95,7 @@ export type CodexSessionState = {
 
 export type CodexSessionSnapshot = {
   threadId: string | null;
+  tokenUsage?: CodexThreadTokenUsage | null;
   activePlan?: ActiveCodexPlan | null;
   latestProposedPlan?: ProposedCodexPlan | null;
   transcriptEntries?: CodexTranscriptEntry[];
@@ -105,6 +108,7 @@ export const DEFAULT_SESSION_STATE: CodexSessionState = {
   threadId: null,
   turnId: null,
   currentTurnStartedAt: null,
+  tokenUsage: null,
   activePlan: null,
   latestProposedPlan: null,
   transcriptEntries: [],
@@ -552,19 +556,26 @@ export function applyCodexSessionEvent(
     case 'assistant-delta':
       {
         const nextState = {
-        ...previous,
-        currentTurnEntries: appendAssistantDeltaEntry(previous.currentTurnEntries, {
-          sessionId: event.sessionId,
-          turnId: previous.turnId,
-          itemId: event.itemId ?? null,
-          text: event.text,
-        }),
-      };
+          ...previous,
+          currentTurnEntries: appendAssistantDeltaEntry(previous.currentTurnEntries, {
+            sessionId: event.sessionId,
+            turnId: previous.turnId,
+            itemId: event.itemId ?? null,
+            text: event.text,
+          }),
+        };
         return {
           ...nextState,
           latestProposedPlan: deriveLatestProposedPlan(nextState),
         };
       }
+    case 'thread-token-usage-updated':
+      return {
+        ...previous,
+        threadId: event.threadId ?? previous.threadId,
+        turnId: event.turnId ?? previous.turnId,
+        tokenUsage: event.tokenUsage,
+      };
     case 'turn-plan-updated':
       return {
         ...previous,
@@ -581,20 +592,20 @@ export function applyCodexSessionEvent(
 
       {
         const nextState = {
-        ...previous,
-        currentTurnEntries: appendActivityEntry(previous.currentTurnEntries, {
-          sessionId: event.sessionId,
-          activity: {
-            id: `${event.sessionId}:${countTranscriptActivities(previous.currentTurnEntries)}`,
-            tone: event.tone,
-            phase: event.phase,
-            label: event.label,
-            detail: event.detail ?? null,
-            itemId: event.itemId ?? null,
-            itemType: event.itemType ?? null,
-          },
-        }),
-      };
+          ...previous,
+          currentTurnEntries: appendActivityEntry(previous.currentTurnEntries, {
+            sessionId: event.sessionId,
+            activity: {
+              id: `${event.sessionId}:${countTranscriptActivities(previous.currentTurnEntries)}`,
+              tone: event.tone,
+              phase: event.phase,
+              label: event.label,
+              detail: event.detail ?? null,
+              itemId: event.itemId ?? null,
+              itemType: event.itemType ?? null,
+            },
+          }),
+        };
         return {
           ...nextState,
           latestProposedPlan: deriveLatestProposedPlan(nextState),
@@ -660,15 +671,15 @@ export function applyCodexSessionEvent(
 
       {
         const nextState = {
-        ...previous,
-        turnId: null,
-        currentTurnStartedAt: null,
-        status: nextStatus,
-        error: event.status === 'failed' ? event.error ?? previous.error : null,
-        transcriptEntries,
-        messages,
-        currentTurnEntries: [],
-      };
+          ...previous,
+          turnId: null,
+          currentTurnStartedAt: null,
+          status: nextStatus,
+          error: event.status === 'failed' ? event.error ?? previous.error : null,
+          transcriptEntries,
+          messages,
+          currentTurnEntries: [],
+        };
         return {
           ...nextState,
           latestProposedPlan: deriveLatestProposedPlan(nextState),
@@ -692,6 +703,7 @@ export function toCodexSessionSnapshot(state: CodexSessionState): CodexSessionSn
 
   return {
     threadId: state.threadId,
+    tokenUsage: state.tokenUsage,
     activePlan: state.activePlan,
     latestProposedPlan: state.latestProposedPlan,
     transcriptEntries,
@@ -714,6 +726,7 @@ export function hydrateCodexSessionState(snapshot: CodexSessionSnapshot | null):
   return {
     ...DEFAULT_SESSION_STATE,
     threadId: snapshot.threadId,
+    tokenUsage: snapshot.tokenUsage ?? null,
     activePlan: snapshot.activePlan ?? null,
     latestProposedPlan: snapshot.latestProposedPlan ?? findLatestProposedPlan(transcriptEntries),
     transcriptEntries,

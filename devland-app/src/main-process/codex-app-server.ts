@@ -315,6 +315,51 @@ const coalesceStrings = (...values: Array<string | null | undefined>): string | 
   return null;
 };
 
+function parseTokenUsageBreakdown(value: unknown) {
+  const record = asObject(value);
+  const cachedInputTokens = asNumber(record?.cachedInputTokens);
+  const inputTokens = asNumber(record?.inputTokens);
+  const outputTokens = asNumber(record?.outputTokens);
+  const reasoningOutputTokens = asNumber(record?.reasoningOutputTokens);
+  const totalTokens = asNumber(record?.totalTokens);
+
+  if (
+    cachedInputTokens === undefined ||
+    inputTokens === undefined ||
+    outputTokens === undefined ||
+    reasoningOutputTokens === undefined ||
+    totalTokens === undefined
+  ) {
+    return null;
+  }
+
+  return {
+    cachedInputTokens,
+    inputTokens,
+    outputTokens,
+    reasoningOutputTokens,
+    totalTokens,
+  };
+}
+
+function parseThreadTokenUsage(value: unknown) {
+  const record = asObject(value);
+  const last = parseTokenUsageBreakdown(record?.last);
+  const total = parseTokenUsageBreakdown(record?.total);
+  const modelContextWindow = asNumber(record?.modelContextWindow);
+
+  if (!last || !total) {
+    return null;
+  }
+
+  return {
+    last,
+    total,
+    modelContextWindow:
+      modelContextWindow !== undefined && modelContextWindow > 0 ? modelContextWindow : null,
+  };
+}
+
 const extractActivityDetail = (item: Record<string, unknown> | undefined): string | null =>
   coalesceStrings(
     asString(item?.command),
@@ -1276,6 +1321,22 @@ export class CodexAppServerManager extends EventEmitter<{
             text,
           });
         }
+        return;
+      }
+      case 'thread/tokenUsage/updated': {
+        const tokenUsage = parseThreadTokenUsage(params?.tokenUsage);
+
+        if (!tokenUsage) {
+          return;
+        }
+
+        this.emit('event', {
+          type: 'thread-token-usage-updated',
+          sessionId: context.sessionId,
+          threadId: asString(params?.threadId) ?? context.threadId,
+          turnId: asString(params?.turnId) ?? context.activeTurnId,
+          tokenUsage,
+        });
         return;
       }
       case 'item/reasoning/summaryPartAdded':

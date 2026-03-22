@@ -231,7 +231,16 @@ const registerSessionFailureAtom = atom(
 const restoreResumedThreadAtom = atom(
   null,
   (get, set, input: { sessionId: string; thread: CodexResumedThread }) => {
-    writeSessionState(get, set, input.sessionId, hydrateResumedCodexThreadState(input.thread));
+    const previous = getSessionState(get, input.sessionId);
+    const resumedState = hydrateResumedCodexThreadState(input.thread);
+
+    writeSessionState(get, set, input.sessionId, {
+      ...resumedState,
+      tokenUsage:
+        previous.threadId === input.thread.threadId
+          ? previous.tokenUsage
+          : null,
+    });
   },
 );
 
