@@ -4,7 +4,6 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { z } from 'zod';
 
 import {
   CodeChangesMetaSchema,
@@ -160,12 +159,13 @@ export const resolveGitHubSlugFromProjectPath = async (
     const gitError = error as NodeJS.ErrnoException & { stderr?: string };
 
     if (gitError.code === 'ENOENT') {
-      throw new Error('Git is not available on this machine.');
+      throw new Error('Git is not available on this machine.', { cause: error });
     }
 
     throw new Error(
       gitError.stderr?.trim() ||
         'Local repository must be a Git repository with a GitHub `origin` remote.',
+      { cause: error },
     );
   }
 };
@@ -195,10 +195,10 @@ export const validateLocalGitRepository = async (
     const gitError = error as NodeJS.ErrnoException & { stderr?: string };
 
     if (gitError.code === 'ENOENT') {
-      throw new Error('Git is not available on this machine.');
+      throw new Error('Git is not available on this machine.', { cause: error });
     }
 
-    throw new Error('Please select a Git repository.');
+    throw new Error('Please select a Git repository.', { cause: error });
   }
 };
 
@@ -1054,12 +1054,6 @@ export const splitDiffByFile = (rawDiff: string): Record<string, string> => {
   }
 
   return fileDiffs;
-};
-
-const GH_EXEC_OPTIONS = {
-  env: { ...process.env, GH_PROMPT_DISABLED: '1' },
-  timeout: 30000,
-  windowsHide: true,
 };
 
 const verifyRevisionExists = async (

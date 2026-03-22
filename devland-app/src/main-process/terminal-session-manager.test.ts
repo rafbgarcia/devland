@@ -61,7 +61,7 @@ class FakePty {
 describe('TerminalSessionManager', () => {
   it('starts a background terminal session and executes a command before the terminal is opened', async () => {
     const children: FakePty[] = [];
-    const manager = new TerminalSessionManager(((file, args, options) => {
+    const manager = new TerminalSessionManager((() => {
       const child = new FakePty();
       children.push(child);
       return child as unknown as IPty;

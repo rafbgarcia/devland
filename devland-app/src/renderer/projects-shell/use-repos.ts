@@ -101,6 +101,7 @@ export function useRepoActions() {
             error instanceof Error
               ? error.message.replace(/^Error invoking remote method '[^']+': (?:Error: )?/, '')
               : 'Please select a Git repository.',
+            { cause: error },
           );
         }
       }

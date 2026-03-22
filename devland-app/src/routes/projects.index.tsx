@@ -13,7 +13,6 @@ import {
 import { getRememberedProjectTabId } from '@/renderer/shared/lib/workspace-view-state';
 import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';
 import { Kbd } from '@/shadcn/components/ui/kbd';
-import { cn } from '@/shadcn/lib/utils';
 
 const rootRouteApi = getRouteApi('__root__');
 

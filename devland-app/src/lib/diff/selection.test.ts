@@ -62,6 +62,38 @@ index 1111111..2222222 100644
     );
   });
 
+  it('preserves line order when a replacement block is only partially selected', () => {
+    const document = parseUnifiedDiffDocument(`diff --git a/src/example.ts b/src/example.ts
+index 1111111..2222222 100644
+--- a/src/example.ts
++++ b/src/example.ts
+@@ -1,3 +1,3 @@
+ const a = 1;
+-const b = 2;
+-const c = 3;
++const b = 20;
++const c = 30;`);
+    const file = document.files[0]!;
+    const selection = DiffSelection.all(getSelectableDiffLineNumbers(file))
+      .withLineSelection(4, false)
+      .withLineSelection(6, false);
+    const patch = formatPatchFromSelection(file, selection);
+
+    assert.equal(
+      patch,
+      `diff --git a/src/example.ts b/src/example.ts
+index 1111111..2222222 100644
+--- a/src/example.ts
++++ b/src/example.ts
+@@ -1,3 +1,3 @@
+ const a = 1;
+-const b = 2;
++const b = 20;
+ const c = 3;
+`,
+    );
+  });
+
   it('drops unselected additions for new files', () => {
     const document = parseUnifiedDiffDocument(`diff --git a/src/new-file.ts b/src/new-file.ts
 new file mode 100644

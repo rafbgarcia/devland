@@ -4,7 +4,6 @@ import { PlusIcon, XIcon } from 'lucide-react';
 
 import { SessionTerminal } from '@/renderer/code-screen/session-terminal';
 import type { TerminalTab } from '@/renderer/code-screen/use-terminal-tabs';
-import { Input } from '@/shadcn/components/ui/input';
 import { cn } from '@/shadcn/lib/utils';
 
 export function TargetTerminalPanel({

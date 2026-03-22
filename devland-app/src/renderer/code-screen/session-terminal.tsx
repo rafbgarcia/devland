@@ -2,8 +2,8 @@ import '@xterm/xterm/css/xterm.css';
 
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal, type ITheme } from '@xterm/xterm';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { TerminalSessionSnapshot, TerminalSessionStatus } from '@/ipc/contracts';
+import { useEffect, useRef, useState } from 'react';
+import type { TerminalSessionSnapshot } from '@/ipc/contracts';
 
 function getTerminalTheme(): ITheme {
   const bodyStyles = getComputedStyle(document.body);
@@ -56,59 +56,18 @@ function getTerminalTheme(): ITheme {
       };
 }
 
-function lastPathSegment(cwd: string): string {
-  const normalized = cwd.trim().replace(/[\\/]+$/, '');
-
-  if (normalized.length === 0) {
-    return cwd;
-  }
-
-  return normalized.split(/[/\\]/).at(-1) ?? cwd;
-}
-
-function statusLabel(status: TerminalSessionStatus): string {
-  switch (status) {
-    case 'starting':
-      return 'Starting';
-    case 'running':
-      return 'Running';
-    case 'exited':
-      return 'Exited';
-    case 'error':
-      return 'Error';
-  }
-}
-
-function statusVariant(status: TerminalSessionStatus): 'default' | 'secondary' | 'outline' | 'destructive' {
-  switch (status) {
-    case 'running':
-      return 'default';
-    case 'starting':
-      return 'secondary';
-    case 'exited':
-      return 'outline';
-    case 'error':
-      return 'destructive';
-  }
-}
-
 export function SessionTerminal({
   sessionId,
   cwd,
-  className,
 }: {
   sessionId: string;
   cwd: string;
-  className?: string;
 }) {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  const [snapshot, setSnapshot] = useState<TerminalSessionSnapshot | null>(null);
+  const [, setSnapshot] = useState<TerminalSessionSnapshot | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-
-  const headline = useMemo(() => lastPathSegment(cwd), [cwd]);
-  const status = snapshot?.status ?? 'starting';
 
   useEffect(() => {
     const mount = mountRef.current;
