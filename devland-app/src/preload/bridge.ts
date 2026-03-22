@@ -29,12 +29,7 @@ import {
   CHECK_GIT_WORKTREE_REMOVAL_CHANNEL,
   REMOVE_GIT_WORKTREE_CHANNEL,
   COMMIT_WORKING_TREE_SELECTION_CHANNEL,
-  CREATE_GITHUB_PR_REVIEW_THREAD_CHANNEL,
-  GENERATE_PR_REVIEW_CHANNEL,
-  SYNC_REPO_REVIEW_REFS_CHANNEL,
-  GET_PR_DIFF_META_CHANNEL,
   GET_COMMIT_DIFF_CHANNEL,
-  GET_PR_DIFF_CHANNEL,
   GET_GIT_BLOB_TEXT_CHANNEL,
   GET_WORKING_TREE_FILE_TEXT_CHANNEL,
   GET_COMMIT_PARENT_CHANNEL,
@@ -150,18 +145,8 @@ export const electronApi: ElectronApi = {
     ipcRenderer.invoke(REMOVE_GIT_WORKTREE_CHANNEL, repoPath, worktreePath, force),
   commitWorkingTreeSelection: (input) =>
     ipcRenderer.invoke(COMMIT_WORKING_TREE_SELECTION_CHANNEL, input),
-  generatePrReview: (repoPath, prNumber, title) =>
-    ipcRenderer.invoke(GENERATE_PR_REVIEW_CHANNEL, repoPath, prNumber, title),
-  getPrDiffMeta: (repoPath, prNumber) =>
-    ipcRenderer.invoke(GET_PR_DIFF_META_CHANNEL, repoPath, prNumber),
-  syncRepoReviewRefs: (repoPath, owner, name) =>
-    ipcRenderer.invoke(SYNC_REPO_REVIEW_REFS_CHANNEL, repoPath, owner, name),
-  createGitHubPrReviewThread: (input) =>
-    ipcRenderer.invoke(CREATE_GITHUB_PR_REVIEW_THREAD_CHANNEL, input),
   getCommitDiff: (repoPath, commitSha) =>
     ipcRenderer.invoke(GET_COMMIT_DIFF_CHANNEL, repoPath, commitSha),
-  getPrDiff: (repoPath, prNumber) =>
-    ipcRenderer.invoke(GET_PR_DIFF_CHANNEL, repoPath, prNumber),
   getGitBlobText: (input) =>
     ipcRenderer.invoke(GET_GIT_BLOB_TEXT_CHANNEL, input),
   getWorkingTreeFileText: (input) =>

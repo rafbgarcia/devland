@@ -41,9 +41,6 @@ export const CREATE_GIT_BRANCH_CHANNEL = 'app:create-git-branch';
 export const CHECK_GIT_WORKTREE_REMOVAL_CHANNEL = 'app:check-git-worktree-removal';
 export const REMOVE_GIT_WORKTREE_CHANNEL = 'app:remove-git-worktree';
 export const COMMIT_WORKING_TREE_SELECTION_CHANNEL = 'app:commit-working-tree-selection';
-export const GENERATE_PR_REVIEW_CHANNEL = 'app:generate-pr-review';
-export const SYNC_REPO_REVIEW_REFS_CHANNEL = 'app:sync-repo-review-refs';
-export const CREATE_GITHUB_PR_REVIEW_THREAD_CHANNEL = 'app:create-github-pr-review-thread';
 export const SEND_CODEX_SESSION_PROMPT_CHANNEL = 'app:send-codex-session-prompt';
 export const PERSIST_CODEX_ATTACHMENTS_CHANNEL = 'app:persist-codex-attachments';
 export const LIST_CODEX_THREADS_CHANNEL = 'app:list-codex-threads';
@@ -70,9 +67,7 @@ export const RELOAD_BROWSER_VIEW_CHANNEL = 'app:reload-browser-view';
 export const OPEN_BROWSER_VIEW_DEVTOOLS_CHANNEL = 'app:open-browser-view-devtools';
 export const DISPOSE_BROWSER_VIEW_CHANNEL = 'app:dispose-browser-view';
 export const BROWSER_VIEW_EVENT_CHANNEL = 'app:browser-view-event';
-export const GET_PR_DIFF_META_CHANNEL = 'app:get-pr-diff-meta';
 export const GET_COMMIT_DIFF_CHANNEL = 'app:get-commit-diff';
-export const GET_PR_DIFF_CHANNEL = 'app:get-pr-diff';
 export const GET_GIT_BLOB_TEXT_CHANNEL = 'app:get-git-blob-text';
 export const GET_WORKING_TREE_FILE_TEXT_CHANNEL = 'app:get-working-tree-file-text';
 export const GET_COMMIT_PARENT_CHANNEL = 'app:get-commit-parent';
@@ -314,27 +309,6 @@ export const CommitWorkingTreeSelectionResultSchema = z.object({
   commitSha: z.string().min(1),
 });
 export type CommitWorkingTreeSelectionResult = z.infer<typeof CommitWorkingTreeSelectionResultSchema>;
-
-export const GitHubPullRequestReviewThreadSideSchema = z.enum(['LEFT', 'RIGHT']);
-export type GitHubPullRequestReviewThreadSide = z.infer<typeof GitHubPullRequestReviewThreadSideSchema>;
-
-export const CreateGitHubPrReviewThreadInputSchema = z.object({
-  owner: z.string().min(1),
-  name: z.string().min(1),
-  prNumber: z.number().int().positive(),
-  path: z.string().min(1),
-  body: z.string().min(1),
-  line: z.number().int().positive(),
-  side: GitHubPullRequestReviewThreadSideSchema,
-  startLine: z.number().int().positive().nullable().optional(),
-  startSide: GitHubPullRequestReviewThreadSideSchema.nullable().optional(),
-});
-export type CreateGitHubPrReviewThreadInput = z.infer<typeof CreateGitHubPrReviewThreadInputSchema>;
-
-export const CreateGitHubPrReviewThreadResultSchema = z.object({
-  reviewId: z.string().min(1),
-});
-export type CreateGitHubPrReviewThreadResult = z.infer<typeof CreateGitHubPrReviewThreadResultSchema>;
 
 export const CodexSessionStatusSchema = z.enum([
   'connecting',
@@ -598,40 +572,6 @@ export const GitBranchHistorySchema = z.object({
 });
 export type GitBranchHistory = z.infer<typeof GitBranchHistorySchema>;
 
-export const PrDiffMetaSchema = CodeChangesMetaSchema.extend({
-  status: z.literal('ready'),
-  baseRevision: z.string().min(1),
-  headRevision: z.string().min(1),
-});
-export type PrDiffMeta = z.infer<typeof PrDiffMetaSchema>;
-
-export const PrDiffMetaMissingSchema = z.object({
-  status: z.literal('missing'),
-  reason: z.enum(['missing-snapshot', 'missing-refs']),
-  message: z.string().min(1),
-});
-export type PrDiffMetaMissing = z.infer<typeof PrDiffMetaMissingSchema>;
-
-export const PrDiffMetaResultSchema = z.discriminatedUnion('status', [
-  PrDiffMetaSchema,
-  PrDiffMetaMissingSchema,
-]);
-export type PrDiffMetaResult = z.infer<typeof PrDiffMetaResultSchema>;
-
-export const PrReviewStepSchema = z.object({
-  order: z.number().int().positive(),
-  description: z.string().min(1),
-  relevantChanges: z.array(z.string().min(1)),
-});
-export type PrReviewStep = z.infer<typeof PrReviewStepSchema>;
-
-export const PrReviewSchema = z.object({
-  steps: z.array(PrReviewStepSchema),
-  fileDiffs: z.record(z.string(), z.string()),
-  durationMs: z.number().int().nonnegative(),
-});
-export type PrReview = z.infer<typeof PrReviewSchema>;
-
 export interface ElectronApi {
   readonly platform: NodeJS.Platform;
   readonly versions: {
@@ -688,14 +628,7 @@ export interface ElectronApi {
   commitWorkingTreeSelection: (
     input: CommitWorkingTreeSelectionInput,
   ) => Promise<CommitWorkingTreeSelectionResult>;
-  generatePrReview: (repoPath: string, prNumber: number, title: string) => Promise<PrReview>;
-  getPrDiffMeta: (repoPath: string, prNumber: number) => Promise<PrDiffMetaResult>;
-  syncRepoReviewRefs: (repoPath: string, owner: string, name: string) => Promise<void>;
-  createGitHubPrReviewThread: (
-    input: CreateGitHubPrReviewThreadInput,
-  ) => Promise<CreateGitHubPrReviewThreadResult>;
   getCommitDiff: (repoPath: string, commitSha: string) => Promise<string>;
-  getPrDiff: (repoPath: string, prNumber: number) => Promise<string>;
   getGitBlobText: (input: {
     repoPath: string;
     revision: string;

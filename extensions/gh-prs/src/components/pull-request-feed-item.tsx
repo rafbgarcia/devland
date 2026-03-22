@@ -30,7 +30,7 @@ export function PullRequestFeedItem({
         }
       }}
       className={cn(
-        'group/pr w-full text-left transition-colors hover:bg-muted/50',
+        'group/pr w-full text-left transition-colors hover:bg-muted/50 cursor-default',
         isSelected && 'bg-muted',
       )}
     >

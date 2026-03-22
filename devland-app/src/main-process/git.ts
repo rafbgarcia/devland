@@ -13,7 +13,6 @@ import {
   CheckGitWorktreeRemovalResultSchema,
   CreateGitWorktreeResultSchema,
   GitBranchHistorySchema,
-  PrDiffMetaResultSchema,
   RepoDetailsSchema,
   type CodeChangesMeta,
   type CheckGitWorktreeRemovalResult,
@@ -25,8 +24,6 @@ import {
   type GitBranch,
   type GitFileStatus,
   type GitStatus,
-  type PrDiffMeta,
-  type PrDiffMetaResult,
   type RemoveGitWorktreeReason,
   type RepoDetails,
 } from '../ipc/contracts';
@@ -1065,16 +1062,6 @@ const GH_EXEC_OPTIONS = {
   windowsHide: true,
 };
 
-const OPEN_PR_METADATA_SCHEMA_FIELDS = 'number,headRefName,baseRefName';
-const PrReviewSnapshotMetadataSchema = z.object({
-  baseBranch: z.string().min(1),
-  headBranch: z.string().min(1),
-});
-type PrReviewSnapshotMetadata = z.infer<typeof PrReviewSnapshotMetadataSchema>;
-
-const prHeadRef = (prNumber: number) => `refs/devland/pr/${prNumber}/head`;
-const repoReviewSyncInFlight = new Map<string, Promise<void>>();
-
 const verifyRevisionExists = async (
   repoPath: string,
   revision: string,
@@ -1178,209 +1165,7 @@ export const getGitDefaultBranch = async (repoPath: string): Promise<string> => 
   );
 };
 
-const getGitCommonDir = async (repoPath: string): Promise<string> => {
-  const { stdout } = await execFileAsync(
-    'git',
-    ['-C', repoPath, 'rev-parse', '--git-common-dir'],
-    getGitReadOnlyExecOptions(),
-  );
-
-  return path.resolve(repoPath, stdout.trim());
-};
-
-const getPrSnapshotMetadataPath = async (
-  repoPath: string,
-  prNumber: number,
-): Promise<string> => {
-  const gitCommonDir = await getGitCommonDir(repoPath);
-
-  return path.join(gitCommonDir, 'devland', 'pr', `${prNumber}.json`);
-};
-
-const readPrSnapshotMetadata = async (
-  repoPath: string,
-  prNumber: number,
-): Promise<PrReviewSnapshotMetadata | null> => {
-  const snapshotPath = await getPrSnapshotMetadataPath(repoPath, prNumber);
-
-  if (!existsSync(snapshotPath)) {
-    return null;
-  }
-
-  try {
-    return PrReviewSnapshotMetadataSchema.parse(
-      JSON.parse(readFileSync(snapshotPath, 'utf8')),
-    );
-  } catch {
-    return null;
-  }
-};
-
-const writePrSnapshotMetadata = async (
-  repoPath: string,
-  prNumber: number,
-  metadata: PrReviewSnapshotMetadata,
-): Promise<void> => {
-  const snapshotPath = await getPrSnapshotMetadataPath(repoPath, prNumber);
-  mkdirSync(path.dirname(snapshotPath), { recursive: true });
-  writeFileSync(snapshotPath, JSON.stringify(metadata), 'utf8');
-};
-
-const listOpenPrSnapshotMetadata = async (
-  ghExec: string,
-  owner: string,
-  name: string,
-): Promise<Array<{ prNumber: number; metadata: PrReviewSnapshotMetadata }>> => {
-  const { stdout } = await execFileAsync(
-    ghExec,
-    [
-      'pr', 'list',
-      '--repo', `${owner}/${name}`,
-      '--state', 'open',
-      '--limit', '200',
-      '--json', OPEN_PR_METADATA_SCHEMA_FIELDS,
-    ],
-    GH_EXEC_OPTIONS,
-  );
-
-  return z.array(
-    z.object({
-      number: z.number().int().positive(),
-      headRefName: z.string().min(1),
-      baseRefName: z.string().min(1),
-    }),
-  ).parse(JSON.parse(stdout.trim())).map((pr) => ({
-    prNumber: pr.number,
-    metadata: {
-      baseBranch: pr.baseRefName,
-      headBranch: pr.headRefName,
-    },
-  }));
-};
-
-const fetchAllRepoReviewRefs = async (repoPath: string): Promise<void> => {
-  await execFileAsync(
-    'git',
-    [
-      '-C', repoPath, 'fetch', 'origin', '--prune',
-      '+refs/heads/*:refs/remotes/origin/*',
-      '+refs/pull/*/head:refs/devland/pr/*/head',
-    ],
-    { timeout: 120000, windowsHide: true, maxBuffer: 10 * 1024 * 1024 },
-  );
-};
-
-const readLocalPrSnapshot = async (
-  repoPath: string,
-  prNumber: number,
-): Promise<
-  | { status: 'ready'; metadata: PrReviewSnapshotMetadata; baseRevision: string; headRef: string }
-  | { status: 'missing'; reason: 'missing-snapshot' | 'missing-refs'; message: string }
-> => {
-  const metadata = await readPrSnapshotMetadata(repoPath, prNumber);
-
-  if (metadata === null) {
-    return {
-      status: 'missing',
-      reason: 'missing-snapshot',
-      message: 'No local PR snapshot is available yet.',
-    };
-  }
-
-  const baseRevision = `refs/remotes/origin/${metadata.baseBranch}`;
-  const headRef = prHeadRef(prNumber);
-
-  try {
-    await Promise.all([
-      verifyRevisionExists(repoPath, baseRevision),
-      verifyRevisionExists(repoPath, headRef),
-    ]);
-  } catch {
-    return {
-      status: 'missing',
-      reason: 'missing-refs',
-      message: 'The local PR snapshot is incomplete. Run sync again.',
-    };
-  }
-
-  return {
-    status: 'ready',
-    metadata,
-    baseRevision,
-    headRef,
-  };
-};
-
-const loadLocalPrDiffMeta = async (
-  repoPath: string,
-  prNumber: number,
-): Promise<PrDiffMetaResult> => {
-  const snapshot = await readLocalPrSnapshot(repoPath, prNumber);
-
-  if (snapshot.status === 'missing') {
-    return PrDiffMetaResultSchema.parse(snapshot);
-  }
-
-  const US = '%x1f';
-  const RS = '%x1e';
-  const format = `${US}%H${US}%h${US}%s${US}%an${US}%aI${US}%b${RS}`;
-
-  const { stdout: logOutput } = await execFileAsync(
-    'git',
-    [
-      '-C', repoPath, 'log',
-      `${snapshot.baseRevision}..${snapshot.headRef}`,
-      `--format=${format}`,
-      '--reverse',
-    ],
-    { ...getGitReadOnlyExecOptions(), timeout: 15000 },
-  );
-
-  const commits = parsePrCommitLogOutput(logOutput);
-
-  return PrDiffMetaResultSchema.parse({
-    status: 'ready',
-    baseBranch: snapshot.metadata.baseBranch,
-    headBranch: snapshot.metadata.headBranch,
-    baseRevision: snapshot.baseRevision,
-    headRevision: snapshot.headRef,
-    commits,
-  });
-};
-
-const requireLocalPrSnapshot = async (
-  repoPath: string,
-  prNumber: number,
-): Promise<{ metadata: PrReviewSnapshotMetadata; baseRevision: string; headRef: string }> => {
-  const snapshot = await readLocalPrSnapshot(repoPath, prNumber);
-
-  if (snapshot.status === 'missing') {
-    throw new Error(snapshot.message);
-  }
-
-  return snapshot;
-};
-
-const performRepoReviewRefsSync = async (
-  repoPath: string,
-  ghExec: string,
-  owner: string,
-  name: string,
-): Promise<void> => {
-  const openPrs = await listOpenPrSnapshotMetadata(ghExec, owner, name);
-
-  await fetchAllRepoReviewRefs(repoPath);
-
-  await Promise.all(
-    openPrs.map(async ({ prNumber, metadata }) => {
-      await verifyRevisionExists(repoPath, `refs/remotes/origin/${metadata.baseBranch}`);
-      await verifyRevisionExists(repoPath, prHeadRef(prNumber));
-      await writePrSnapshotMetadata(repoPath, prNumber, metadata);
-    }),
-  );
-};
-
-const parsePrCommitLogOutput = (logOutput: string): PrDiffMeta['commits'] =>
+const parsePrCommitLogOutput = (logOutput: string): CodeChangesMeta['commits'] =>
   logOutput
     .split('\x1e')
     .map((record) => record.replace(/^[\r\n]+/, ''))
@@ -1495,35 +1280,6 @@ export const getGitBranchCompareDiff = async (
   return stdout;
 };
 
-export const getPrDiffMeta = async (
-  repoPath: string,
-  prNumber: number,
-): Promise<PrDiffMetaResult> => loadLocalPrDiffMeta(repoPath, prNumber);
-
-export const syncRepoReviewRefs = async (
-  repoPath: string,
-  ghExec: string,
-  owner: string,
-  name: string,
-): Promise<void> => {
-  const existing = repoReviewSyncInFlight.get(repoPath);
-
-  if (existing) {
-    return existing;
-  }
-
-  const syncPromise = performRepoReviewRefsSync(repoPath, ghExec, owner, name)
-    .finally(() => {
-      if (repoReviewSyncInFlight.get(repoPath) === syncPromise) {
-        repoReviewSyncInFlight.delete(repoPath);
-      }
-    });
-
-  repoReviewSyncInFlight.set(repoPath, syncPromise);
-
-  return syncPromise;
-};
-
 export const getCommitDiff = async (
   repoPath: string,
   commitSha: string,
@@ -1531,21 +1287,6 @@ export const getCommitDiff = async (
   const { stdout } = await execFileAsync(
     'git',
     ['-C', repoPath, 'show', commitSha, '--format=', '-p'],
-    { ...getGitReadOnlyExecOptions(), timeout: 30000, maxBuffer: 10 * 1024 * 1024 },
-  );
-
-  return stdout;
-};
-
-export const getPrDiff = async (
-  repoPath: string,
-  prNumber: number,
-): Promise<string> => {
-  const snapshot = await requireLocalPrSnapshot(repoPath, prNumber);
-
-  const { stdout } = await execFileAsync(
-    'git',
-    ['-C', repoPath, 'diff', `${snapshot.baseRevision}...${snapshot.headRef}`],
     { ...getGitReadOnlyExecOptions(), timeout: 30000, maxBuffer: 10 * 1024 * 1024 },
   );
 

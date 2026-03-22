@@ -31,12 +31,7 @@ import {
   CHECK_GIT_WORKTREE_REMOVAL_CHANNEL,
   REMOVE_GIT_WORKTREE_CHANNEL,
   COMMIT_WORKING_TREE_SELECTION_CHANNEL,
-  CREATE_GITHUB_PR_REVIEW_THREAD_CHANNEL,
-  GENERATE_PR_REVIEW_CHANNEL,
-  SYNC_REPO_REVIEW_REFS_CHANNEL,
-  GET_PR_DIFF_META_CHANNEL,
   GET_COMMIT_DIFF_CHANNEL,
-  GET_PR_DIFF_CHANNEL,
   GET_GIT_BLOB_TEXT_CHANNEL,
   GET_WORKING_TREE_FILE_TEXT_CHANNEL,
   GET_COMMIT_PARENT_CHANNEL,
@@ -78,9 +73,7 @@ import { persistCodexAttachments } from './codex-attachments';
 import { searchCodexPaths } from './codex-path-search';
 import { codexExecutable } from './codex-cli';
 import { suggestGitWorktreeBranchName } from './codex-use-cases/worktree-branch-name';
-import { generatePrReview } from './codex-use-cases/pr-review';
 import { ghExecutable } from './gh-cli';
-import { createGitHubPrReviewThread } from './gh-review-comments';
 import { getRepoExtensions, installRepoExtension } from './extensions/repo-extensions';
 import { runExtensionCommand } from './extensions/runtime';
 import {
@@ -103,10 +96,7 @@ import {
   getGitWorkingTreeDiff,
   getGitStatus,
   getGithubRepoDetails,
-  getPrDiff,
-  getPrDiffMeta,
   removeGitWorktree,
-  syncRepoReviewRefs,
   getWorkingTreeFileText,
   validateLocalGitRepository,
 } from './git';
@@ -280,43 +270,9 @@ export const registerAppIpcHandlers = (
     (_event, input) => commitWorkingTreeSelection(input),
   );
   ipcMain.handle(
-    GENERATE_PR_REVIEW_CHANNEL,
-    (_event, repoPath: string, prNumber: number, title: string) => {
-      if (codexExecutable === null) {
-        throw new Error('Codex CLI is not installed. Install it from https://codex.openai.com');
-      }
-
-      return generatePrReview(codexExecutable, repoPath, prNumber, title);
-    },
-  );
-  ipcMain.handle(
-    GET_PR_DIFF_META_CHANNEL,
-    (_event, repoPath: string, prNumber: number) =>
-      getPrDiffMeta(repoPath, prNumber),
-  );
-  ipcMain.handle(
-    SYNC_REPO_REVIEW_REFS_CHANNEL,
-    (_event, repoPath: string, owner: string, name: string) => {
-      if (ghExecutable === null) {
-        throw new Error('GitHub CLI is not available on this machine.');
-      }
-
-      return syncRepoReviewRefs(repoPath, ghExecutable, owner, name);
-    },
-  );
-  ipcMain.handle(
-    CREATE_GITHUB_PR_REVIEW_THREAD_CHANNEL,
-    (_event, input) => createGitHubPrReviewThread(input),
-  );
-  ipcMain.handle(
     GET_COMMIT_DIFF_CHANNEL,
     (_event, repoPath: string, commitSha: string) =>
       getCommitDiff(repoPath, commitSha),
-  );
-  ipcMain.handle(
-    GET_PR_DIFF_CHANNEL,
-    (_event, repoPath: string, prNumber: number) =>
-      getPrDiff(repoPath, prNumber),
   );
   ipcMain.handle(
     GET_GIT_BLOB_TEXT_CHANNEL,
