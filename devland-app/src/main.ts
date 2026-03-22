@@ -28,6 +28,7 @@ import {
 import { registerAppIpcHandlers } from './main-process/ipc';
 import { targetBrowserManager } from './main-process/browser/target-browser-manager';
 import { terminalSessionManager } from './main-process/terminal-session-manager';
+import { getDevUserDataDir } from './dev/dev-instance';
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -57,6 +58,7 @@ if (started) {
 
 const isDevelopment = MAIN_WINDOW_VITE_DEV_SERVER_URL !== undefined;
 const APP_DISPLAY_NAME = isDevelopment ? 'Devland:dev' : 'Devland';
+const allowMultiInstance = isDevelopment;
 const devServerOrigin = MAIN_WINDOW_VITE_DEV_SERVER_URL
   ? new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL).origin
   : null;
@@ -76,12 +78,14 @@ const developmentContentSecurityPolicy = [
 
 let mainWindow: BrowserWindow | null = null;
 const appIconPath = path.join(app.getAppPath(), 'assets', 'icons', 'devland.png');
-const testUserDataDir = process.env.DEVLAND_TEST_USER_DATA_DIR?.trim();
+const userDataDir = isDevelopment
+  ? getDevUserDataDir(process.cwd())
+  : process.env.DEVLAND_USER_DATA_DIR?.trim() || process.env.DEVLAND_TEST_USER_DATA_DIR?.trim();
 
 app.setName(APP_DISPLAY_NAME);
 
-if (testUserDataDir) {
-  app.setPath('userData', testUserDataDir);
+if (userDataDir) {
+  app.setPath('userData', userDataDir);
 }
 
 const isAppUrl = (targetUrl: string): boolean => {
@@ -321,13 +325,15 @@ const configureMacDockIcon = (): void => {
   app.dock.setIcon(dockIcon);
 };
 
-if (!app.requestSingleInstanceLock()) {
+if (!allowMultiInstance && !app.requestSingleInstanceLock()) {
   app.quit();
 }
 
-app.on('second-instance', () => {
-  focusMainWindow();
-});
+if (!allowMultiInstance) {
+  app.on('second-instance', () => {
+    focusMainWindow();
+  });
+}
 
 app.whenReady().then(async () => {
   app.setAppUserModelId(app.name);
