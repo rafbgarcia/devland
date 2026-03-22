@@ -23,8 +23,8 @@ import {
 import { normalizeBrowserUrlInput } from '@/renderer/code-screen/browser/browser-url';
 import {
   BLANK_PAGE_URL,
-  useBrowserTargetState,
-} from '@/renderer/code-screen/browser/browser-target-state';
+} from '@/renderer/code-screen/browser/browser-view-state';
+import type { BrowserViewSnapshot } from '@/ipc/contracts';
 import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';
 import { Button } from '@/shadcn/components/ui/button';
 import {
@@ -44,12 +44,14 @@ import {
 import { cn } from '@/shadcn/lib/utils';
 
 function BrowserViewportHost({
+  browserViewId,
+  codeTargetId,
   className,
-  targetId,
   visible,
 }: {
+  browserViewId: string;
+  codeTargetId: string;
   className?: string;
-  targetId: string;
   visible: boolean;
 }) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -77,17 +79,24 @@ function BrowserViewportHost({
 
     if (!hasShownRef.current) {
       hasShownRef.current = true;
-      await window.electronAPI.showBrowserView({ targetId, bounds });
+      await window.electronAPI.showBrowserView({
+        browserViewId,
+        codeTargetId,
+        bounds,
+      });
       return;
     }
 
-    await window.electronAPI.updateBrowserViewBounds({ targetId, bounds });
-  }, [targetId, visible]);
+    await window.electronAPI.updateBrowserViewBounds({
+      browserViewId,
+      bounds,
+    });
+  }, [browserViewId, codeTargetId, visible]);
 
   useEffect(() => {
     if (!visible) {
       hasShownRef.current = false;
-      void window.electronAPI.hideBrowserView(targetId).catch(() => undefined);
+      void window.electronAPI.hideBrowserView(browserViewId).catch(() => undefined);
       return;
     }
 
@@ -115,9 +124,9 @@ function BrowserViewportHost({
       window.removeEventListener('resize', scheduleSync);
       window.removeEventListener('scroll', scheduleSync, true);
       hasShownRef.current = false;
-      void window.electronAPI.hideBrowserView(targetId).catch(() => undefined);
+      void window.electronAPI.hideBrowserView(browserViewId).catch(() => undefined);
     };
-  }, [syncBounds, targetId, visible]);
+  }, [browserViewId, syncBounds, visible]);
 
   return (
     <div
@@ -127,14 +136,21 @@ function BrowserViewportHost({
   );
 }
 
-export function BrowserPanel({
-  targetId,
+export function BrowserViewPanel({
+  browserViewId,
+  codeTargetId,
+  snapshot,
+  rememberedUrl,
+  onRememberedUrlChange,
   className,
 }: {
-  targetId: string;
+  browserViewId: string;
+  codeTargetId: string;
+  snapshot: BrowserViewSnapshot;
+  rememberedUrl: string;
+  onRememberedUrlChange: (nextUrl: string | null) => void;
   className?: string;
 }) {
-  const { snapshot, rememberedUrl, setRememberedUrl } = useBrowserTargetState(targetId);
   const [addressValue, setAddressValue] = useState('');
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -161,10 +177,11 @@ export function BrowserPanel({
     }
 
     void window.electronAPI.navigateBrowserView({
-      targetId,
+      browserViewId,
+      codeTargetId,
       url: rememberedUrl,
     }).catch(() => undefined);
-  }, [rememberedUrl, snapshot.currentUrl, targetId]);
+  }, [browserViewId, codeTargetId, rememberedUrl, snapshot.currentUrl]);
 
   const handleNavigate = useCallback(async (nextValue: string) => {
     const normalizedUrl = normalizeBrowserUrlInput(nextValue);
@@ -175,18 +192,14 @@ export function BrowserPanel({
     }
 
     setSubmitError(null);
-
-    if (normalizedUrl === BLANK_PAGE_URL) {
-      setRememberedUrl(null);
-    } else {
-      setRememberedUrl(normalizedUrl);
-    }
+    onRememberedUrlChange(normalizedUrl === BLANK_PAGE_URL ? null : normalizedUrl);
 
     await window.electronAPI.navigateBrowserView({
-      targetId,
+      browserViewId,
+      codeTargetId,
       url: normalizedUrl,
     });
-  }, [setRememberedUrl, targetId]);
+  }, [browserViewId, codeTargetId, onRememberedUrlChange]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -209,7 +222,7 @@ export function BrowserPanel({
               aria-label="Go back"
               disabled={!snapshot.canGoBack}
               onClick={() => {
-                void window.electronAPI.goBackBrowserView(targetId).catch(() => undefined);
+                void window.electronAPI.goBackBrowserView(browserViewId).catch(() => undefined);
               }}
               size="icon-sm"
               variant="ghost"
@@ -220,7 +233,7 @@ export function BrowserPanel({
               aria-label="Go forward"
               disabled={!snapshot.canGoForward}
               onClick={() => {
-                void window.electronAPI.goForwardBrowserView(targetId).catch(() => undefined);
+                void window.electronAPI.goForwardBrowserView(browserViewId).catch(() => undefined);
               }}
               size="icon-sm"
               variant="ghost"
@@ -230,7 +243,7 @@ export function BrowserPanel({
             <InputGroupButton
               aria-label="Reload"
               onClick={() => {
-                void window.electronAPI.reloadBrowserView(targetId).catch(() => undefined);
+                void window.electronAPI.reloadBrowserView(browserViewId).catch(() => undefined);
               }}
               size="icon-sm"
               variant="ghost"
@@ -271,7 +284,7 @@ export function BrowserPanel({
           type="button"
           variant="outline"
           onClick={() => {
-            void window.electronAPI.openBrowserViewDevTools(targetId).catch(() => undefined);
+            void window.electronAPI.openBrowserViewDevTools(browserViewId).catch(() => undefined);
           }}
         >
           <ExternalLinkIcon data-icon="inline-start" />
@@ -288,7 +301,11 @@ export function BrowserPanel({
       ) : null}
 
       {shouldShowBrowser ? (
-        <BrowserViewportHost targetId={targetId} visible={shouldShowBrowser} />
+        <BrowserViewportHost
+          browserViewId={browserViewId}
+          codeTargetId={codeTargetId}
+          visible={shouldShowBrowser}
+        />
       ) : (
         <Empty className="min-h-0 flex-1 border-border/60 bg-background">
           <EmptyHeader>
@@ -302,8 +319,8 @@ export function BrowserPanel({
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
-            Each code target gets its own browser storage partition, so auth state,
-            cookies, local storage, and caches stay isolated from the other sessions.
+            Browser tabs in the same code target share auth state, cookies, local storage,
+            and caches, while staying isolated from other targets.
           </EmptyContent>
         </Empty>
       )}

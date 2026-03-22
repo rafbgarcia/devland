@@ -71,6 +71,7 @@ import {
   RELOAD_BROWSER_VIEW_CHANNEL,
   OPEN_BROWSER_VIEW_DEVTOOLS_CHANNEL,
   DISPOSE_BROWSER_VIEW_CHANNEL,
+  DISPOSE_BROWSER_TARGET_CHANNEL,
   type ElectronApi,
 } from '@/ipc/contracts';
 
@@ -203,22 +204,24 @@ export const electronApi: ElectronApi = {
     ipcRenderer.invoke(CLOSE_TERMINAL_SESSION_CHANNEL, sessionId),
   showBrowserView: (input) =>
     ipcRenderer.invoke(SHOW_BROWSER_VIEW_CHANNEL, input),
-  hideBrowserView: (targetId) =>
-    ipcRenderer.invoke(HIDE_BROWSER_VIEW_CHANNEL, targetId),
+  hideBrowserView: (browserViewId) =>
+    ipcRenderer.invoke(HIDE_BROWSER_VIEW_CHANNEL, browserViewId),
   updateBrowserViewBounds: (input) =>
     ipcRenderer.invoke(UPDATE_BROWSER_VIEW_BOUNDS_CHANNEL, input),
   navigateBrowserView: (input) =>
     ipcRenderer.invoke(NAVIGATE_BROWSER_VIEW_CHANNEL, input),
-  goBackBrowserView: (targetId) =>
-    ipcRenderer.invoke(GO_BACK_BROWSER_VIEW_CHANNEL, targetId),
-  goForwardBrowserView: (targetId) =>
-    ipcRenderer.invoke(GO_FORWARD_BROWSER_VIEW_CHANNEL, targetId),
-  reloadBrowserView: (targetId) =>
-    ipcRenderer.invoke(RELOAD_BROWSER_VIEW_CHANNEL, targetId),
-  openBrowserViewDevTools: (targetId) =>
-    ipcRenderer.invoke(OPEN_BROWSER_VIEW_DEVTOOLS_CHANNEL, targetId),
-  disposeBrowserView: (targetId) =>
-    ipcRenderer.invoke(DISPOSE_BROWSER_VIEW_CHANNEL, targetId),
+  goBackBrowserView: (browserViewId) =>
+    ipcRenderer.invoke(GO_BACK_BROWSER_VIEW_CHANNEL, browserViewId),
+  goForwardBrowserView: (browserViewId) =>
+    ipcRenderer.invoke(GO_FORWARD_BROWSER_VIEW_CHANNEL, browserViewId),
+  reloadBrowserView: (browserViewId) =>
+    ipcRenderer.invoke(RELOAD_BROWSER_VIEW_CHANNEL, browserViewId),
+  openBrowserViewDevTools: (browserViewId) =>
+    ipcRenderer.invoke(OPEN_BROWSER_VIEW_DEVTOOLS_CHANNEL, browserViewId),
+  disposeBrowserView: (browserViewId) =>
+    ipcRenderer.invoke(DISPOSE_BROWSER_VIEW_CHANNEL, browserViewId),
+  disposeBrowserTarget: (codeTargetId) =>
+    ipcRenderer.invoke(DISPOSE_BROWSER_TARGET_CHANNEL, codeTargetId),
   onGitStateChanged: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, event: unknown) => {
       const parsedEvent = GitStateChangedEventSchema.safeParse(event);

@@ -25,7 +25,7 @@ import {
   resolveCodexAttachmentPath,
 } from './main-process/codex-attachments';
 import { registerAppIpcHandlers } from './main-process/ipc';
-import { targetBrowserManager } from './main-process/browser/target-browser-manager';
+import { browserViewManager } from './main-process/browser/browser-view-manager';
 import { terminalSessionManager } from './main-process/terminal-session-manager';
 import { getDevUserDataDir } from './dev/dev-instance';
 
@@ -313,6 +313,6 @@ app.on('activate', () => {
 });
 
 app.on('before-quit', () => {
-  targetBrowserManager.dispose();
+  browserViewManager.dispose();
   terminalSessionManager.dispose();
 });

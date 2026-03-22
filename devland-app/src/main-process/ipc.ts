@@ -69,10 +69,11 @@ import {
   RELOAD_BROWSER_VIEW_CHANNEL,
   OPEN_BROWSER_VIEW_DEVTOOLS_CHANNEL,
   DISPOSE_BROWSER_VIEW_CHANNEL,
+  DISPOSE_BROWSER_TARGET_CHANNEL,
   type AppBootstrap,
   type CodexApprovalDecision,
 } from '../ipc/contracts';
-import { targetBrowserManager } from './browser/target-browser-manager';
+import { browserViewManager } from './browser/browser-view-manager';
 import { codexAppServerManager } from './codex-app-server';
 import { persistCodexAttachments } from './codex-attachments';
 import { searchCodexPaths } from './codex-path-search';
@@ -163,8 +164,8 @@ const pickCustomExternalEditorPath = async (
 export const registerAppIpcHandlers = (
   getMainWindow: () => BrowserWindow | null,
 ): void => {
-  targetBrowserManager.setMainWindowProvider(getMainWindow);
-  targetBrowserManager.on('event', (event) => {
+  browserViewManager.setMainWindowProvider(getMainWindow);
+  browserViewManager.on('event', (event) => {
     getMainWindow()?.webContents.send(BROWSER_VIEW_EVENT_CHANNEL, event);
   });
   codexAppServerManager.on('event', (event) => {
@@ -460,38 +461,42 @@ export const registerAppIpcHandlers = (
   );
   ipcMain.handle(
     SHOW_BROWSER_VIEW_CHANNEL,
-    (_event, input) => targetBrowserManager.show(input),
+    (_event, input) => browserViewManager.show(input),
   );
   ipcMain.handle(
     HIDE_BROWSER_VIEW_CHANNEL,
-    (_event, targetId: string) => targetBrowserManager.hide(targetId),
+    (_event, browserViewId: string) => browserViewManager.hide(browserViewId),
   );
   ipcMain.handle(
     UPDATE_BROWSER_VIEW_BOUNDS_CHANNEL,
-    (_event, input) => targetBrowserManager.updateBounds(input),
+    (_event, input) => browserViewManager.updateBounds(input),
   );
   ipcMain.handle(
     NAVIGATE_BROWSER_VIEW_CHANNEL,
-    (_event, input) => targetBrowserManager.navigate(input),
+    (_event, input) => browserViewManager.navigate(input),
   );
   ipcMain.handle(
     GO_BACK_BROWSER_VIEW_CHANNEL,
-    (_event, targetId: string) => targetBrowserManager.goBack(targetId),
+    (_event, browserViewId: string) => browserViewManager.goBack(browserViewId),
   );
   ipcMain.handle(
     GO_FORWARD_BROWSER_VIEW_CHANNEL,
-    (_event, targetId: string) => targetBrowserManager.goForward(targetId),
+    (_event, browserViewId: string) => browserViewManager.goForward(browserViewId),
   );
   ipcMain.handle(
     RELOAD_BROWSER_VIEW_CHANNEL,
-    (_event, targetId: string) => targetBrowserManager.reload(targetId),
+    (_event, browserViewId: string) => browserViewManager.reload(browserViewId),
   );
   ipcMain.handle(
     OPEN_BROWSER_VIEW_DEVTOOLS_CHANNEL,
-    (_event, targetId: string) => targetBrowserManager.openDevTools(targetId),
+    (_event, browserViewId: string) => browserViewManager.openDevTools(browserViewId),
   );
   ipcMain.handle(
     DISPOSE_BROWSER_VIEW_CHANNEL,
-    (_event, targetId: string) => targetBrowserManager.disposeTarget(targetId),
+    (_event, browserViewId: string) => browserViewManager.disposeView(browserViewId),
+  );
+  ipcMain.handle(
+    DISPOSE_BROWSER_TARGET_CHANNEL,
+    (_event, codeTargetId: string) => browserViewManager.disposeTarget(codeTargetId),
   );
 };

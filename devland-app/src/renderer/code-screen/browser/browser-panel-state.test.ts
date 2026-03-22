@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 
 import {
   getBrowserAddressValue,
+  getBrowserTabLabel,
   shouldRestoreRememberedBrowserUrl,
   shouldShowBrowserViewport,
 } from '@/renderer/code-screen/browser/browser-panel-state';
@@ -56,6 +57,50 @@ describe('getBrowserAddressValue', () => {
         rememberedUrl: 'http://localhost:3000',
       }),
       'http://localhost:3000/login',
+    );
+  });
+});
+
+describe('getBrowserTabLabel', () => {
+  it('prefers the live page title', () => {
+    assert.equal(
+      getBrowserTabLabel({
+        currentUrl: 'http://localhost:3000/login',
+        rememberedUrl: 'http://localhost:3000',
+        pageTitle: 'Login',
+        rememberedPageTitle: 'App',
+      }),
+      'Login',
+    );
+  });
+
+  it('falls back to the remembered page title and url before using New Tab', () => {
+    assert.equal(
+      getBrowserTabLabel({
+        currentUrl: 'about:blank',
+        rememberedUrl: 'http://localhost:3000',
+        pageTitle: '',
+        rememberedPageTitle: 'App',
+      }),
+      'App',
+    );
+    assert.equal(
+      getBrowserTabLabel({
+        currentUrl: 'about:blank',
+        rememberedUrl: 'http://localhost:3000',
+        pageTitle: '',
+        rememberedPageTitle: '',
+      }),
+      'http://localhost:3000',
+    );
+    assert.equal(
+      getBrowserTabLabel({
+        currentUrl: 'about:blank',
+        rememberedUrl: '',
+        pageTitle: '',
+        rememberedPageTitle: '',
+      }),
+      'New Tab',
     );
   });
 });

@@ -67,6 +67,7 @@ export const GO_FORWARD_BROWSER_VIEW_CHANNEL = 'app:go-forward-browser-view';
 export const RELOAD_BROWSER_VIEW_CHANNEL = 'app:reload-browser-view';
 export const OPEN_BROWSER_VIEW_DEVTOOLS_CHANNEL = 'app:open-browser-view-devtools';
 export const DISPOSE_BROWSER_VIEW_CHANNEL = 'app:dispose-browser-view';
+export const DISPOSE_BROWSER_TARGET_CHANNEL = 'app:dispose-browser-target';
 export const BROWSER_VIEW_EVENT_CHANNEL = 'app:browser-view-event';
 export const GET_COMMIT_DIFF_CHANNEL = 'app:get-commit-diff';
 export const GET_GIT_BLOB_TEXT_CHANNEL = 'app:get-git-blob-text';
@@ -628,7 +629,8 @@ export const BrowserViewBoundsSchema = z.object({
 export type BrowserViewBounds = z.infer<typeof BrowserViewBoundsSchema>;
 
 export const BrowserViewSnapshotSchema = z.object({
-  targetId: z.string().min(1),
+  browserViewId: z.string().min(1),
+  codeTargetId: z.string().min(1),
   currentUrl: z.string().min(1),
   pageTitle: z.string(),
   canGoBack: z.boolean(),
@@ -790,23 +792,26 @@ export interface ElectronApi {
   resizeTerminalSession: (input: ResizeTerminalSessionInput) => Promise<void>;
   closeTerminalSession: (sessionId: string) => Promise<void>;
   showBrowserView: (input: {
-    targetId: string;
+    browserViewId: string;
+    codeTargetId: string;
     bounds: BrowserViewBounds;
   }) => Promise<BrowserViewSnapshot>;
-  hideBrowserView: (targetId: string) => Promise<void>;
+  hideBrowserView: (browserViewId: string) => Promise<void>;
   updateBrowserViewBounds: (input: {
-    targetId: string;
+    browserViewId: string;
     bounds: BrowserViewBounds;
   }) => Promise<void>;
   navigateBrowserView: (input: {
-    targetId: string;
+    browserViewId: string;
+    codeTargetId: string;
     url: string;
   }) => Promise<BrowserViewSnapshot>;
-  goBackBrowserView: (targetId: string) => Promise<BrowserViewSnapshot>;
-  goForwardBrowserView: (targetId: string) => Promise<BrowserViewSnapshot>;
-  reloadBrowserView: (targetId: string) => Promise<BrowserViewSnapshot>;
-  openBrowserViewDevTools: (targetId: string) => Promise<void>;
-  disposeBrowserView: (targetId: string) => Promise<void>;
+  goBackBrowserView: (browserViewId: string) => Promise<BrowserViewSnapshot>;
+  goForwardBrowserView: (browserViewId: string) => Promise<BrowserViewSnapshot>;
+  reloadBrowserView: (browserViewId: string) => Promise<BrowserViewSnapshot>;
+  openBrowserViewDevTools: (browserViewId: string) => Promise<void>;
+  disposeBrowserView: (browserViewId: string) => Promise<void>;
+  disposeBrowserTarget: (codeTargetId: string) => Promise<void>;
   onGitStateChanged: (listener: (event: GitStateChangedEvent) => void) => () => void;
   onCodexSessionEvent: (listener: (event: CodexSessionEvent) => void) => () => void;
   onTerminalSessionEvent: (listener: (event: TerminalSessionEvent) => void) => () => void;

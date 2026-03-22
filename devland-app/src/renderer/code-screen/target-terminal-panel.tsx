@@ -56,7 +56,7 @@ export function TargetTerminalPanel({
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="flex items-stretch border-b border-border bg-muted/30">
-        <div className="flex min-w-0 items-stretch overflow-x-auto">
+        <div className="flex min-w-0 items-stretch overflow-x-auto h-8">
           {tabs.map((tab) => {
             const isActive = tab.id === activeTabId;
             const isEditing = tab.id === editingTabId;

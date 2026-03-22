@@ -36,8 +36,10 @@ import {
   type CodeWorkspacePane,
   type RemoveGitWorktreeReason,
 } from '@/ipc/contracts';
-import { BrowserPanel } from '@/renderer/code-screen/browser/browser-panel';
-import { clearBrowserTargetState } from '@/renderer/code-screen/browser/browser-target-state';
+import {
+  clearBrowserViewState,
+  clearCodeTargetBrowserState,
+} from '@/renderer/code-screen/browser/browser-view-state';
 import { ChangesPane } from '@/renderer/code-screen/changes-pane';
 import {
   ChatComposer,
@@ -50,9 +52,11 @@ import { LivePlanDock } from '@/renderer/code-screen/live-plan-dock';
 import { buildPlanImplementationPrompt } from '@/renderer/code-screen/proposed-plan';
 import { SessionAlerts } from '@/renderer/code-screen/session-alerts';
 import { SessionTranscript } from '@/renderer/code-screen/session-transcript';
+import { TargetBrowserPanel } from '@/renderer/code-screen/target-browser-panel';
 import { TargetTerminalPanel } from '@/renderer/code-screen/target-terminal-panel';
 import { ExternalEditorDialog } from '@/renderer/code-screen/external-editor-dialog';
 import { useCodeTargets } from '@/renderer/code-screen/use-code-targets';
+import { useRepoBrowserTabs } from '@/renderer/code-screen/use-browser-tabs';
 import {
   getDefaultTerminalTabId,
   useRepoTerminalTabs,
@@ -201,6 +205,14 @@ export function CodeWorkspaceScreen({
   const { preferences, setExternalEditorPreference } = useAppPreferences();
   useEnsureExternalEditorPreference();
   const {
+    getTargetState: getBrowserTabsState,
+    addTab: addBrowserTab,
+    closeTab: closeBrowserTab,
+    setActiveTab: setActiveBrowserTab,
+    removeTargetState: removeBrowserTabState,
+    pruneTargetStates: pruneBrowserTabs,
+  } = useRepoBrowserTabs(repoId);
+  const {
     getTargetState: getTerminalTabsState,
     addTab: addTerminalTab,
     closeTab: closeTerminalTab,
@@ -267,6 +279,8 @@ export function CodeWorkspaceScreen({
     : statusState.status === 'error'
       ? statusState.error
       : null;
+  const activeBrowserTabsState = getBrowserTabsState(activeTarget.id);
+  const activeBrowserTabId = activeBrowserTabsState.activeTabId;
   const activeTerminalTabsState = getTerminalTabsState(activeTarget.id);
   const activeTerminalTabId = activeTerminalTabsState.activeTabId;
 
@@ -347,6 +361,10 @@ export function CodeWorkspaceScreen({
       isDisposed = true;
     };
   }, [repoPath]);
+
+  useEffect(() => {
+    pruneBrowserTabs(targets.map((target) => target.id));
+  }, [pruneBrowserTabs, targets]);
 
   useEffect(() => {
     pruneTerminalTabs(targets.map((target) => target.id));
@@ -514,10 +532,11 @@ export function CodeWorkspaceScreen({
     await Promise.all(
       terminalTabs.map((tab) => window.electronAPI.closeTerminalSession(tab.id)),
     );
-    await window.electronAPI.disposeBrowserView(target.id);
-    clearBrowserTargetState(target.id);
+    await window.electronAPI.disposeBrowserTarget(target.id);
+    clearCodeTargetBrowserState(target.id);
+    removeBrowserTabState(target.id);
     removeTerminalTabState(target.id);
-  }, [getTerminalTabsState, removeTerminalTabState, stopSession]);
+  }, [getTerminalTabsState, removeBrowserTabState, removeTerminalTabState, stopSession]);
 
   const removeClosedWorktree = useCallback(async (
     target: CodeTarget,
@@ -531,11 +550,12 @@ export function CodeWorkspaceScreen({
       await Promise.all(
         terminalTabs.map((tab) => window.electronAPI.closeTerminalSession(tab.id)),
       );
-      await window.electronAPI.disposeBrowserView(target.id);
-      clearBrowserTargetState(target.id);
       await window.electronAPI.removeGitWorktree(repoPath, target.cwd, force);
       worktreeRemoved = true;
+      await window.electronAPI.disposeBrowserTarget(target.id);
+      clearCodeTargetBrowserState(target.id);
       await stopSession(target.id);
+      removeBrowserTabState(target.id);
       removeTerminalTabState(target.id);
     } catch (error) {
       console.error('Failed to remove worktree:', error);
@@ -546,6 +566,7 @@ export function CodeWorkspaceScreen({
     }
   }, [
     getTerminalTabsState,
+    removeBrowserTabState,
     removeTerminalTabState,
     repoPath,
     restoreTargetInUi,
@@ -722,6 +743,22 @@ export function CodeWorkspaceScreen({
 
     rememberActiveTarget(target.id);
   }, [addCurrentBranchSession, rememberActiveTarget]);
+  const handleAddBrowserTab = useCallback(() => {
+    addBrowserTab(activeTarget.id);
+  }, [activeTarget.id, addBrowserTab]);
+  const handleActiveBrowserTabChange = useCallback((tabId: string) => {
+    setActiveBrowserTab(activeTarget.id, tabId);
+  }, [activeTarget.id, setActiveBrowserTab]);
+  const handleCloseBrowserTab = useCallback((tabId: string) => {
+    if (!closeBrowserTab(activeTarget.id, tabId)) {
+      return;
+    }
+
+    clearBrowserViewState(tabId);
+    void window.electronAPI.disposeBrowserView(tabId).catch((error) => {
+      console.error('Failed to close browser tab:', error);
+    });
+  }, [activeTarget.id, closeBrowserTab]);
   const handleAddTerminalTab = useCallback(() => {
     addTerminalTab(activeTarget.id);
   }, [activeTarget.id, addTerminalTab]);
@@ -820,7 +857,15 @@ export function CodeWorkspaceScreen({
               {activePaneId === 'changes' ? (
                 viewport
               ) : activePaneId === 'browser' ? (
-                <BrowserPanel key={activeTarget.id} targetId={activeTarget.id} />
+                <TargetBrowserPanel
+                  key={activeTarget.id}
+                  codeTargetId={activeTarget.id}
+                  tabs={activeBrowserTabsState.tabs}
+                  activeTabId={activeBrowserTabId}
+                  onAddTab={handleAddBrowserTab}
+                  onChangeTab={handleActiveBrowserTabChange}
+                  onCloseTab={handleCloseBrowserTab}
+                />
               ) : activePaneId === 'terminal' ? (
                 <TargetTerminalPanel
                   key={activeTarget.id}
@@ -888,15 +933,20 @@ export function CodeWorkspaceScreen({
     </>
   ), [
     activePaneId,
+    activeBrowserTabId,
+    activeBrowserTabsState.tabs,
     activeTerminalTabId,
     activeTerminalTabsState.tabs,
     activeTarget.cwd,
     activeTarget.id,
     activeTargetLabel,
+    handleActiveBrowserTabChange,
+    handleAddBrowserTab,
     handleActiveTerminalTabChange,
     handleAddTerminalTab,
     composerSettings,
     handleComposerSettingsChange,
+    handleCloseBrowserTab,
     handleCloseTerminalTab,
     handleImplementPlan,
     handleRenameTerminalTab,
