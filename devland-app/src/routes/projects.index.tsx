@@ -1,24 +1,21 @@
-import { useState } from 'react';
-import { Navigate, createFileRoute } from '@tanstack/react-router';
-import { GithubIcon, PlusIcon } from 'lucide-react';
+import { Navigate, createFileRoute, getRouteApi } from '@tanstack/react-router';
+import { AlertTriangleIcon } from 'lucide-react';
 
-import { AddProjectDialog } from '@/renderer/projects-shell/project-workspace';
-import { useRepoActions, useRepos } from '@/renderer/projects-shell/use-repos';
+import { MissingGhCli } from '@/renderer/shared/ui/missing-gh-cli';
+
+import { ProjectWorkspace } from '@/renderer/projects-shell/project-workspace';
+import { useRepos } from '@/renderer/projects-shell/use-repos';
 import { useWorkspaceSession } from '@/renderer/projects-shell/use-workspace-session';
 import {
   getProjectTabRoute,
   resolvePreferredRepoId,
 } from '@/renderer/shared/lib/projects';
 import { getRememberedProjectTabId } from '@/renderer/shared/lib/workspace-view-state';
-import { Button } from '@/shadcn/components/ui/button';
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from '@/shadcn/components/ui/empty';
+import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';
+import { Kbd } from '@/shadcn/components/ui/kbd';
+import { cn } from '@/shadcn/lib/utils';
+
+const rootRouteApi = getRouteApi('__root__');
 
 export const Route = createFileRoute('/projects/')({
   component: ProjectsIndexRoute,
@@ -29,13 +26,21 @@ function ProjectsIndexRoute() {
   const { session } = useWorkspaceSession();
 
   if (repos.length === 0) {
-    return <ProjectsEmptyState />;
+    return (
+      <ProjectWorkspace activeRepoId={null}>
+        <ProjectsEmptyState />
+      </ProjectWorkspace>
+    );
   }
 
   const repoId = resolvePreferredRepoId(repos, session.activeRepoId);
 
   if (repoId === null) {
-    return <ProjectsEmptyState />;
+    return (
+      <ProjectWorkspace activeRepoId={null}>
+        <ProjectsEmptyState />
+      </ProjectWorkspace>
+    );
   }
 
   const tabId = getRememberedProjectTabId(session, repoId);
@@ -43,41 +48,67 @@ function ProjectsIndexRoute() {
   return <Navigate replace {...getProjectTabRoute(repoId, tabId)} />;
 }
 
+function CurvedArrowUp() {
+  return (
+    <svg
+      width="48"
+      height="64"
+      viewBox="0 0 48 64"
+      fill="none"
+      className="text-muted-foreground"
+    >
+      <path
+        d="M24 60 C24 28, 12 16, 4 4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        fill="none"
+      />
+      <path
+        d="M2 16 L4 4 L14 8"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </svg>
+  );
+}
+
 function ProjectsEmptyState() {
-  const { addRepo } = useRepoActions();
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(true);
+  const { ghCliAvailable } = rootRouteApi.useLoaderData();
 
   return (
-    <section className="flex w-full flex-col gap-6">
-      <div className="rounded-xl border bg-card shadow-sm">
-        <div className="px-6 py-16">
-          <Empty>
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <GithubIcon />
-              </EmptyMedia>
-              <EmptyTitle>No projects yet</EmptyTitle>
-              <EmptyDescription>
-                Add a local Git repository or a remote GitHub repo to start tracking
-                issues and pull requests.
-              </EmptyDescription>
-            </EmptyHeader>
-            <EmptyContent>
-              <Button onClick={() => setIsAddDialogOpen(true)} type="button">
-                <PlusIcon data-icon="inline-start" />
-                Add your first project
-              </Button>
-            </EmptyContent>
-          </Empty>
+    <div className="flex h-full flex-col">
+      <div className="flex items-start gap-2 pl-4 pt-4">
+        <CurvedArrowUp />
+        <div className='mt-6 flex flex-col gap-4 text-sm leading-relaxed text-muted-foreground'>
+          <p>
+            Click the plus icon to add a repo.
+          </p>
+          <p>
+            {!ghCliAvailable && <MissingGhCli tooltip={<>Install it <a href="https://cli.github.com/">https://cli.github.com/</a></>} />}{' '}
+            Input <Kbd className="text-xs">owner/repo</Kbd> directly to view Github repos without cloning them.
+          </p>
+
+          {!ghCliAvailable && (
+            <Alert variant="warning">
+              <AlertTriangleIcon />
+              <AlertTitle>GitHub CLI not found</AlertTitle>
+              <AlertDescription>
+                Some features require the <Kbd>gh</Kbd> CLI.
+                <br/>
+                Install and authenticate using <Kbd>gh auth login</Kbd>, then refresh/restart Devland.
+                <br/>
+                <br/>
+                See official instructions at <a href="https://cli.github.com/">https://cli.github.com/</a>
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
       </div>
 
-      <AddProjectDialog
-        open={isAddDialogOpen}
-        onOpenChange={setIsAddDialogOpen}
-        onProjectAdded={() => {}}
-        onSaveRepo={addRepo}
-      />
-    </section>
+    </div>
   );
 }

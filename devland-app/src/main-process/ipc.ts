@@ -81,7 +81,6 @@ import { suggestGitWorktreeBranchName } from './codex-use-cases/worktree-branch-
 import { generatePrReview } from './codex-use-cases/pr-review';
 import { ghExecutable } from './gh-cli';
 import { createGitHubPrReviewThread } from './gh-review-comments';
-import { getGhUser } from './gh-queries/user';
 import { getRepoExtensions, installRepoExtension } from './extensions/repo-extensions';
 import { runExtensionCommand } from './extensions/runtime';
 import {
@@ -115,18 +114,8 @@ import { gitStateWatcher } from './git-state-watcher';
 import { terminalSessionManager } from './terminal-session-manager';
 import { readRepoConfig } from './repo-config';
 
-const getAppBootstrap = async (): Promise<AppBootstrap> => {
-  if (process.env.DEVLAND_TEST_MODE === '1') {
-    return {
-      ghUser: {
-        login: process.env.DEVLAND_TEST_GH_LOGIN?.trim() || 'devland-test',
-      },
-    };
-  }
-
-  const ghUser = await getGhUser();
-
-  return { ghUser };
+const getAppBootstrap = (): AppBootstrap => {
+  return { ghCliAvailable: ghExecutable !== null };
 };
 
 const pickRepoDirectory = async (

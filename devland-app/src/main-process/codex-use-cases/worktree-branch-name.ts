@@ -53,10 +53,10 @@ export async function suggestGitWorktreeBranchName(
         cwd: repoPath,
         prompt: buildWorktreeBranchNamePrompt(currentPromptText),
         outputSchema: WorktreeBranchNameSuggestionSchema,
-        model: 'gpt-5.4-mini',
+        model: 'gpt-5.3-codex-spark',
         reasoningEffort: 'low',
         sandboxMode: 'read-only',
-        timeoutMs: 60_000,
+        timeoutMs: 30_000,
       });
 
       return output.branchName;

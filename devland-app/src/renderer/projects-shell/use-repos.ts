@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 
+import { getRouteApi } from '@tanstack/react-router';
 import { atom, useAtomValue, useSetAtom } from 'jotai';
 import { atomWithStorage } from 'jotai/utils';
 
@@ -10,6 +11,8 @@ import {
   isGitHubProjectReference,
   normalizeProjectInput,
 } from '@/renderer/shared/lib/projects';
+
+const rootRouteApi = getRouteApi('__root__');
 
 const STORAGE_KEY = 'devland:repos';
 
@@ -72,10 +75,18 @@ export function useRepos() {
 export function useRepoActions() {
   const repos = useRepos();
   const setRepos = useSetAtom(setReposAtom);
+  const { ghCliAvailable } = rootRouteApi.useLoaderData();
 
   const addRepo = useCallback(
     async (candidatePath: string) => {
       const normalizedProjectInput = normalizeProjectInput(candidatePath);
+
+      if (!ghCliAvailable && isGitHubProjectReference(normalizedProjectInput)) {
+        throw new Error(
+          'GitHub CLI is not installed. Install gh and run `gh auth login` to add remote repositories.',
+        );
+      }
+
       const projectPath = isGitHubProjectReference(normalizedProjectInput)
         ? (
             await window.electronAPI.findLocalGithubRepoPath(normalizedProjectInput)

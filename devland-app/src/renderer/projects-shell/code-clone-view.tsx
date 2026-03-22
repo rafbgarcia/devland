@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 
+import { getRouteApi } from '@tanstack/react-router';
 import { DownloadIcon, FolderGit2Icon } from 'lucide-react';
 
+import { MissingGhCli } from '@/renderer/shared/ui/missing-gh-cli';
 import { useRepoActions } from './use-repos';
 import { Button } from '@/shadcn/components/ui/button';
 import {
@@ -14,6 +16,8 @@ import {
 } from '@/shadcn/components/ui/empty';
 import { Spinner } from '@/shadcn/components/ui/spinner';
 
+const rootRouteApi = getRouteApi('__root__');
+
 export function CodeCloneView({
   repoId,
   slug,
@@ -21,6 +25,7 @@ export function CodeCloneView({
   repoId: string;
   slug: string;
 }) {
+  const { ghCliAvailable } = rootRouteApi.useLoaderData();
   const { updateRepoPath } = useRepoActions();
   const [isCloning, setIsCloning] = useState(false);
   const [progressLines, setProgressLines] = useState<string[]>([]);
@@ -58,6 +63,7 @@ export function CodeCloneView({
           </EmptyMedia>
           <EmptyTitle>{slug}</EmptyTitle>
           <EmptyDescription>
+            {!ghCliAvailable && <MissingGhCli tooltip="Cloning requires the gh CLI" />}
             Clone this repository to ~/github.com/{slug} to start working locally.
           </EmptyDescription>
         </EmptyHeader>
@@ -68,7 +74,7 @@ export function CodeCloneView({
           ) : null}
 
           <Button
-            disabled={isCloning}
+            disabled={isCloning || !ghCliAvailable}
             onClick={handleClone}
             type="button"
           >

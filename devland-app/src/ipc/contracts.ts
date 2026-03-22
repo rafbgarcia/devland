@@ -183,11 +183,6 @@ export const CodexResumedThreadSchema = z.object({
 });
 export type CodexResumedThread = z.infer<typeof CodexResumedThreadSchema>;
 
-export const GhUserSchema = z.object({
-  login: z.string().min(1),
-});
-export type GhUser = z.infer<typeof GhUserSchema>;
-
 export const RepoWorkspaceStateSchema = z.object({
   activeTabId: z.string().min(1),
   activeCodeTargetId: z.string().min(1).nullable(),
@@ -202,7 +197,7 @@ export const WorkspaceSessionSchema = z.object({
 export type WorkspaceSession = z.infer<typeof WorkspaceSessionSchema>;
 
 export const AppBootstrapSchema = z.object({
-  ghUser: GhUserSchema.nullable(),
+  ghCliAvailable: z.boolean(),
 });
 export type AppBootstrap = z.infer<typeof AppBootstrapSchema>;
 

@@ -9,7 +9,6 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as OnboardingPrerequisitesRouteImport } from './routes/onboarding-prerequisites'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProjectsIndexRouteImport } from './routes/projects.index'
 import { Route as ProjectsRepoIdRouteImport } from './routes/projects.$repoId'
@@ -17,11 +16,6 @@ import { Route as ProjectsRepoIdIndexRouteImport } from './routes/projects.$repo
 import { Route as ProjectsRepoIdCodeRouteImport } from './routes/projects.$repoId.code'
 import { Route as ProjectsRepoIdExtensionsExtensionIdRouteImport } from './routes/projects.$repoId.extensions.$extensionId'
 
-const OnboardingPrerequisitesRoute = OnboardingPrerequisitesRouteImport.update({
-  id: '/onboarding-prerequisites',
-  path: '/onboarding-prerequisites',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -56,7 +50,6 @@ const ProjectsRepoIdExtensionsExtensionIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/onboarding-prerequisites': typeof OnboardingPrerequisitesRoute
   '/projects/$repoId': typeof ProjectsRepoIdRouteWithChildren
   '/projects/': typeof ProjectsIndexRoute
   '/projects/$repoId/code': typeof ProjectsRepoIdCodeRoute
@@ -65,7 +58,6 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/onboarding-prerequisites': typeof OnboardingPrerequisitesRoute
   '/projects': typeof ProjectsIndexRoute
   '/projects/$repoId/code': typeof ProjectsRepoIdCodeRoute
   '/projects/$repoId': typeof ProjectsRepoIdIndexRoute
@@ -74,7 +66,6 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/onboarding-prerequisites': typeof OnboardingPrerequisitesRoute
   '/projects/$repoId': typeof ProjectsRepoIdRouteWithChildren
   '/projects/': typeof ProjectsIndexRoute
   '/projects/$repoId/code': typeof ProjectsRepoIdCodeRoute
@@ -85,7 +76,6 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/onboarding-prerequisites'
     | '/projects/$repoId'
     | '/projects/'
     | '/projects/$repoId/code'
@@ -94,7 +84,6 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/onboarding-prerequisites'
     | '/projects'
     | '/projects/$repoId/code'
     | '/projects/$repoId'
@@ -102,7 +91,6 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/onboarding-prerequisites'
     | '/projects/$repoId'
     | '/projects/'
     | '/projects/$repoId/code'
@@ -112,20 +100,12 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  OnboardingPrerequisitesRoute: typeof OnboardingPrerequisitesRoute
   ProjectsRepoIdRoute: typeof ProjectsRepoIdRouteWithChildren
   ProjectsIndexRoute: typeof ProjectsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/onboarding-prerequisites': {
-      id: '/onboarding-prerequisites'
-      path: '/onboarding-prerequisites'
-      fullPath: '/onboarding-prerequisites'
-      preLoaderRoute: typeof OnboardingPrerequisitesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -190,7 +170,6 @@ const ProjectsRepoIdRouteWithChildren = ProjectsRepoIdRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  OnboardingPrerequisitesRoute: OnboardingPrerequisitesRoute,
   ProjectsRepoIdRoute: ProjectsRepoIdRouteWithChildren,
   ProjectsIndexRoute: ProjectsIndexRoute,
 }

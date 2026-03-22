@@ -1,7 +1,9 @@
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react';
-import { useRouter, useRouterState } from '@tanstack/react-router';
+import { getRouteApi, useRouter, useRouterState } from '@tanstack/react-router';
 import { AnimatePresence, Reorder } from 'motion/react';
 import { CodeIcon, FolderOpenIcon, PlusIcon, XIcon } from 'lucide-react';
+
+import { MissingGhCli } from '@/renderer/shared/ui/missing-gh-cli';
 
 import type { AppShortcutCommand, ProjectViewTab, Repo } from '@/ipc/contracts';
 import {
@@ -44,6 +46,8 @@ import { Input } from '@/shadcn/components/ui/input';
 import { Spinner } from '@/shadcn/components/ui/spinner';
 import { cn } from '@/shadcn/lib/utils';
 
+const rootRouteApi = getRouteApi('__root__');
+
 const VIEW_TABS = [
   { value: 'code', label: 'Code', icon: CodeIcon },
 ] as const satisfies ReadonlyArray<{
@@ -73,6 +77,7 @@ export function AddProjectDialog({
   const [repoInput, setRepoInput] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { ghCliAvailable } = rootRouteApi.useLoaderData();
 
   const handlePickLocalRepo = async () => {
     const selectedDirectory = await window.electronAPI.pickRepoDirectory();
@@ -127,19 +132,17 @@ export function AddProjectDialog({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add a project</DialogTitle>
-          <DialogDescription>
-            Add a local Git repository or a remote GitHub repo to start tracking
-            issues and pull requests.
+          <DialogTitle>Add a Git repo</DialogTitle>
+          <DialogDescription className="flex items-center gap-1">
+            Use absolute path or a{' '}
+            {!ghCliAvailable && <MissingGhCli tooltip="Github owner/repo require the gh CLI" />}
+            {' '}Github owner/repo
           </DialogDescription>
         </DialogHeader>
 
         <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
           <FieldGroup>
             <Field data-invalid={Boolean(formError)}>
-              <FieldLabel htmlFor="project-path">
-                Absolute path or GitHub owner/repository
-              </FieldLabel>
               <div className="flex gap-2">
                 <Input
                   aria-invalid={Boolean(formError)}
@@ -153,7 +156,7 @@ export function AddProjectDialog({
                       setFormError(null);
                     }
                   }}
-                  placeholder="e.g. /Users/me/my-repo or owner/repo"
+                  placeholder="e.g. /Users/me/repo or owner/repo"
                   spellCheck={false}
                   type="text"
                   value={repoInput}
@@ -199,7 +202,7 @@ export function ProjectWorkspace({
   activeRepoId,
   children,
 }: {
-  activeRepoId: string;
+  activeRepoId: string | null;
   children: ReactNode;
 }) {
   const router = useRouter();
@@ -226,20 +229,24 @@ export function ProjectWorkspace({
   });
   const repoViewByIdRef = useRef(session.repoViewById);
 
-  const tabs: ProjectWorkspaceTab[] = [
-    ...VIEW_TABS.map((tab) => ({
-      key: tab.value,
-      label: tab.label,
-      icon: <tab.icon className="size-3.5" />,
-      tabId: tab.value,
-    })),
-    ...projectExtensions.data.map((extension) => ({
-      key: `extension:${extension.id}`,
-      label: extension.tabName,
-      icon: <ExtensionTabIcon iconName={extension.tabIcon} className="size-3.5" />,
-      tabId: toProjectExtensionTabId(extension.id),
-    })),
-  ];
+  const hasActiveRepo = activeRepoId !== null;
+
+  const tabs: ProjectWorkspaceTab[] = hasActiveRepo
+    ? [
+        ...VIEW_TABS.map((tab) => ({
+          key: tab.value,
+          label: tab.label,
+          icon: <tab.icon className="size-3.5" />,
+          tabId: tab.value,
+        })),
+        ...projectExtensions.data.map((extension) => ({
+          key: `extension:${extension.id}`,
+          label: extension.tabName,
+          icon: <ExtensionTabIcon iconName={extension.tabIcon} className="size-3.5" />,
+          tabId: toProjectExtensionTabId(extension.id),
+        })),
+      ]
+    : [];
 
   useEffect(() => {
     repoViewByIdRef.current = session.repoViewById;
@@ -256,7 +263,9 @@ export function ProjectWorkspace({
   });
 
   useEffect(() => {
-    commitRememberedTab(activeRepoId, activeTabId);
+    if (activeRepoId !== null) {
+      commitRememberedTab(activeRepoId, activeTabId);
+    }
   }, [activeRepoId, activeTabId]);
 
   const navigateToTab = (repoId: string, tabId: ProjectTabId) => {
@@ -275,7 +284,7 @@ export function ProjectWorkspace({
 
   const handleAppShortcutCommand = useEffectEvent(
     (command: AppShortcutCommand) => {
-      if (repos.length === 0 || isAddDialogOpen) {
+      if (repos.length === 0 || activeRepoId === null || isAddDialogOpen) {
         return;
       }
 
@@ -393,33 +402,35 @@ export function ProjectWorkspace({
         </button>
       </Reorder.Group>
 
-      <div className="flex min-h-0 flex-1 flex-col rounded-b-xl border border-border bg-card shadow-sm">
-        <div className="flex shrink-0 items-center justify-between border-b border-border px-5">
-          <nav className="-mb-px flex gap-1">
-            {tabs.map((tab) => {
-              const isActive = tab.tabId === activeTabId;
+      <div className="flex min-h-0 flex-1 flex-col border border-border bg-card shadow-sm">
+        {tabs.length > 0 && (
+          <div className="flex shrink-0 items-center justify-between border-b border-border px-5">
+            <nav className="-mb-px flex gap-1">
+              {tabs.map((tab) => {
+                const isActive = tab.tabId === activeTabId;
 
-              return (
-                <button
-                  key={tab.key}
-                  className={cn(
-                    'relative flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-[13px] font-medium transition-colors',
-                    isActive
-                      ? 'border-foreground text-foreground'
-                      : 'border-transparent text-muted-foreground hover:text-foreground',
-                  )}
-                  onClick={() => {
-                    navigateToTab(activeRepoId, tab.tabId);
-                  }}
-                  type="button"
-                >
-                  {tab.icon}
-                  {tab.label}
-                </button>
-              );
-            })}
-          </nav>
-        </div>
+                return (
+                  <button
+                    key={tab.key}
+                    className={cn(
+                      'relative flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-[13px] font-medium transition-colors',
+                      isActive
+                        ? 'border-foreground text-foreground'
+                        : 'border-transparent text-muted-foreground hover:text-foreground',
+                    )}
+                    onClick={() => {
+                      navigateToTab(activeRepoId!, tab.tabId);
+                    }}
+                    type="button"
+                  >
+                    {tab.icon}
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+        )}
 
         <div
           className={cn(

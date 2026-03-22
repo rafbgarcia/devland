@@ -1,22 +1,10 @@
 import { Outlet, createRootRoute } from '@tanstack/react-router';
 
-import { OnboardingPrerequisitesPage } from '@/renderer/onboarding-screen/onboarding-prerequisites-page';
-
 export const Route = createRootRoute({
   loader: () => window.electronAPI.getAppBootstrap(),
   pendingComponent: StartupLoadingRoute,
-  component: RootRouteShell,
+  component: () => <Outlet />,
 });
-
-function RootRouteShell() {
-  const { ghUser } = Route.useLoaderData();
-
-  if (ghUser === null) {
-    return <OnboardingPrerequisitesPage user={ghUser} />;
-  }
-
-  return <Outlet />;
-}
 
 function StartupLoadingRoute() {
   return (
