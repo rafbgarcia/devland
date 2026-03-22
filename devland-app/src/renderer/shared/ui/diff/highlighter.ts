@@ -11,6 +11,7 @@ import type {
 } from '@/lib/diff';
 import { getDiffLineFilters, MAX_HIGHLIGHT_CONTENT_BYTES } from '@/lib/diff';
 import type { DiffFile } from '@/lib/diff/types';
+import { getHighlightContentLines } from '@/renderer/shared/ui/diff/highlight-content';
 
 const highlightWorkers: Worker[] = [];
 const MAX_IDLING_WORKERS = 2;
@@ -44,32 +45,6 @@ function splitContentLines(content: string | null | undefined) {
   }
 
   return lines;
-}
-
-function buildFallbackContentLines(
-  file: DiffFile,
-  side: 'old' | 'new',
-  requestedLines: ReadonlyArray<number>,
-) {
-  if (requestedLines.length === 0) {
-    return [] as string[];
-  }
-
-  const contentLines = Array.from({ length: Math.max(...requestedLines) + 1 }, () => '');
-
-  for (const hunk of file.hunks) {
-    for (const line of hunk.lines) {
-      const lineNumber = side === 'old' ? line.oldLineNumber : line.newLineNumber;
-
-      if (lineNumber === null) {
-        continue;
-      }
-
-      contentLines[lineNumber - 1] = line.content;
-    }
-  }
-
-  return contentLines;
 }
 
 async function loadContentSource(
@@ -190,14 +165,8 @@ export async function highlightDiffFileContents(
   const basename = preferredPath.split(/[\\/]/).at(-1) ?? preferredPath;
   const extensionMatch = /\.[^.]+$/.exec(preferredPath);
   const extension = extensionMatch?.[0] ?? '';
-  const oldContentLines =
-    resolvedContents.oldContents.length > 0
-      ? resolvedContents.oldContents
-      : buildFallbackContentLines(file, 'old', oldLineFilter);
-  const newContentLines =
-    resolvedContents.newContents.length > 0
-      ? resolvedContents.newContents
-      : buildFallbackContentLines(file, 'new', newLineFilter);
+  const oldContentLines = getHighlightContentLines(resolvedContents.oldContents, oldLineFilter);
+  const newContentLines = getHighlightContentLines(resolvedContents.newContents, newLineFilter);
 
   const [oldTokens, newTokens] = await Promise.all([
     requestHighlight({
