@@ -59,6 +59,37 @@ describe('compactSessionActivities', () => {
 
     assert.equal(entries.length, 2);
   });
+
+  it('retains file paths on collapsed file-change entries', () => {
+    const entries = compactSessionActivities([
+      {
+        id: 'activity-1',
+        tone: 'tool',
+        phase: 'started',
+        label: 'Edit files',
+        detail: null,
+        itemId: 'item-1',
+        itemType: 'file_change',
+        filePath: 'src/one.ts',
+        filePaths: ['src/one.ts'],
+      },
+      {
+        id: 'activity-2',
+        tone: 'tool',
+        phase: 'completed',
+        label: 'Edit files',
+        detail: null,
+        itemId: 'item-1',
+        itemType: 'file_change',
+        filePath: 'src/two.ts',
+        filePaths: ['src/two.ts'],
+      },
+    ]);
+
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0]?.filePath, 'src/two.ts');
+    assert.deepEqual(entries[0]?.filePaths, ['src/one.ts', 'src/two.ts']);
+  });
 });
 
 describe('deriveSessionTimelineRows', () => {
@@ -406,6 +437,8 @@ describe('estimateSessionTimelineRowHeight', () => {
             detail: 'git status',
             tone: 'tool',
             itemType: 'command_execution',
+            filePath: null,
+            filePaths: [],
             status: 'completed',
           },
         ],

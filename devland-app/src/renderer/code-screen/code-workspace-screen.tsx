@@ -888,8 +888,12 @@ export function CodeWorkspaceScreen({
               ) : (
                 <SessionTranscript
                   sessionState={sessionState}
+                  repoPath={activeTarget.cwd}
                   targetLabel={activeTargetLabel}
                   suggestedPrompts={repoSuggestedPrompts}
+                  externalEditorPreference={preferences.externalEditor}
+                  onExternalEditorPreferenceChange={setExternalEditorPreference}
+                  onRequestConfigureExternalEditor={() => setIsExternalEditorDialogOpen(true)}
                   onImplementPlan={handleImplementPlan}
                   onSendSuggestion={(prompt) => {
                     void handleSendPrompt({ prompt, settings: composerSettings, attachments: [] });

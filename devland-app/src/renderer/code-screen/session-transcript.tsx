@@ -9,6 +9,7 @@ import {
 } from 'react';
 
 import {
+  AlertCircleIcon,
   BotIcon,
   CheckIcon,
   ChevronDownIcon,
@@ -28,6 +29,7 @@ import ReactMarkdown from 'react-markdown';
 import { useVirtualizer, type VirtualItem } from '@tanstack/react-virtual';
 
 import type { RepoSuggestedPrompt } from '@/extensions/contracts';
+import type { ExternalEditorPreference } from '@/ipc/contracts';
 import type { CodexSessionState } from '@/renderer/code-screen/codex-session-state';
 import { DETACHED_WORKTREE_TARGET_TITLE } from '@/renderer/code-screen/worktree-session';
 import {
@@ -36,7 +38,9 @@ import {
   type SessionTimelineRow,
   type SessionTimelineToolEntry,
 } from '@/renderer/code-screen/session-timeline';
+import { openRepoFileInExternalEditor } from '@/renderer/shared/lib/open-file-in-external-editor';
 import { ProposedPlanCard } from '@/renderer/code-screen/proposed-plan-card';
+import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';
 import { cn } from '@/shadcn/lib/utils';
 
 const MAX_COLLAPSED_TOOL_ENTRIES = 3;
@@ -118,12 +122,18 @@ const AssistantMarkdown = memo(function AssistantMarkdown({
 
 const ToolEntryInline = memo(function ToolEntryInline({
   entry,
+  onOpenFile,
 }: {
   entry: SessionTimelineToolEntry;
+  onOpenFile?: ((path: string) => void) | undefined;
 }) {
   const EntryIcon = toolEntryIcon(entry);
   const isRunning = entry.status === 'running';
   const isError = entry.tone === 'error';
+  const filePaths = entry.filePaths ?? [];
+  const primaryFilePath = entry.filePath ?? filePaths[0] ?? null;
+  const additionalFileCount = Math.max(filePaths.length - (primaryFilePath ? 1 : 0), 0);
+  const showFileLink = entry.itemType === 'file_change' && primaryFilePath !== null;
 
   return (
     <div className="flex items-center gap-2 py-0.5">
@@ -145,6 +155,21 @@ const ToolEntryInline = memo(function ToolEntryInline({
       >
         {entry.label}
       </span>
+      {showFileLink ? (
+        <button
+          type="button"
+          className="max-w-[22rem] truncate rounded-sm font-mono text-xs text-primary transition-colors hover:text-foreground"
+          onClick={() => onOpenFile?.(primaryFilePath)}
+          title={primaryFilePath ?? undefined}
+        >
+          {primaryFilePath}
+        </button>
+      ) : null}
+      {additionalFileCount > 0 ? (
+        <span className="truncate text-xs text-muted-foreground/40">
+          +{additionalFileCount} more
+        </span>
+      ) : null}
       {entry.detail ? (
         <span className="truncate text-xs text-muted-foreground/40">{entry.detail}</span>
       ) : null}
@@ -152,7 +177,13 @@ const ToolEntryInline = memo(function ToolEntryInline({
   );
 });
 
-function ToolGroupRow({ entries }: { entries: SessionTimelineToolEntry[] }) {
+function ToolGroupRow({
+  entries,
+  onOpenFile,
+}: {
+  entries: SessionTimelineToolEntry[];
+  onOpenFile?: ((path: string) => void) | undefined;
+}) {
   const [isExpanded, setIsExpanded] = useState(false);
   const hasOverflow = entries.length > MAX_COLLAPSED_TOOL_ENTRIES;
   const hiddenCount = entries.length - MAX_COLLAPSED_TOOL_ENTRIES;
@@ -185,7 +216,7 @@ function ToolGroupRow({ entries }: { entries: SessionTimelineToolEntry[] }) {
                   className="flex flex-col overflow-hidden"
                 >
                   {previousEntries.map((entry) => (
-                    <ToolEntryInline key={entry.id} entry={entry} />
+                    <ToolEntryInline key={entry.id} entry={entry} onOpenFile={onOpenFile} />
                   ))}
                 </motion.div>
               ) : null}
@@ -193,7 +224,7 @@ function ToolGroupRow({ entries }: { entries: SessionTimelineToolEntry[] }) {
           </>
         ) : null}
         {lastEntries.map((entry) => (
-          <ToolEntryInline key={entry.id} entry={entry} />
+          <ToolEntryInline key={entry.id} entry={entry} onOpenFile={onOpenFile} />
         ))}
       </div>
     </div>
@@ -273,12 +304,14 @@ const WorkingRow = memo(function WorkingRow() {
 function TimelineRowView({
   row,
   onImplementPlan,
+  onOpenFile,
 }: {
   row: SessionTimelineRow;
   onImplementPlan?: ((planMarkdown: string) => void) | undefined;
+  onOpenFile?: ((path: string) => void) | undefined;
 }) {
   if (row.kind === 'work') {
-    return <ToolGroupRow entries={row.entries} />;
+    return <ToolGroupRow entries={row.entries} onOpenFile={onOpenFile} />;
   }
 
   if (row.kind === 'working') {
@@ -423,21 +456,30 @@ function EmptyState({
 
 export const SessionTranscript = memo(function SessionTranscript({
   sessionState,
+  repoPath,
   targetLabel,
   onSendSuggestion,
   onImplementPlan,
   suggestedPrompts,
+  externalEditorPreference,
+  onExternalEditorPreferenceChange,
+  onRequestConfigureExternalEditor,
 }: {
   sessionState: CodexSessionState;
+  repoPath: string;
   targetLabel: string;
   onSendSuggestion?: (prompt: string) => void;
   onImplementPlan?: (planMarkdown: string) => void;
   suggestedPrompts?: RepoSuggestedPrompt[] | null | undefined;
+  externalEditorPreference: ExternalEditorPreference | null;
+  onExternalEditorPreferenceChange?: ((preference: ExternalEditorPreference) => void) | undefined;
+  onRequestConfigureExternalEditor?: (() => void) | undefined;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const timelineRootRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true);
   const [timelineWidthPx, setTimelineWidthPx] = useState<number | null>(null);
+  const [openFileError, setOpenFileError] = useState<string | null>(null);
 
   const rows = useMemo(
     () => deriveSessionTimelineRows(sessionState),
@@ -470,6 +512,28 @@ export const SessionTranscript = memo(function SessionTranscript({
     const distanceFromBottom = element.scrollHeight - element.scrollTop - element.clientHeight;
     shouldAutoScrollRef.current = distanceFromBottom <= AUTO_SCROLL_THRESHOLD_PX;
   }, []);
+
+  const handleOpenFile = useCallback(async (path: string) => {
+    try {
+      await openRepoFileInExternalEditor({
+        repoPath,
+        relativeFilePath: path,
+        externalEditorPreference,
+        onExternalEditorPreferenceChange,
+        onRequestConfigureExternalEditor,
+      });
+      setOpenFileError(null);
+    } catch (error) {
+      setOpenFileError(
+        error instanceof Error ? error.message : 'Could not open that file.',
+      );
+    }
+  }, [
+    externalEditorPreference,
+    onExternalEditorPreferenceChange,
+    onRequestConfigureExternalEditor,
+    repoPath,
+  ]);
 
   useLayoutEffect(() => {
     const element = timelineRootRef.current;
@@ -550,6 +614,15 @@ export const SessionTranscript = memo(function SessionTranscript({
       className="h-full overflow-y-auto overscroll-contain px-5 py-4"
     >
       <div ref={timelineRootRef} className="mx-auto w-full min-w-0 pb-4">
+        {openFileError ? (
+          <div className="mb-4">
+            <Alert variant="destructive">
+              <AlertCircleIcon />
+              <AlertTitle>Could not open file</AlertTitle>
+              <AlertDescription>{openFileError}</AlertDescription>
+            </Alert>
+          </div>
+        ) : null}
         {virtualizedRowCount > 0 ? (
           <div className="relative" style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
             {virtualRows.map((virtualRow: VirtualItem) => {
@@ -567,7 +640,11 @@ export const SessionTranscript = memo(function SessionTranscript({
                   className="absolute left-0 top-0 w-full"
                   style={{ transform: `translateY(${virtualRow.start}px)` }}
                 >
-              <TimelineRowView row={row} onImplementPlan={onImplementPlan} />
+              <TimelineRowView
+                row={row}
+                onImplementPlan={onImplementPlan}
+                onOpenFile={handleOpenFile}
+              />
             </div>
           );
         })}
@@ -576,7 +653,11 @@ export const SessionTranscript = memo(function SessionTranscript({
 
         {nonVirtualizedRows.map((row) => (
           <div key={`tail-row:${row.id}`}>
-            <TimelineRowView row={row} onImplementPlan={onImplementPlan} />
+            <TimelineRowView
+              row={row}
+              onImplementPlan={onImplementPlan}
+              onOpenFile={handleOpenFile}
+            />
           </div>
         ))}
       </div>

@@ -47,6 +47,8 @@ export type CodexSessionActivity = {
   detail: string | null;
   itemId: string | null;
   itemType: string | null;
+  filePath?: string | null;
+  filePaths?: string[];
 };
 
 export type PendingApproval = {
@@ -603,6 +605,8 @@ export function applyCodexSessionEvent(
               detail: event.detail ?? null,
               itemId: event.itemId ?? null,
               itemType: event.itemType ?? null,
+              filePath: event.filePath ?? null,
+              filePaths: event.filePaths ?? [],
             },
           }),
         };

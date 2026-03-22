@@ -105,6 +105,32 @@ describe('applyCodexSessionEvent', () => {
     assert.equal(workEntry?.kind === 'work' ? workEntry.activities[0]?.label : null, 'Run command');
   });
 
+  it('stores file paths for file-change activities', () => {
+    const state = applyCodexSessionEvent(DEFAULT_SESSION_STATE, {
+      type: 'activity',
+      sessionId: 'session-1',
+      tone: 'tool',
+      phase: 'completed',
+      label: 'Edit files',
+      detail: null,
+      itemId: 'item-1',
+      itemType: 'file_change',
+      filePath: 'src/app.tsx',
+      filePaths: ['src/app.tsx', 'src/lib/utils.ts'],
+    });
+    const workEntry = state.currentTurnEntries[0];
+
+    assert.equal(workEntry?.kind, 'work');
+    assert.deepEqual(
+      workEntry?.kind === 'work' ? workEntry.activities[0]?.filePaths : null,
+      ['src/app.tsx', 'src/lib/utils.ts'],
+    );
+    assert.equal(
+      workEntry?.kind === 'work' ? workEntry.activities[0]?.filePath : null,
+      'src/app.tsx',
+    );
+  });
+
   it('stores the latest thread token usage payload', () => {
     const state = applyCodexSessionEvent(DEFAULT_SESSION_STATE, {
       type: 'thread-token-usage-updated',

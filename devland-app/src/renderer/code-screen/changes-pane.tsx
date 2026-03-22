@@ -29,7 +29,7 @@ import { SingleFileDiffView } from '@/renderer/shared/ui/diff/single-file-diff-v
 import { getExpandedDiffHighlightLineFilters } from '@/renderer/shared/ui/diff/diff-expansion';
 import { useDiffExpansionState } from '@/renderer/shared/ui/diff/use-diff-expansion-state';
 import { useDiffRenderFiles } from '@/renderer/shared/ui/diff/use-diff-render-files';
-import { resolveDetectedExternalEditorPreference } from '@/renderer/shared/use-app-preferences';
+import { openRepoFileInExternalEditor } from '@/renderer/shared/lib/open-file-in-external-editor';
 
 function lineFiltersEqual(left: readonly number[], right: readonly number[]) {
   if (left.length !== right.length) {
@@ -436,23 +436,12 @@ export function ChangesPane({
 
   const handleOpenFile = useCallback(async (path: string) => {
     try {
-      const resolvedPreference = externalEditorPreference ??
-        await resolveDetectedExternalEditorPreference();
-
-      if (resolvedPreference === null) {
-        setOpenFileError('Choose an external editor in settings first.');
-        onRequestConfigureExternalEditor?.();
-        return;
-      }
-
-      if (externalEditorPreference === null) {
-        onExternalEditorPreferenceChange?.(resolvedPreference);
-      }
-
-      await window.electronAPI.openFileInExternalEditor({
+      await openRepoFileInExternalEditor({
         repoPath,
         relativeFilePath: path,
-        preference: resolvedPreference,
+        externalEditorPreference,
+        onExternalEditorPreferenceChange,
+        onRequestConfigureExternalEditor,
       });
       setOpenFileError(null);
     } catch (error) {

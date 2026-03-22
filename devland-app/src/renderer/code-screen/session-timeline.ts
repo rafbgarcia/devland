@@ -15,6 +15,8 @@ export type SessionTimelineToolEntry = {
   detail: string | null;
   tone: 'info' | 'tool' | 'error';
   itemType: string | null;
+  filePath: string | null;
+  filePaths: string[];
   status: 'running' | 'completed' | 'error';
 };
 
@@ -56,6 +58,32 @@ function toEntryStatus(activity: CodexSessionActivity): SessionTimelineToolEntry
   return activity.phase === 'completed' ? 'completed' : 'running';
 }
 
+function mergeFilePaths(
+  currentPaths: ReadonlyArray<string>,
+  incomingPaths: ReadonlyArray<string>,
+  incomingPath: string | null,
+): string[] {
+  const mergedPaths: string[] = [];
+  const seenPaths = new Set<string>();
+
+  for (const candidate of [...currentPaths, ...incomingPaths, incomingPath]) {
+    if (typeof candidate !== 'string') {
+      continue;
+    }
+
+    const normalizedPath = candidate.trim();
+
+    if (normalizedPath === '' || seenPaths.has(normalizedPath)) {
+      continue;
+    }
+
+    seenPaths.add(normalizedPath);
+    mergedPaths.push(normalizedPath);
+  }
+
+  return mergedPaths;
+}
+
 export function compactSessionActivities(
   activities: ReadonlyArray<CodexSessionActivity>,
 ): SessionTimelineToolEntry[] {
@@ -79,6 +107,12 @@ export function compactSessionActivities(
             detail: activity.detail ?? existingEntry.detail,
             tone: activity.tone === 'error' ? 'error' : existingEntry.tone,
             itemType: activity.itemType ?? existingEntry.itemType,
+            filePath: activity.filePath ?? existingEntry.filePath,
+            filePaths: mergeFilePaths(
+              existingEntry.filePaths,
+              activity.filePaths ?? [],
+              activity.filePath ?? null,
+            ),
             status: nextStatus,
           };
           continue;
@@ -93,6 +127,8 @@ export function compactSessionActivities(
       detail: activity.detail ?? null,
       tone: activity.tone,
       itemType: activity.itemType ?? null,
+      filePath: activity.filePath ?? null,
+      filePaths: mergeFilePaths([], activity.filePaths ?? [], activity.filePath ?? null),
       status: nextStatus,
     });
 
