@@ -55,10 +55,14 @@ import { LayerToggle } from '@/renderer/code-screen/layer-toggle';
 import { LivePlanDock } from '@/renderer/code-screen/live-plan-dock';
 import { buildPlanImplementationPrompt } from '@/renderer/code-screen/proposed-plan';
 import { SessionAlerts } from '@/renderer/code-screen/session-alerts';
-import { SessionTerminal } from '@/renderer/code-screen/session-terminal';
 import { SessionTranscript } from '@/renderer/code-screen/session-transcript';
+import { TargetTerminalPanel } from '@/renderer/code-screen/target-terminal-panel';
 import { ExternalEditorDialog } from '@/renderer/code-screen/external-editor-dialog';
 import { useCodeTargets } from '@/renderer/code-screen/use-code-targets';
+import {
+  getDefaultTerminalTabId,
+  useRepoTerminalTabs,
+} from '@/renderer/code-screen/use-terminal-tabs';
 import {
   useCodexSessionActions,
   useCodexSessionState,
@@ -208,6 +212,15 @@ export function CodeWorkspaceScreen({
     updateTargetState: updateCodexChangeOrderState,
     pruneTargetStates: pruneCodexChangeOrderStates,
   } = useRepoCodexChangeOrderState(repoId);
+  const {
+    getTargetState: getTerminalTabsState,
+    addTab: addTerminalTab,
+    closeTab: closeTerminalTab,
+    renameTab: renameTerminalTab,
+    setActiveTab: setActiveTerminalTab,
+    removeTargetState: removeTerminalTabState,
+    pruneTargetStates: pruneTerminalTabs,
+  } = useRepoTerminalTabs(repoId);
   const storedRepoPaths = useMemo(() => repos.map((repo) => repo.path), [repos]);
   const rememberedTargetId = getRememberedCodeTargetId(session, repoId);
   const activePaneId = getRememberedCodePaneId(session, repoId);
@@ -268,6 +281,8 @@ export function CodeWorkspaceScreen({
       : null;
   const activeCodexChangeOrderState =
     codexChangeOrderStateByTargetId[activeTarget.id] ?? DEFAULT_CODEX_CHANGE_ORDER_STATE;
+  const activeTerminalTabsState = getTerminalTabsState(activeTarget.id);
+  const activeTerminalTabId = activeTerminalTabsState.activeTabId;
 
   const rememberActiveTarget = useCallback(
     (targetId: string | null) => {
@@ -350,6 +365,10 @@ export function CodeWorkspaceScreen({
   useEffect(() => {
     pruneCodexChangeOrderStates(targets.map((target) => target.id));
   }, [pruneCodexChangeOrderStates, targets]);
+
+  useEffect(() => {
+    pruneTerminalTabs(targets.map((target) => target.id));
+  }, [pruneTerminalTabs, targets]);
 
   useEffect(() => {
     const handleWindowFocus = () => {
@@ -504,7 +523,7 @@ export function CodeWorkspaceScreen({
 
       if (result.worktreeSetupCommand) {
         void window.electronAPI.execTerminalSessionCommand({
-          sessionId: target.id,
+          sessionId: getDefaultTerminalTabId(target.id),
           cwd: result.cwd,
           command: result.worktreeSetupCommand,
         }).catch((error) => {
@@ -542,11 +561,16 @@ export function CodeWorkspaceScreen({
   ]);
 
   const disposeTargetResources = useCallback(async (target: CodeTarget) => {
+    const terminalTabs = getTerminalTabsState(target.id).tabs;
+
     await stopSession(target.id);
-    await window.electronAPI.closeTerminalSession(target.id);
+    await Promise.all(
+      terminalTabs.map((tab) => window.electronAPI.closeTerminalSession(tab.id)),
+    );
     await window.electronAPI.disposeBrowserView(target.id);
     clearBrowserTargetState(target.id);
-  }, [stopSession]);
+    removeTerminalTabState(target.id);
+  }, [getTerminalTabsState, removeTerminalTabState, stopSession]);
 
   const removeClosedWorktree = useCallback(async (
     target: CodeTarget,
@@ -554,14 +578,18 @@ export function CodeWorkspaceScreen({
     force: boolean,
   ) => {
     let worktreeRemoved = false;
+    const terminalTabs = getTerminalTabsState(target.id).tabs;
 
     try {
-      await window.electronAPI.closeTerminalSession(target.id);
+      await Promise.all(
+        terminalTabs.map((tab) => window.electronAPI.closeTerminalSession(tab.id)),
+      );
       await window.electronAPI.disposeBrowserView(target.id);
       clearBrowserTargetState(target.id);
       await window.electronAPI.removeGitWorktree(repoPath, target.cwd, force);
       worktreeRemoved = true;
       await stopSession(target.id);
+      removeTerminalTabState(target.id);
     } catch (error) {
       console.error('Failed to remove worktree:', error);
 
@@ -570,6 +598,8 @@ export function CodeWorkspaceScreen({
       }
     }
   }, [
+    getTerminalTabsState,
+    removeTerminalTabState,
     repoPath,
     restoreTargetInUi,
     stopSession,
@@ -745,6 +775,24 @@ export function CodeWorkspaceScreen({
 
     rememberActiveTarget(target.id);
   }, [addCurrentBranchSession, rememberActiveTarget]);
+  const handleAddTerminalTab = useCallback(() => {
+    addTerminalTab(activeTarget.id);
+  }, [activeTarget.id, addTerminalTab]);
+  const handleActiveTerminalTabChange = useCallback((tabId: string) => {
+    setActiveTerminalTab(activeTarget.id, tabId);
+  }, [activeTarget.id, setActiveTerminalTab]);
+  const handleCloseTerminalTab = useCallback((tabId: string) => {
+    if (!closeTerminalTab(activeTarget.id, tabId)) {
+      return;
+    }
+
+    void window.electronAPI.closeTerminalSession(tabId).catch((error) => {
+      console.error('Failed to close terminal tab:', error);
+    });
+  }, [activeTarget.id, closeTerminalTab]);
+  const handleRenameTerminalTab = useCallback((tabId: string, title: string) => {
+    renameTerminalTab(activeTarget.id, tabId, title);
+  }, [activeTarget.id, renameTerminalTab]);
   const handleAppShortcutCommand = useEffectEvent((command: AppShortcutCommand) => {
     if (pendingWorktreeRemoval !== null || isRemovingWorktree) {
       return;
@@ -827,10 +875,15 @@ export function CodeWorkspaceScreen({
               ) : activePaneId === 'browser' ? (
                 <BrowserPanel key={activeTarget.id} targetId={activeTarget.id} />
               ) : activePaneId === 'terminal' ? (
-                <SessionTerminal
+                <TargetTerminalPanel
                   key={activeTarget.id}
-                  sessionId={activeTarget.id}
                   cwd={activeTarget.cwd}
+                  tabs={activeTerminalTabsState.tabs}
+                  activeTabId={activeTerminalTabId}
+                  onAddTab={handleAddTerminalTab}
+                  onChangeTab={handleActiveTerminalTabChange}
+                  onCloseTab={handleCloseTerminalTab}
+                  onRenameTab={handleRenameTerminalTab}
                 />
               ) : (
                 <SessionTranscript
@@ -884,12 +937,18 @@ export function CodeWorkspaceScreen({
     </>
   ), [
     activePaneId,
+    activeTerminalTabId,
+    activeTerminalTabsState.tabs,
     activeTarget.cwd,
     activeTarget.id,
     activeTargetLabel,
+    handleActiveTerminalTabChange,
+    handleAddTerminalTab,
     composerSettings,
     handleComposerSettingsChange,
+    handleCloseTerminalTab,
     handleImplementPlan,
+    handleRenameTerminalTab,
     handleSendPrompt,
     handleSidebarResize,
     interruptSession,

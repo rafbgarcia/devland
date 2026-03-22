@@ -179,7 +179,7 @@ export function FilesChangedList({
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="flex items-center gap-1.5 border-b border-border px-3 py-2 text-xs font-semibold text-foreground">
+      <div className="flex items-center gap-1.5 border-b border-border px-3 py-1 text-xs font-semibold text-foreground">
         {title}
         <span className="rounded-full bg-muted px-1.5 text-[10px] font-bold leading-4 text-muted-foreground">
           {files.length}
