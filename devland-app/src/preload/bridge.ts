@@ -138,8 +138,8 @@ export const electronApi: ElectronApi = {
     ipcRenderer.invoke(CHECKOUT_GIT_BRANCH_CHANNEL, repoPath, branchName),
   getGitFileDiff: (repoPath, filePath) =>
     ipcRenderer.invoke(GET_GIT_FILE_DIFF_CHANNEL, repoPath, filePath),
-  createGitWorktree: (repoPath, baseBranch) =>
-    ipcRenderer.invoke(CREATE_GIT_WORKTREE_CHANNEL, repoPath, baseBranch),
+  createGitWorktree: (repoPath) =>
+    ipcRenderer.invoke(CREATE_GIT_WORKTREE_CHANNEL, repoPath),
   suggestGitWorktreeBranchName: (repoPath, prompt) =>
     ipcRenderer.invoke(SUGGEST_GIT_WORKTREE_BRANCH_NAME_CHANNEL, repoPath, prompt),
   createGitBranch: (repoPath, branchName) =>

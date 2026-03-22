@@ -15,7 +15,14 @@ import {
   PlusIcon,
   XIcon,
 } from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, motion, Reorder } from 'motion/react';
+
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/shadcn/components/ui/tooltip';
 
 import {
   DEFAULT_CODEX_COMPOSER_SETTINGS,
@@ -192,6 +199,7 @@ export function CodeWorkspaceScreen({
     addCurrentBranchSession,
     addWorktreeTarget,
     removeTarget,
+    reorderTargets,
     restoreTarget,
     updateTarget,
   } = useCodeTargets(repoId, repoPath, rememberedTargetId);
@@ -209,7 +217,6 @@ export function CodeWorkspaceScreen({
   const defaultBranchState = useGitDefaultBranch(repoPath);
   const statusState = useGitStatus(activeTarget.cwd);
 
-  const activeBranch = statusState.data?.branch ?? 'HEAD';
   const rootBranch = rootStatusState.data?.branch ?? 'HEAD';
   const visibleChangesStatus = useMemo(() => {
     if (statusState.status === 'ready') {
@@ -231,6 +238,9 @@ export function CodeWorkspaceScreen({
   const visibleBaseBranchName = defaultBranchState.status === 'ready'
     ? defaultBranchState.data
     : rootBranch;
+  const worktreeBaseBranchLabel = defaultBranchState.status === 'ready'
+    ? defaultBranchState.data
+    : 'default branch';
   const changesPaneError = defaultBranchState.status === 'error'
     ? defaultBranchState.error
     : statusState.status === 'error'
@@ -459,7 +469,7 @@ export function CodeWorkspaceScreen({
     setIsCreatingWorktree(true);
 
     try {
-      const result = await window.electronAPI.createGitWorktree(repoPath, activeBranch);
+      const result = await window.electronAPI.createGitWorktree(repoPath);
       const target = addWorktreeTarget(result.cwd, result.initialTitle);
 
       rememberActiveTarget(target.id);
@@ -895,80 +905,121 @@ export function CodeWorkspaceScreen({
       <div className="flex h-full min-h-0 flex-col">
       <Tabs className="gap-0" value={activeTargetId} onValueChange={handleActiveTargetChange}>
         <div className="flex items-center gap-1 border-b border-border bg-muted/20 px-2 py-1.5">
-          <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
-            {targets.map((target) => {
-              const isActive = activeTargetId === target.id;
-              const label = targetLabels[target.id] ?? target.title;
+          <Reorder.Group
+            axis="x"
+            values={targets}
+            onReorder={reorderTargets}
+            className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto"
+            as="div"
+          >
+            <AnimatePresence initial={false}>
+              {targets.map((target) => {
+                const isActive = activeTargetId === target.id;
+                const label = targetLabels[target.id] ?? target.title;
 
-              return (
-                <button
-                  key={target.id}
-                  type="button"
-                  onClick={() => handleActiveTargetChange(target.id)}
-                  className={cn(
-                    'group/tab relative flex max-w-[16rem] shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-colors',
-                    isActive
-                      ? 'bg-background text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:bg-background/50 hover:text-foreground/80',
-                  )}
-                >
-                  {target.kind === 'worktree' ? (
-                    <GitBranchPlusIcon className="size-3 shrink-0 text-muted-foreground/60" />
-                  ) : null}
-                  <span className="truncate">{label}</span>
-                  {target.kind !== 'root' ? (
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      onMouseDown={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                      }}
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        void handleRemoveTarget(target.id);
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') {
+                return (
+                  <Reorder.Item
+                    key={target.id}
+                    value={target}
+                    onClick={() => handleActiveTargetChange(target.id)}
+                    drag={target.kind !== 'root'}
+                    initial={{ opacity: 0, width: 0 }}
+                    animate={{
+                      opacity: 1,
+                      width: 'auto',
+                      transition: { type: 'spring', bounce: 0, duration: 0.2 },
+                    }}
+                    exit={{
+                      opacity: 0,
+                      width: 0,
+                      transition: { type: 'tween', ease: 'easeOut', duration: 0.2 },
+                    }}
+                    layout
+                    className={cn(
+                      'group/tab relative flex max-w-[16rem] shrink-0 cursor-default items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-colors',
+                      isActive
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:bg-background/50 hover:text-foreground/80',
+                    )}
+                    as="div"
+                    whileDrag={{ scale: 1.03, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
+                  >
+                    {target.kind === 'worktree' ? (
+                      <GitBranchPlusIcon className="size-3 shrink-0 text-muted-foreground/60" />
+                    ) : null}
+                    <span className="truncate select-none whitespace-nowrap">{label}</span>
+                    {target.kind !== 'root' ? (
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                        }}
+                        onPointerDown={(event) => event.stopPropagation()}
+                        onClick={(event) => {
+                          event.preventDefault();
                           event.stopPropagation();
                           void handleRemoveTarget(target.id);
-                        }
-                      }}
-                      className="ml-0.5 flex size-4 shrink-0 items-center justify-center rounded opacity-0 transition-opacity hover:bg-muted group-hover/tab:opacity-60 group-hover/tab:hover:opacity-100"
-                      aria-label={target.kind === 'worktree' ? `Remove worktree ${target.title}` : `Close session ${target.title}`}
-                    >
-                      <XIcon className="size-2.5" />
-                    </span>
-                  ) : null}
-                </button>
-              );
-            })}
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.stopPropagation();
+                            void handleRemoveTarget(target.id);
+                          }
+                        }}
+                        className={cn(
+                          'flex shrink-0 items-center justify-center rounded transition-all hover:bg-muted',
+                          isActive
+                            ? 'ml-0.5 size-4 opacity-60 hover:opacity-100'
+                            : 'size-0 overflow-hidden opacity-0 group-hover/tab:ml-0.5 group-hover/tab:size-4 group-hover/tab:opacity-60 group-hover/tab:hover:opacity-100',
+                        )}
+                        aria-label={target.kind === 'worktree' ? `Remove worktree ${target.title}` : `Close session ${target.title}`}
+                      >
+                        <XIcon className="size-2.5" />
+                      </span>
+                    ) : null}
+                  </Reorder.Item>
+                );
+              })}
+            </AnimatePresence>
+          </Reorder.Group>
 
-            <button
-              type="button"
-              onClick={handleAddCurrentBranchSession}
-              className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/40 transition-colors hover:bg-background/50 hover:text-muted-foreground"
-              aria-label="New session on current branch"
-            >
-              <PlusIcon className="size-3" />
-            </button>
-          </div>
+          <div className="flex shrink-0 items-center gap-0.5 border-l border-border/40 pl-2">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={handleAddCurrentBranchSession}
+                    className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/40 transition-colors hover:bg-background/50 hover:text-muted-foreground"
+                    aria-label="New session on current branch"
+                  >
+                    <PlusIcon className="size-3" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>New session on {rootBranch}</TooltipContent>
+              </Tooltip>
 
-          <div className="shrink-0 border-l border-border/40 pl-2">
-            <button
-              type="button"
-              onClick={handleCreateWorktree}
-              disabled={isCreatingWorktree}
-              className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-background/50 hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-            >
-              {isCreatingWorktree ? (
-                <LoaderCircleIcon className="size-3 animate-spin" />
-              ) : (
-                <GitBranchPlusIcon className="size-3" />
-              )}
-              Worktree
-            </button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={handleCreateWorktree}
+                    disabled={isCreatingWorktree}
+                    className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/40 transition-colors hover:bg-background/50 hover:text-muted-foreground disabled:pointer-events-none disabled:opacity-40"
+                    aria-label="New worktree"
+                  >
+                    {isCreatingWorktree ? (
+                      <LoaderCircleIcon className="size-3 animate-spin" />
+                    ) : (
+                      <GitBranchPlusIcon className="size-3" />
+                    )}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>{`New worktree from ${worktreeBaseBranchLabel}`}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </div>
       </Tabs>

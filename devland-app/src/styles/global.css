@@ -176,6 +176,7 @@
 
 .devland-terminal .xterm-viewport {
   scrollbar-color: color-mix(in oklab, var(--muted-foreground) 32%, transparent) transparent;
+  background: transparent !important;
 }
 
 .devland-terminal .xterm-rows {

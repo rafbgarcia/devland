@@ -13,4 +13,3 @@ MLP
 TODO:
 - Files changed double-click open on editor (Editor user preference)
 - Codex scroll, follow up messages, context window
-- Git history limit

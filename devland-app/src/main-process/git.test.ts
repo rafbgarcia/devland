@@ -16,6 +16,7 @@ import {
   checkGitWorktreeRemoval,
   commitWorkingTreeSelection,
   createGitWorktree,
+  getGitDefaultBranch,
   getGitBranchHistory,
   getGitStatus,
   getGitWorkingTreeDiff,
@@ -260,6 +261,32 @@ describe('getGitBranchHistory', () => {
       rmSync(repoPath, { recursive: true, force: true });
     }
   });
+
+  it('limits branch history to the most recent 30 commits', async () => {
+    const repoPath = mkdtempSync(path.join(tmpdir(), 'devland-git-test-'));
+
+    try {
+      await execGit(repoPath, ['init']);
+      await execGit(repoPath, ['config', 'user.name', 'Devland Test']);
+      await execGit(repoPath, ['config', 'user.email', 'devland@example.com']);
+
+      const filePath = path.join(repoPath, 'example.ts');
+
+      for (let commitNumber = 1; commitNumber <= 35; commitNumber += 1) {
+        writeFileSync(filePath, `export const value = ${commitNumber};\n`, 'utf8');
+        await execGit(repoPath, ['add', 'example.ts']);
+        await execGit(repoPath, ['commit', '-m', `Commit ${commitNumber}`]);
+      }
+
+      const history = await getGitBranchHistory(repoPath, 'HEAD');
+
+      assert.equal(history.commits.length, 30);
+      assert.equal(history.commits[0]?.title, 'Commit 35');
+      assert.equal(history.commits.at(-1)?.title, 'Commit 6');
+    } finally {
+      rmSync(repoPath, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('getGitStatus', () => {
@@ -298,11 +325,11 @@ describe('getGitStatus', () => {
 });
 
 describe('createGitWorktree', () => {
-  it('creates a detached worktree without creating a branch ref', async () => {
+  it('creates a detached worktree from the repo default branch without creating a branch ref', async () => {
     const repoPath = await createCommittedRepo();
 
     try {
-      const result = await createGitWorktree(repoPath, 'main');
+      const result = await createGitWorktree(repoPath);
       const worktreeStatus = await getGitStatus(result.cwd);
       const branches = (await execGit(repoPath, ['branch', '--format=%(refname:short)'])).stdout
         .trim()
@@ -316,6 +343,43 @@ describe('createGitWorktree', () => {
       await removeGitWorktree(repoPath, result.cwd, true);
     } finally {
       rmSync(repoPath, { recursive: true, force: true });
+    }
+  });
+
+  it('uses origin HEAD when the default branch is not main or master', async () => {
+    const repoPath = mkdtempSync(path.join(tmpdir(), 'devland-git-test-'));
+    const remotePath = mkdtempSync(path.join(tmpdir(), 'devland-git-remote-test-'));
+
+    try {
+      await execGit(remotePath, ['init', '--bare']);
+      await execGit(repoPath, ['init']);
+      await execGit(repoPath, ['config', 'user.name', 'Devland Test']);
+      await execGit(repoPath, ['config', 'user.email', 'devland@example.com']);
+
+      writeFileSync(path.join(repoPath, 'tracked.txt'), 'tracked\n', 'utf8');
+      await execGit(repoPath, ['add', 'tracked.txt']);
+      await execGit(repoPath, ['commit', '-m', 'Initial commit']);
+      await execGit(repoPath, ['branch', '-M', 'trunk']);
+      await execGit(repoPath, ['remote', 'add', 'origin', remotePath]);
+      await execGit(repoPath, ['push', '-u', 'origin', 'trunk']);
+      await execGit(remotePath, ['symbolic-ref', 'HEAD', 'refs/heads/trunk']);
+      await execGit(repoPath, ['remote', 'set-head', 'origin', '-a']);
+
+      assert.equal(await getGitDefaultBranch(repoPath), 'trunk');
+
+      const result = await createGitWorktree(repoPath);
+      const worktreeStatus = await getGitStatus(result.cwd);
+
+      assert.equal(worktreeStatus.branch, 'HEAD');
+      assert.equal(
+        (await execGit(result.cwd, ['rev-parse', 'HEAD'])).stdout.trim(),
+        (await execGit(repoPath, ['rev-parse', 'trunk'])).stdout.trim(),
+      );
+
+      await removeGitWorktree(repoPath, result.cwd, true);
+    } finally {
+      rmSync(repoPath, { recursive: true, force: true });
+      rmSync(remotePath, { recursive: true, force: true });
     }
   });
 });

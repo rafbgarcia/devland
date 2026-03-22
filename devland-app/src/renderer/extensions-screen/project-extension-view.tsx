@@ -133,8 +133,7 @@ export function ProjectExtensionView({
     }
 
     const repo = repoDetails.data;
-    const status = await window.electronAPI.getGitStatus(repo.path);
-    const worktree = await window.electronAPI.createGitWorktree(repo.path, status.branch);
+    const worktree = await window.electronAPI.createGitWorktree(repo.path);
     const target = addWorktreeTarget(worktree.cwd, worktree.initialTitle);
 
     if (worktree.worktreeSetupCommand) {

@@ -193,6 +193,16 @@ export function useCodeTargets(
     [repoId, updateCodeTargets],
   );
 
+  const reorderTargets = useCallback(
+    (reordered: CodeTarget[]) => {
+      updateCodeTargets((current) => ({
+        ...current,
+        [repoId]: reordered.filter((target) => target.kind !== 'root'),
+      }));
+    },
+    [repoId, updateCodeTargets],
+  );
+
   return {
     rootTarget,
     targets,
@@ -201,6 +211,7 @@ export function useCodeTargets(
     addCurrentBranchSession,
     addWorktreeTarget,
     removeTarget,
+    reorderTargets,
     restoreTarget,
     updateTarget,
   };

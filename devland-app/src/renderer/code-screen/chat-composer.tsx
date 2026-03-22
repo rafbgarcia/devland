@@ -179,7 +179,7 @@ export const ChatComposer = memo(function ChatComposer({
   const fileInputId = useId();
 
   const isInputDisabled = isRunning || isSending;
-  const placeholder = 'You know the rules and so do I... "@file" searches on the active project, "@/file" searches on all projects';
+  const placeholder = '♪ You know the rules and so do I...';
   const tagMenuQuery = tagTrigger?.query.trim() ?? '';
   const isTagMenuOpen = tagTrigger !== null && tagMenuQuery.length > 0;
   const openAttachment =
@@ -631,6 +631,8 @@ export const ChatComposer = memo(function ChatComposer({
             </button>
           ) : null}
         </form>
+
+        <p className='text-xs text-muted-foreground mt-0.5 ml-10'>"@file" to search on the active project ⋅ "@/file" to search on all projects</p>
       </div>
 
       {composerNotice ? (

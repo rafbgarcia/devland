@@ -675,7 +675,7 @@ export interface ElectronApi {
   getGitWorkingTreeDiff: (repoPath: string) => Promise<string>;
   checkoutGitBranch: (repoPath: string, branchName: string) => Promise<void>;
   getGitFileDiff: (repoPath: string, filePath: string) => Promise<string>;
-  createGitWorktree: (repoPath: string, baseBranch: string) => Promise<CreateGitWorktreeResult>;
+  createGitWorktree: (repoPath: string) => Promise<CreateGitWorktreeResult>;
   suggestGitWorktreeBranchName: (
     repoPath: string,
     prompt: string,

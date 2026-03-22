@@ -256,8 +256,8 @@ export const registerAppIpcHandlers = (
   );
   ipcMain.handle(
     CREATE_GIT_WORKTREE_CHANNEL,
-    async (_event, repoPath: string, baseBranch: string) => {
-      const result = await createGitWorktree(repoPath, baseBranch);
+    async (_event, repoPath: string) => {
+      const result = await createGitWorktree(repoPath);
       const config = await readRepoConfig(repoPath);
 
       return {

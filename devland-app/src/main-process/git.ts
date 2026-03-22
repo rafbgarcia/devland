@@ -50,6 +50,7 @@ const getGitReadOnlyExecOptions = () =>
   getGitExecOptionsWithEnv({ GIT_OPTIONAL_LOCKS: '0' });
 
 const DEFAULT_TEXT_READ_MAX_BYTES = 256 * 1024;
+const MAX_GIT_BRANCH_HISTORY_COMMITS = 30;
 
 const normalizeGitHubSlug = (value: string): string | null => {
   const normalizedValue = value.trim().replace(/\.git$/i, '').replace(/\/$/, '');
@@ -825,8 +826,8 @@ export const getWorkingTreeFileText = async ({
 
 export const createGitWorktree = async (
   repoPath: string,
-  baseBranch: string,
 ): Promise<CreateGitWorktreeResult> => {
+  const baseBranch = await getGitDefaultBranch(repoPath);
   const basePath = buildWorktreeBasePath(repoPath);
   const directoryName = buildDetachedWorktreeDirectoryName(baseBranch);
   const targetPath = path.join(basePath, directoryName);
@@ -1467,7 +1468,7 @@ export const getGitBranchHistory = async (
       branchRevision,
       `--format=${format}`,
       '--date-order',
-      '--max-count=200',
+      `--max-count=${MAX_GIT_BRANCH_HISTORY_COMMITS}`,
     ],
     { timeout: 15000, windowsHide: true },
   );
