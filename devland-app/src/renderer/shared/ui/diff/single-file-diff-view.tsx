@@ -27,7 +27,7 @@ export const SingleFileDiffView = memo(function SingleFileDiffView({
   rawDiff: AsyncState<string>;
   selectedFile: DiffRenderFile | null;
   topContent?: ReactNode;
-  emptyMessage: string;
+  emptyMessage: ReactNode;
   getRowSelectionType?: ((
     path: string,
     row: DiffRenderFile['rows'][number],
@@ -47,7 +47,7 @@ export const SingleFileDiffView = memo(function SingleFileDiffView({
   const handleSectionRef = useCallback(() => {}, []);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       {topContent}
 
       {rawDiff.status === 'error' ? (
@@ -58,7 +58,7 @@ export const SingleFileDiffView = memo(function SingleFileDiffView({
 
       {rawDiff.status === 'ready' && selectedFile === null ? (
         <div className="flex flex-1 items-center justify-center">
-          <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+          {emptyMessage}
         </div>
       ) : null}
 

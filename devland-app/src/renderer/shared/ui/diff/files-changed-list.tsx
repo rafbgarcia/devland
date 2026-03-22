@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 
 import type { DiffFileStatus, DiffSelectionType } from '@/lib/diff';
 import { cn } from '@/shadcn/lib/utils';
@@ -88,7 +88,7 @@ export function FilesChangedList({
   actions?: ReactNode;
   topContent?: ReactNode;
   bottomContent?: ReactNode;
-  emptyMessage?: string;
+  emptyMessage?: ReactNode;
   getFileSelectionType?: ((path: string) => DiffSelectionType) | undefined;
   onToggleFileSelection?: ((path: string) => void) | undefined;
   onOpenFile?: ((path: string) => void) | undefined;
@@ -200,7 +200,7 @@ export function FilesChangedList({
         aria-label="Changed files"
       >
         {files.length === 0 ? (
-          <div className="px-3 py-4 text-xs text-muted-foreground">
+          <div className="flex flex-1 items-center justify-center px-3 py-8">
             {emptyMessage}
           </div>
         ) : files.map((file, index) => {

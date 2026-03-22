@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 
+import { CircleCheckIcon } from 'lucide-react';
+import { motion } from 'motion/react';
+
 import type {
   ExternalEditorPreference,
   GitStatusFile,
@@ -92,7 +95,7 @@ function ActiveDiffViewport({
     | { kind: 'commit'; repoPath: string; commitRevision: string; parentRevision: string | null }
     | null;
   selectedFilePath: string | null;
-  emptyMessage: string;
+  emptyMessage: ReactNode;
   isWorkingTreeSelection: boolean;
   getRowSelectionType: ReturnType<typeof useWorkingTreeCommitSelection>['getRowSelectionType'];
   getHunkSelectionType: (path: string, hunkStartLineNumber: number) => 'none' | 'all' | 'partial';
@@ -247,9 +250,37 @@ export function ChangesPane({
   const activeDiffState = selection.type === 'working-tree'
     ? workingTreeState.rawDiff
     : commitDiffState.rawDiff;
-  const emptyMessage = selection.type === 'working-tree'
-    ? (activeDiffState.status === 'loading' ? '' : 'Working tree is clean.')
-    : (activeDiffState.status === 'loading' ? '' : 'No file changes in this commit.');
+  const sidebarEmptyMessage = selection.type === 'working-tree'
+    ? (activeDiffState.status === 'loading' ? null : (
+        <div className="flex flex-col items-center gap-1.5 text-center">
+          <CircleCheckIcon className="size-5 text-emerald-500/30" />
+          <div>
+            <p className="text-xs font-medium text-muted-foreground/60">No changes</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground/35">Modified files will appear here</p>
+          </div>
+        </div>
+      ))
+    : (activeDiffState.status === 'loading' ? null : (
+        <p className="text-xs text-muted-foreground/50">No file changes in this commit.</p>
+      ));
+  const viewportEmptyMessage = selection.type === 'working-tree'
+    ? (activeDiffState.status === 'loading' ? null : (
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: 'easeOut' }}
+          className="text-center"
+        >
+          <CircleCheckIcon className="mx-auto mb-3 size-10 text-emerald-500/20" />
+          <p className="text-sm font-medium text-foreground/50">Working tree is clean</p>
+          <p className="mt-1.5 text-xs text-muted-foreground/40">
+            File changes will appear here as you work
+          </p>
+        </motion.div>
+      ))
+    : (activeDiffState.status === 'loading' ? null : (
+        <p className="text-sm text-muted-foreground">No file changes in this commit.</p>
+      ));
   const historyCommits = historyState.status === 'ready'
     ? historyState.data.commits
     : [];
@@ -471,7 +502,7 @@ export function ChangesPane({
       onSelectFile={handleFileSelect}
       selectedCommit={selectedCommit}
       onRestoreBranchState={handleRestoreWorkingTree}
-      emptyMessage={emptyMessage}
+      emptyMessage={sidebarEmptyMessage}
       workingTreeCommitState={workingTreeCommitState}
       historyCommits={historyCommits}
       historyIsLoading={historyIsLoading}
@@ -497,7 +528,7 @@ export function ChangesPane({
       rawDiff={activeDiffState}
       renderContext={renderContext}
       selectedFilePath={selectedFilePath}
-      emptyMessage={emptyMessage}
+      emptyMessage={viewportEmptyMessage}
       isWorkingTreeSelection={isWorkingTreeSelection}
       getRowSelectionType={workingTreeCommitSelection.getRowSelectionType}
       getHunkSelectionType={getWorkingTreeHunkSelectionType}

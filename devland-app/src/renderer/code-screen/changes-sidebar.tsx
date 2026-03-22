@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { memo, useMemo, type ReactNode } from 'react';
 
 import {
   AlertCircleIcon,
@@ -94,7 +94,7 @@ export const ChangesSidebar = memo(function ChangesSidebar({
   onSelectFile: (path: string) => void;
   selectedCommit: PrCommit | null;
   onRestoreBranchState: () => void;
-  emptyMessage: string;
+  emptyMessage: ReactNode;
   workingTreeCommitState?: {
     selectedFileCount: number;
     totalFileCount: number;
