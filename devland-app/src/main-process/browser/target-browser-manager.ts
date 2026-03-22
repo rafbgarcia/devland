@@ -9,16 +9,18 @@ import {
   type Session,
 } from 'electron';
 
-import type {
-  BrowserViewBounds,
-  BrowserViewEvent,
-  BrowserViewSnapshot,
+import {
+  APP_SHORTCUT_COMMAND_CHANNEL,
+  type BrowserViewBounds,
+  type BrowserViewEvent,
+  type BrowserViewSnapshot,
 } from '@/ipc/contracts';
 import {
   createBrowserPartition,
   isAllowedBrowserUrl,
   isSafeExternalUrl,
 } from '@/main-process/browser/browser-session-utils';
+import { registerAppShortcutForwarding } from '@/main-process/app-shortcuts';
 
 type ManagedBrowserTarget = {
   targetId: string;
@@ -274,6 +276,9 @@ export class TargetBrowserManager extends EventEmitter<{
       }
 
       return { action: 'deny' };
+    });
+    registerAppShortcutForwarding(view.webContents, (command) => {
+      this.getMainWindow()?.webContents.send(APP_SHORTCUT_COMMAND_CHANNEL, command);
     });
 
     view.webContents.on('will-navigate', (event, navigationUrl) => {

@@ -32,6 +32,7 @@ import {
 } from '@/lib/codex-chat';
 import type { RepoSuggestedPrompt } from '@/extensions/contracts';
 import {
+  type AppShortcutCommand,
   type CodeTarget,
   type CodeWorkspacePane,
   type RemoveGitWorktreeReason,
@@ -80,6 +81,13 @@ import {
   rememberCodePane,
   rememberCodeTarget,
 } from '@/renderer/shared/lib/workspace-view-state';
+import {
+  useAppShortcutCommand,
+} from '@/renderer/shared/lib/use-app-shortcut-command';
+import {
+  getAdjacentCodePaneId,
+  getAdjacentCodeTargetId,
+} from '@/renderer/shared/lib/workspace-shortcuts';
 import { useRepoCodexChangeOrderState } from '@/renderer/code-screen/use-codex-change-order-state';
 import { useWorkspaceSession } from '@/renderer/projects-shell/use-workspace-session';
 import { useRepos } from '@/renderer/projects-shell/use-repos';
@@ -208,7 +216,6 @@ export function CodeWorkspaceScreen({
       ? preferences.externalEditor.editorName
       : 'Custom editor';
   }, [preferences.externalEditor]);
-
   const {
     rootTarget,
     targets,
@@ -750,6 +757,39 @@ export function CodeWorkspaceScreen({
 
     rememberActiveTarget(target.id);
   }, [addCurrentBranchSession, rememberActiveTarget]);
+  const handleAppShortcutCommand = useEffectEvent((command: AppShortcutCommand) => {
+    if (pendingWorktreeRemoval !== null || isRemovingWorktree) {
+      return;
+    }
+
+    if (command.type === 'cycle-code-target-tab') {
+      const nextTargetId = getAdjacentCodeTargetId(targets, activeTargetId, command.direction);
+
+      if (nextTargetId !== null) {
+        rememberActiveTarget(nextTargetId);
+      }
+
+      return;
+    }
+
+    if (command.type === 'cycle-code-pane') {
+      rememberActivePane(getAdjacentCodePaneId(activePaneId, command.direction));
+      return;
+    }
+
+    if (command.type === 'create-code-session') {
+      handleAddCurrentBranchSession();
+      return;
+    }
+
+    if (command.type === 'close-current-tab' && activeTarget.kind !== 'root') {
+      void handleRemoveTarget(activeTarget.id);
+    }
+  });
+
+  useAppShortcutCommand((command) => {
+    handleAppShortcutCommand(command);
+  });
 
   const renderWorkspaceLayout = useCallback((
     sidebar: ReactNode,
@@ -765,22 +805,24 @@ export function CodeWorkspaceScreen({
       <ResizableHandle onResizeStart={() => { sidebarWidthAtDragStart.current = sidebarWidth; }} onResize={handleSidebarResize} />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
-        <LayerToggle
-          activePaneId={activePaneId}
-          onChangePane={rememberActivePane}
-          codexMenu={(
-            <CodexTabMenu
-              cwd={activeTarget.cwd}
-              currentThreadId={sessionState.threadId}
-              settings={composerSettings}
-              onSettingsChange={handleComposerSettingsChange}
-              onNewSession={() => resetSession(activeTarget.id)}
-              onSelectThread={(threadId) =>
-                resumeThread(activeTarget.id, activeTarget.cwd, composerSettings, threadId)
-              }
-            />
-          )}
-        />
+        <div>
+          <LayerToggle
+            activePaneId={activePaneId}
+            onChangePane={rememberActivePane}
+            codexMenu={(
+              <CodexTabMenu
+                cwd={activeTarget.cwd}
+                currentThreadId={sessionState.threadId}
+                settings={composerSettings}
+                onSettingsChange={handleComposerSettingsChange}
+                onNewSession={() => resetSession(activeTarget.id)}
+                onSelectThread={(threadId) =>
+                  resumeThread(activeTarget.id, activeTarget.cwd, composerSettings, threadId)
+                }
+              />
+            )}
+          />
+        </div>
 
         <div className="relative min-h-0 flex-1 overflow-hidden">
           <AnimatePresence mode="wait" initial={false}>
@@ -856,7 +898,6 @@ export function CodeWorkspaceScreen({
     activeTarget.id,
     activeTargetLabel,
     composerSettings,
-    handleAddCurrentBranchSession,
     handleComposerSettingsChange,
     handleImplementPlan,
     handleSendPrompt,
@@ -929,7 +970,9 @@ export function CodeWorkspaceScreen({
 
       <div className="flex h-full min-h-0 flex-col">
       <Tabs className="gap-0" value={activeTargetId} onValueChange={handleActiveTargetChange}>
-        <div className="flex items-center gap-1 border-b border-border bg-muted/20 px-2 py-1.5">
+        <div
+          className="flex items-center gap-1 border-b border-border bg-muted/20 px-2 py-1.5"
+        >
           <Reorder.Group
             axis="x"
             values={targets}
@@ -974,9 +1017,7 @@ export function CodeWorkspaceScreen({
                     ) : null}
                     <span className="truncate select-none whitespace-nowrap">{label}</span>
                     {target.kind !== 'root' ? (
-                      <span
-                        role="button"
-                        tabIndex={0}
+                      <button
                         onMouseDown={(event) => {
                           event.preventDefault();
                           event.stopPropagation();
@@ -987,22 +1028,18 @@ export function CodeWorkspaceScreen({
                           event.stopPropagation();
                           void handleRemoveTarget(target.id);
                         }}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter') {
-                            event.stopPropagation();
-                            void handleRemoveTarget(target.id);
-                          }
-                        }}
                         className={cn(
                           'flex shrink-0 items-center justify-center rounded transition-all hover:bg-muted',
                           isActive
                             ? 'ml-0.5 size-4 opacity-60 hover:opacity-100'
                             : 'size-0 overflow-hidden opacity-0 group-hover/tab:ml-0.5 group-hover/tab:size-4 group-hover/tab:opacity-60 group-hover/tab:hover:opacity-100',
                         )}
+                        aria-keyshortcuts="Meta+W"
                         aria-label={target.kind === 'worktree' ? `Remove worktree ${target.title}` : `Close session ${target.title}`}
+                        type="button"
                       >
                         <XIcon className="size-2.5" />
-                      </span>
+                      </button>
                     ) : null}
                   </Reorder.Item>
                 );

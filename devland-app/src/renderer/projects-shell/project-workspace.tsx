@@ -18,11 +18,22 @@ import {
   isAbsoluteProjectPath,
 } from '@/renderer/shared/lib/projects';
 import {
+  getRememberedCodeTargetId,
   getRememberedProjectTabId,
   rememberProjectTab,
 } from '@/renderer/shared/lib/workspace-view-state';
+import {
+  useAppShortcutCommand,
+  useShortcutHintsOpen,
+} from '@/renderer/shared/lib/use-app-shortcut-command';
+import {
+  CODE_SHORTCUT_GROUPS,
+  PROJECT_SHORTCUT_GROUP,
+} from '@/renderer/shared/lib/shortcut-hints';
+import { isRootCodeTargetId } from '@/renderer/shared/lib/workspace-shortcuts';
 import { useProjectExtensions } from '@/renderer/extensions-screen/use-project-extensions';
 import { ExtensionTabIcon } from '@/renderer/shared/ui/extension-tab-icon';
+import { ShortcutHintsOverlay } from '@/renderer/shared/ui/shortcut-hints-overlay';
 import { useRepoActions, useRepos } from './use-repos';
 import { useProjectRepo } from './use-project-repo';
 import { useWorkspaceSession } from './use-workspace-session';
@@ -40,7 +51,6 @@ import {
   Field,
   FieldError,
   FieldGroup,
-  FieldLabel,
 } from '@/shadcn/components/ui/field';
 import { Input } from '@/shadcn/components/ui/input';
 import { Spinner } from '@/shadcn/components/ui/spinner';
@@ -228,6 +238,7 @@ export function ProjectWorkspace({
     })(),
   });
   const repoViewByIdRef = useRef(session.repoViewById);
+  const showShortcutHints = useShortcutHintsOpen();
 
   const hasActiveRepo = activeRepoId !== null;
 
@@ -288,21 +299,47 @@ export function ProjectWorkspace({
         return;
       }
 
-      const nextRepoId = command.type === 'activate-project-tab-by-shortcut-slot'
-        ? getProjectTabRepoIdByShortcutSlot(repos, command.slot)
-        : getAdjacentProjectTabRepoId(repos, activeRepoId, command.direction);
+      if (command.type === 'activate-project-tab-by-shortcut-slot') {
+        const nextRepoId = getProjectTabRepoIdByShortcutSlot(repos, command.slot);
 
-      if (nextRepoId === null) {
+        if (nextRepoId !== null) {
+          navigateToTab(nextRepoId, getRepoSwitchTabId(nextRepoId));
+        }
+
         return;
       }
 
-      navigateToTab(nextRepoId, getRepoSwitchTabId(nextRepoId));
+      if (command.type === 'close-current-tab') {
+        const activeCodeTargetId = activeTabId === 'code'
+          ? getRememberedCodeTargetId(session, activeRepoId)
+          : null;
+
+        if (activeTabId === 'code' && !isRootCodeTargetId(activeRepoId, activeCodeTargetId)) {
+          return;
+        }
+
+        if (repos.length === 1) {
+          void window.electronAPI.closeCurrentWindow();
+          return;
+        }
+
+        handleRemoveRepo(activeRepoId);
+        return;
+      }
+
+      if (command.type !== 'cycle-project-tab') {
+        return;
+      }
+
+      const nextRepoId = getAdjacentProjectTabRepoId(repos, activeRepoId, command.direction);
+
+      if (nextRepoId !== null) {
+        navigateToTab(nextRepoId, getRepoSwitchTabId(nextRepoId));
+      }
     },
   );
 
-  useEffect(() => window.electronAPI.onAppShortcutCommand(handleAppShortcutCommand), [
-    handleAppShortcutCommand,
-  ]);
+  useAppShortcutCommand(handleAppShortcutCommand);
 
   const handleRemoveRepo = (repoId: string) => {
     const nextRepos = repos.filter((repo) => repo.id !== repoId);
@@ -328,79 +365,85 @@ export function ProjectWorkspace({
     navigateToTab(repo.id, activeTabId);
   };
 
+  const shortcutHintGroups = activeTabId === 'code'
+    ? [PROJECT_SHORTCUT_GROUP, ...CODE_SHORTCUT_GROUPS]
+    : [PROJECT_SHORTCUT_GROUP];
+
   return (
     <section className="flex h-screen w-full flex-col">
-      <Reorder.Group
-        axis="x"
-        values={repos}
-        onReorder={handleReorder}
-        className="flex shrink-0 items-end gap-px bg-muted px-2 pt-1.5"
-        as="div"
-      >
-        <AnimatePresence initial={false}>
-          {repos.map((repo) => {
-            const isActive = repo.id === activeRepoId;
-
-            return (
-              <Reorder.Item
-                key={repo.id}
-                value={repo}
-                onClick={() => {
-                  navigateToTab(repo.id, getRepoSwitchTabId(repo.id));
-                }}
-                initial={{ opacity: 0, width: 0 }}
-                animate={{
-                  opacity: 1,
-                  width: 'auto',
-                  transition: { type: 'spring', bounce: 0, duration: 0.2 },
-                }}
-                exit={{
-                  opacity: 0,
-                  width: 0,
-                  transition: { type: 'tween', ease: 'easeOut', duration: 0.2 },
-                }}
-                layout
-                className={cn(
-                  'group relative flex max-w-50 cursor-default items-center gap-1 overflow-hidden rounded-t-lg px-3 py-1.5 text-[13px]',
-                  isActive
-                    ? 'bg-card text-foreground shadow-[0_-1px_3px_-1px_rgba(0,0,0,0.08)]'
-                    : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground',
-                )}
-                as="div"
-                whileDrag={{ scale: 1.03, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
-              >
-                <span className="truncate select-none whitespace-nowrap">
-                  {getProjectLabel(repo.path)}
-                </span>
-                <button
-                  className={cn(
-                    'ml-0.5 flex size-4 shrink-0 items-center justify-center rounded-sm transition-colors',
-                    isActive
-                      ? 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                      : 'opacity-0 group-hover:opacity-100 hover:bg-muted hover:text-foreground',
-                  )}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    handleRemoveRepo(repo.id);
-                  }}
-                  onPointerDown={(event) => event.stopPropagation()}
-                  type="button"
-                >
-                  <XIcon className="size-3" />
-                </button>
-              </Reorder.Item>
-            );
-          })}
-        </AnimatePresence>
-
-        <button
-          onClick={() => setIsAddDialogOpen(true)}
-          className="mb-0.5 ml-0.5 flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
-          type="button"
+      <div>
+        <Reorder.Group
+          axis="x"
+          values={repos}
+          onReorder={handleReorder}
+          className="flex shrink-0 items-end gap-px bg-muted px-2 pt-1.5"
+          as="div"
         >
-          <PlusIcon className="size-3.5" />
-        </button>
-      </Reorder.Group>
+          <AnimatePresence initial={false}>
+            {repos.map((repo) => {
+              const isActive = repo.id === activeRepoId;
+
+              return (
+                <Reorder.Item
+                  key={repo.id}
+                  value={repo}
+                  onClick={() => {
+                    navigateToTab(repo.id, getRepoSwitchTabId(repo.id));
+                  }}
+                  initial={{ opacity: 0, width: 0 }}
+                  animate={{
+                    opacity: 1,
+                    width: 'auto',
+                    transition: { type: 'spring', bounce: 0, duration: 0.2 },
+                  }}
+                  exit={{
+                    opacity: 0,
+                    width: 0,
+                    transition: { type: 'tween', ease: 'easeOut', duration: 0.2 },
+                  }}
+                  layout
+                  className={cn(
+                    'group relative flex max-w-50 cursor-default items-center gap-1 overflow-hidden rounded-t-lg px-3 py-1.5 text-[13px]',
+                    isActive
+                      ? 'bg-card text-foreground shadow-[0_-1px_3px_-1px_rgba(0,0,0,0.08)]'
+                      : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground',
+                  )}
+                  as="div"
+                  whileDrag={{ scale: 1.03, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
+                >
+                  <span className="truncate select-none whitespace-nowrap">
+                    {getProjectLabel(repo.path)}
+                  </span>
+                  <button
+                    className={cn(
+                      'ml-0.5 flex size-4 shrink-0 items-center justify-center rounded-sm transition-colors',
+                      isActive
+                        ? 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                        : 'opacity-0 group-hover:opacity-100 hover:bg-muted hover:text-foreground',
+                    )}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleRemoveRepo(repo.id);
+                    }}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    type="button"
+                  >
+                    <XIcon className="size-3" />
+                  </button>
+                </Reorder.Item>
+              );
+            })}
+          </AnimatePresence>
+
+          <button
+            onClick={() => setIsAddDialogOpen(true)}
+            className="mb-0.5 ml-0.5 flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+            type="button"
+          >
+            <PlusIcon className="size-3.5" />
+          </button>
+        </Reorder.Group>
+      </div>
 
       <div className="flex min-h-0 flex-1 flex-col border border-border bg-card shadow-sm">
         {tabs.length > 0 && (
@@ -447,6 +490,11 @@ export function ProjectWorkspace({
         onOpenChange={setIsAddDialogOpen}
         onProjectAdded={handleProjectAdded}
         onSaveRepo={addRepo}
+      />
+
+      <ShortcutHintsOverlay
+        open={showShortcutHints && repos.length > 0 && !isAddDialogOpen}
+        groups={shortcutHintGroups}
       />
     </section>
   );

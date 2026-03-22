@@ -61,6 +61,7 @@ import {
   TerminalSessionEventSchema,
   BROWSER_VIEW_EVENT_CHANNEL,
   BrowserViewEventSchema,
+  CLOSE_CURRENT_WINDOW_CHANNEL,
   SHOW_BROWSER_VIEW_CHANNEL,
   HIDE_BROWSER_VIEW_CHANNEL,
   UPDATE_BROWSER_VIEW_BOUNDS_CHANNEL,
@@ -82,6 +83,7 @@ export const electronApi: ElectronApi = {
   },
   getAppBootstrap: () => ipcRenderer.invoke(GET_APP_BOOTSTRAP_CHANNEL),
   pickRepoDirectory: () => ipcRenderer.invoke(PICK_REPO_DIRECTORY_CHANNEL),
+  closeCurrentWindow: () => ipcRenderer.invoke(CLOSE_CURRENT_WINDOW_CHANNEL),
   validateLocalGitRepository: (directoryPath) =>
     ipcRenderer.invoke(VALIDATE_LOCAL_GIT_REPO_CHANNEL, directoryPath),
   getGithubRepoDetails: (projectPath) =>

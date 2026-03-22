@@ -16,6 +16,7 @@ import {
 
 export const GET_APP_BOOTSTRAP_CHANNEL = 'app:get-app-bootstrap';
 export const PICK_REPO_DIRECTORY_CHANNEL = 'app:pick-repo-directory';
+export const CLOSE_CURRENT_WINDOW_CHANNEL = 'app:close-current-window';
 export const VALIDATE_LOCAL_GIT_REPO_CHANNEL = 'app:validate-local-git-repo';
 export const GET_GITHUB_REPO_DETAILS_CHANNEL = 'app:get-github-repo-details';
 export const GET_REPO_CONFIG_CHANNEL = 'app:get-repo-config';
@@ -111,6 +112,23 @@ export const AppShortcutCommandSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('cycle-project-tab'),
     direction: AppShortcutDirectionSchema,
+  }),
+  z.object({
+    type: z.literal('cycle-code-target-tab'),
+    direction: AppShortcutDirectionSchema,
+  }),
+  z.object({
+    type: z.literal('cycle-code-pane'),
+    direction: AppShortcutDirectionSchema,
+  }),
+  z.object({
+    type: z.literal('create-code-session'),
+  }),
+  z.object({
+    type: z.literal('close-current-tab'),
+  }),
+  z.object({
+    type: z.literal('toggle-shortcut-hints'),
   }),
 ]);
 export type AppShortcutCommand = z.infer<typeof AppShortcutCommandSchema>;
@@ -638,6 +656,7 @@ export interface ElectronApi {
   };
   getAppBootstrap: () => Promise<AppBootstrap>;
   pickRepoDirectory: () => Promise<string | null>;
+  closeCurrentWindow: () => Promise<void>;
   validateLocalGitRepository: (directoryPath: string) => Promise<void>;
   getGithubRepoDetails: (projectPath: string) => Promise<RepoDetails>;
   getRepoConfig: (repoPath: string) => Promise<RepoConfig>;

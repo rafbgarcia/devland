@@ -1,4 +1,4 @@
-import { dialog, ipcMain, type BrowserWindow, type IpcMainInvokeEvent, type OpenDialogOptions } from 'electron';
+import { BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent, type OpenDialogOptions } from 'electron';
 
 import type {
   CodexComposerSettings,
@@ -7,6 +7,7 @@ import type {
 import {
   BROWSER_VIEW_EVENT_CHANNEL,
   CODEX_SESSION_EVENT_CHANNEL,
+  CLOSE_CURRENT_WINDOW_CHANNEL,
   GET_APP_BOOTSTRAP_CHANNEL,
   GET_GITHUB_REPO_DETAILS_CHANNEL,
   GET_REPO_CONFIG_CHANNEL,
@@ -180,6 +181,9 @@ export const registerAppIpcHandlers = (
   ipcMain.handle(PICK_REPO_DIRECTORY_CHANNEL, () =>
     pickRepoDirectory(getMainWindow()),
   );
+  ipcMain.handle(CLOSE_CURRENT_WINDOW_CHANNEL, (event: IpcMainInvokeEvent) => {
+    BrowserWindow.fromWebContents(event.sender)?.close();
+  });
   ipcMain.handle(
     VALIDATE_LOCAL_GIT_REPO_CHANNEL,
     (_event, directoryPath: string) =>
