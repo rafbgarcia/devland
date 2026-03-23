@@ -36,6 +36,7 @@ import {
   REMOVE_GIT_WORKTREE_CHANNEL,
   COMMIT_WORKING_TREE_SELECTION_CHANNEL,
   GET_COMMIT_DIFF_CHANNEL,
+  GET_GIT_PROMPT_REQUEST_ASSET_DATA_URL_CHANNEL,
   GET_GIT_BLOB_TEXT_CHANNEL,
   GET_WORKING_TREE_FILE_TEXT_CHANNEL,
   GET_COMMIT_PARENT_CHANNEL,
@@ -105,6 +106,7 @@ import {
   getGitBlobText,
   getCommitDiff,
   getCommitParent,
+  getGitPromptRequestAssetDataUrl,
   getGitBranches,
   getGitDefaultBranch,
   getGitBranchHistory,
@@ -352,6 +354,11 @@ export const registerAppIpcHandlers = (
     GET_COMMIT_DIFF_CHANNEL,
     (_event, repoPath: string, commitSha: string) =>
       getCommitDiff(repoPath, commitSha),
+  );
+  ipcMain.handle(
+    GET_GIT_PROMPT_REQUEST_ASSET_DATA_URL_CHANNEL,
+    (_event, input: { repoPath: string; ref: string; assetPath: string; mimeType: string }) =>
+      getGitPromptRequestAssetDataUrl(input),
   );
   ipcMain.handle(
     GET_GIT_BLOB_TEXT_CHANNEL,

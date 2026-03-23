@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { execFile, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
@@ -30,6 +30,7 @@ import {
   type RemoveGitWorktreeReason,
   type RepoDetails,
 } from '../ipc/contracts';
+import { resolveCodexAttachmentPath } from './codex-attachments';
 import { parseUnifiedDiffDocument } from '../lib/diff';
 
 const execFileAsync = promisify(execFile);
@@ -50,8 +51,23 @@ const getGitReadOnlyExecOptions = () =>
   getGitExecOptionsWithEnv({ GIT_OPTIONAL_LOCKS: '0' });
 
 const DEFAULT_TEXT_READ_MAX_BYTES = 256 * 1024;
+const DEFAULT_BINARY_READ_MAX_BYTES = 10 * 1024 * 1024;
 const MAX_GIT_BRANCH_HISTORY_COMMITS = 30;
 const GIT_PROMPT_REQUEST_NOTES_REF = 'devland-prompt-requests';
+export const GIT_PROMPT_REQUEST_ASSETS_REF = 'refs/devland/prompt-request-assets';
+const GIT_PROMPT_REQUEST_ASSETS_COMMIT_MESSAGE = 'Devland prompt request assets';
+const PROMPT_REQUEST_ASSET_EXTENSION_BY_TYPE: Record<string, string> = {
+  'image/avif': '.avif',
+  'image/bmp': '.bmp',
+  'image/gif': '.gif',
+  'image/heic': '.heic',
+  'image/jpeg': '.jpg',
+  'image/jpg': '.jpg',
+  'image/png': '.png',
+  'image/svg+xml': '.svg',
+  'image/tiff': '.tiff',
+  'image/webp': '.webp',
+};
 
 const normalizeGitHubSlug = (value: string): string | null => {
   const normalizedValue = value.trim().replace(/\.git$/i, '').replace(/\/$/, '');
@@ -1257,7 +1273,10 @@ export async function writeGitPromptRequestNote(input: {
   commitSha: string;
   snapshot: GitPromptRequestSnapshot;
 }): Promise<void> {
-  const parsedSnapshot = GitPromptRequestSnapshotSchema.parse(input.snapshot);
+  const parsedSnapshot = await persistGitPromptRequestSnapshotAssets(
+    input.repoPath,
+    GitPromptRequestSnapshotSchema.parse(input.snapshot),
+  );
   const tempDir = mkdtempSync(path.join(tmpdir(), 'devland-prompt-request-'));
   const tempFilePath = path.join(tempDir, 'note.json');
 
@@ -1306,6 +1325,293 @@ export async function getGitBranchPromptRequests(input: {
     headBranch: compareMeta.headBranch,
     commits,
   });
+}
+
+function getPromptRequestAssetExtension(name: string, mimeType: string): string {
+  const providedExtension = path.extname(name.trim());
+  return providedExtension || PROMPT_REQUEST_ASSET_EXTENSION_BY_TYPE[mimeType] || '';
+}
+
+function parsePromptRequestAttachmentDataUrl(
+  dataUrl: string,
+): { mimeType: string; bytes: Buffer } {
+  if (!dataUrl.startsWith('data:')) {
+    throw new Error('Unsupported prompt request attachment URL format.');
+  }
+
+  const commaIndex = dataUrl.indexOf(',');
+
+  if (commaIndex === -1) {
+    throw new Error('Malformed prompt request attachment data URL.');
+  }
+
+  const metadata = dataUrl.slice('data:'.length, commaIndex);
+  const payload = dataUrl.slice(commaIndex + 1);
+  const isBase64 = metadata.endsWith(';base64');
+  const mimeType = (isBase64 ? metadata.slice(0, -';base64'.length) : metadata).trim();
+
+  if (!isBase64) {
+    throw new Error('Prompt request attachment data URL must be base64 encoded.');
+  }
+
+  return {
+    mimeType,
+    bytes: Buffer.from(payload, 'base64'),
+  };
+}
+
+function toPromptRequestAssetPath(sha256: string, name: string, mimeType: string): string {
+  return path.posix.join(
+    'images',
+    sha256.slice(0, 2),
+    `${sha256}${getPromptRequestAssetExtension(name, mimeType)}`,
+  );
+}
+
+async function resolveGitRefCommit(repoPath: string, refName: string): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['-C', repoPath, 'rev-parse', '--verify', `${refName}^{commit}`],
+      getGitReadOnlyExecOptions(),
+    );
+
+    return stdout.trim() || null;
+  } catch (error) {
+    const gitError = error as NodeJS.ErrnoException & { stderr?: string };
+
+    if (
+      gitError.stderr?.includes('unknown revision') ||
+      gitError.stderr?.includes('Needed a single revision') ||
+      gitError.stderr?.includes('bad revision')
+    ) {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
+async function resolveGitCommitTree(repoPath: string, commitSha: string): Promise<string> {
+  const { stdout } = await execFileAsync(
+    'git',
+    ['-C', repoPath, 'rev-parse', '--verify', `${commitSha}^{tree}`],
+    getGitReadOnlyExecOptions(),
+  );
+
+  return stdout.trim();
+}
+
+async function hashGitBlob(repoPath: string, bytes: Buffer): Promise<string> {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'devland-prompt-request-blob-'));
+  const tempFilePath = path.join(tempDir, 'asset');
+
+  try {
+    writeFileSync(tempFilePath, bytes);
+    const { stdout } = await execFileAsync(
+      'git',
+      ['-C', repoPath, 'hash-object', '-w', tempFilePath],
+      getGitExecOptions(),
+    );
+
+    return stdout.trim();
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+type PreparedPromptRequestAsset = {
+  attachmentPath: string;
+  sha256: string;
+  bytes: Buffer;
+};
+
+async function storePromptRequestAssets(
+  repoPath: string,
+  preparedAssets: PreparedPromptRequestAsset[],
+): Promise<void> {
+  if (preparedAssets.length === 0) {
+    return;
+  }
+
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'devland-prompt-request-assets-'));
+  const indexPath = path.join(tempDir, 'index');
+  writeFileSync(indexPath, '');
+
+  try {
+    const parentCommit = await resolveGitRefCommit(repoPath, GIT_PROMPT_REQUEST_ASSETS_REF);
+    const indexEnv = {
+      GIT_INDEX_FILE: indexPath,
+    };
+
+    if (parentCommit) {
+      await execFileAsync(
+        'git',
+        ['-C', repoPath, 'read-tree', parentCommit],
+        getGitExecOptionsWithEnv(indexEnv),
+      );
+    }
+
+    for (const asset of preparedAssets) {
+      const blobSha = await hashGitBlob(repoPath, asset.bytes);
+
+      await execFileAsync(
+        'git',
+        [
+          '-C',
+          repoPath,
+          'update-index',
+          '--add',
+          '--cacheinfo',
+          '100644',
+          blobSha,
+          asset.attachmentPath,
+        ],
+        getGitExecOptionsWithEnv(indexEnv),
+      );
+    }
+
+    const { stdout: treeStdout } = await execFileAsync(
+      'git',
+      ['-C', repoPath, 'write-tree'],
+      getGitExecOptionsWithEnv(indexEnv),
+    );
+    const nextTree = treeStdout.trim();
+
+    if (!nextTree) {
+      return;
+    }
+
+    if (parentCommit) {
+      const parentTree = await resolveGitCommitTree(repoPath, parentCommit);
+
+      if (parentTree === nextTree) {
+        return;
+      }
+    }
+
+    const commitArgs = ['-C', repoPath, 'commit-tree', nextTree];
+
+    if (parentCommit) {
+      commitArgs.push('-p', parentCommit);
+    }
+
+    commitArgs.push('-m', GIT_PROMPT_REQUEST_ASSETS_COMMIT_MESSAGE);
+
+    const { stdout: commitStdout } = await execFileAsync(
+      'git',
+      commitArgs,
+      getGitExecOptions(),
+    );
+    const nextCommit = commitStdout.trim();
+
+    if (!nextCommit) {
+      throw new Error('Failed to create prompt request asset commit.');
+    }
+
+    const updateRefArgs = ['-C', repoPath, 'update-ref', GIT_PROMPT_REQUEST_ASSETS_REF, nextCommit];
+
+    if (parentCommit) {
+      updateRefArgs.push(parentCommit);
+    }
+
+    await execFileAsync('git', updateRefArgs, getGitExecOptions());
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+async function persistGitPromptRequestSnapshotAssets(
+  repoPath: string,
+  snapshot: GitPromptRequestSnapshot,
+): Promise<GitPromptRequestSnapshot> {
+  const preparedAssetsByPath = new Map<string, PreparedPromptRequestAsset>();
+
+  const nextTranscriptEntries = snapshot.transcriptEntries.map((entry) => {
+    if (entry.kind !== 'message') {
+      return entry;
+    }
+
+    return {
+      ...entry,
+      message: {
+        ...entry.message,
+        attachments: entry.message.attachments.map((attachment) => {
+          if (attachment.previewUrl === null) {
+            return {
+              ...attachment,
+              asset: null,
+            };
+          }
+
+          let bytes: Buffer;
+          let mimeType = attachment.mimeType;
+
+          if (attachment.previewUrl.startsWith('data:')) {
+            const parsedAttachment = parsePromptRequestAttachmentDataUrl(attachment.previewUrl);
+            bytes = parsedAttachment.bytes;
+            mimeType = mimeType.trim() || parsedAttachment.mimeType;
+          } else {
+            const absolutePath = resolveCodexAttachmentPath(attachment.previewUrl);
+
+            if (absolutePath === null) {
+              throw new Error(`Could not resolve Codex attachment path for ${attachment.name}.`);
+            }
+
+            bytes = readFileSync(absolutePath);
+          }
+
+          const sha256 = createHash('sha256').update(bytes).digest('hex');
+          const assetPath = toPromptRequestAssetPath(sha256, attachment.name, mimeType);
+
+          if (!preparedAssetsByPath.has(assetPath)) {
+            preparedAssetsByPath.set(assetPath, {
+              attachmentPath: assetPath,
+              sha256,
+              bytes,
+            });
+          }
+
+          return {
+            ...attachment,
+            mimeType,
+            previewUrl: null,
+            asset: {
+              ref: GIT_PROMPT_REQUEST_ASSETS_REF,
+              path: assetPath,
+              sha256,
+            },
+          };
+        }),
+      },
+    };
+  });
+
+  await storePromptRequestAssets(repoPath, [...preparedAssetsByPath.values()]);
+
+  return GitPromptRequestSnapshotSchema.parse({
+    ...snapshot,
+    transcriptEntries: nextTranscriptEntries,
+  });
+}
+
+export async function getGitPromptRequestAssetDataUrl(input: {
+  repoPath: string;
+  ref: string;
+  assetPath: string;
+  mimeType: string;
+}): Promise<string> {
+  const result = await execFileAsync(
+    'git',
+    ['-C', input.repoPath, 'show', `${input.ref}:${input.assetPath}`],
+    {
+      ...getGitReadOnlyExecOptions(),
+      encoding: 'buffer',
+      maxBuffer: DEFAULT_BINARY_READ_MAX_BYTES,
+    } as Parameters<typeof execFileAsync>[2],
+  ) as { stdout: Buffer };
+
+  return `data:${input.mimeType};base64,${result.stdout.toString('base64')}`;
 }
 
 export const getGitBranchHistory = async (

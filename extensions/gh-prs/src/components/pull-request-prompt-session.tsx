@@ -13,6 +13,7 @@ import {
 import type { DevlandRepoContext } from '@devlandapp/sdk';
 
 import { getPullRequestReview } from '@/api/pull-request-review';
+import { getPromptRequestAsset } from '@/lib/devland';
 import { RelativeTime } from '@/components/relative-time';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -24,12 +25,109 @@ import {
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import type { ProjectPullRequestFeedItem } from '@/types/pull-requests';
-import type { PromptRequestNote, PullRequestReviewCommit } from '@/types/review';
+import type {
+  PromptRequestAttachment,
+  PromptRequestNote,
+  PullRequestReviewCommit,
+} from '@/types/review';
 
 type ReviewState =
   | { status: 'loading'; commits: null; error: null }
   | { status: 'ready'; commits: PullRequestReviewCommit[]; error: null }
   | { status: 'error'; commits: null; error: string };
+
+function PromptRequestAttachmentPreview({
+  attachment,
+}: {
+  attachment: PromptRequestAttachment;
+}) {
+  const hasAsset = attachment.asset !== null && attachment.asset !== undefined;
+  const [state, setState] = useState<
+    | { status: 'idle' | 'loading'; dataUrl: null; error: null }
+    | { status: 'ready'; dataUrl: string; error: null }
+    | { status: 'error'; dataUrl: null; error: string }
+  >({
+    status: hasAsset ? 'loading' : 'idle',
+    dataUrl: null,
+    error: null,
+  });
+
+  useEffect(() => {
+    if (!hasAsset || !attachment.asset) {
+      return;
+    }
+
+    let cancelled = false;
+
+    setState({ status: 'loading', dataUrl: null, error: null });
+
+    void getPromptRequestAsset({
+      ref: attachment.asset.ref,
+      path: attachment.asset.path,
+      mimeType: attachment.mimeType,
+    })
+      .then((result) => {
+        if (cancelled) {
+          return;
+        }
+
+        setState({
+          status: 'ready',
+          dataUrl: result.dataUrl,
+          error: null,
+        });
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+
+        setState({
+          status: 'error',
+          dataUrl: null,
+          error: error instanceof Error ? error.message : 'Could not load image.',
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [attachment.asset, attachment.mimeType, hasAsset]);
+
+  return (
+    <div className="flex w-[132px] flex-col gap-2 overflow-hidden rounded-xl border border-border/70 bg-background/60 p-2">
+      <div className="flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-muted/30">
+        {state.status === 'ready' ? (
+          <img
+            src={state.dataUrl}
+            alt={attachment.name}
+            className="size-full object-cover"
+          />
+        ) : !hasAsset ? (
+          <div className="flex flex-col items-center gap-1 px-2 text-center text-[11px] text-muted-foreground">
+            <FileIcon className="size-4" />
+            No preview
+          </div>
+        ) : state.status === 'error' ? (
+          <div className="px-2 text-center text-[11px] text-muted-foreground">
+            Image unavailable
+          </div>
+        ) : (
+          <Spinner />
+        )}
+      </div>
+      <div>
+        <p className="truncate text-[11px] font-medium text-foreground">{attachment.name}</p>
+        <p className="text-[10px] text-muted-foreground">
+          {Math.max(1, Math.round(attachment.sizeBytes / 1024))} KB
+        </p>
+        {state.status === 'error' ? (
+          <p className="mt-1 text-[10px] text-destructive">{state.error}</p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 function TranscriptMessages({ note }: { note: PromptRequestNote }) {
   if (note.transcriptEntries.length === 0) {
@@ -108,6 +206,16 @@ function TranscriptMessages({ note }: { note: PromptRequestNote }) {
             <div className="mt-1 text-sm leading-relaxed whitespace-pre-wrap">
               {entry.message.text || (isUser ? '(empty prompt)' : '(empty response)')}
             </div>
+            {entry.message.attachments.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {entry.message.attachments.map((attachment, index) => (
+                  <PromptRequestAttachmentPreview
+                    key={`${attachment.name}:${attachment.sizeBytes}:${index}`}
+                    attachment={attachment}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         );
       })}

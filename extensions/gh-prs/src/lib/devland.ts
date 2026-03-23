@@ -1,6 +1,7 @@
 import {
   createDevlandClient,
   type DevlandHostContext,
+  type DevlandPromptRequestAssetResult,
   type DevlandRunCommandResult,
 } from '@devlandapp/sdk';
 import { z } from 'zod';
@@ -9,6 +10,13 @@ const devland = createDevlandClient();
 
 export const getExtensionContext = async (): Promise<DevlandHostContext> =>
   await devland.getContext();
+
+export const getPromptRequestAsset = async (input: {
+  ref: string;
+  path: string;
+  mimeType: string;
+}): Promise<DevlandPromptRequestAssetResult> =>
+  await devland.getPromptRequestAsset(input);
 
 const getCommandErrorMessage = (
   command: string,

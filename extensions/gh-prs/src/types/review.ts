@@ -6,6 +6,13 @@ export const PromptRequestThreadSettingsSchema = z.object({
 });
 export type PromptRequestThreadSettings = z.infer<typeof PromptRequestThreadSettingsSchema>;
 
+export const PromptRequestImageAssetSchema = z.object({
+  ref: z.string().min(1),
+  path: z.string().min(1),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/i),
+});
+export type PromptRequestImageAsset = z.infer<typeof PromptRequestImageAssetSchema>;
+
 export const PromptRequestCheckpointSchema = z.object({
   transcriptEntryStart: z.number().int().nonnegative(),
   transcriptEntryEnd: z.number().int().nonnegative(),
@@ -18,6 +25,7 @@ export const PromptRequestAttachmentSchema = z.object({
   mimeType: z.string().min(1),
   sizeBytes: z.number().int().nonnegative(),
   previewUrl: z.string().nullable(),
+  asset: PromptRequestImageAssetSchema.nullable().optional(),
 });
 export type PromptRequestAttachment = z.infer<typeof PromptRequestAttachmentSchema>;
 
@@ -61,14 +69,11 @@ export const PromptRequestTranscriptEntrySchema = z.discriminatedUnion('kind', [
 export type PromptRequestTranscriptEntry = z.infer<typeof PromptRequestTranscriptEntrySchema>;
 
 export const PromptRequestNoteSchema = z.object({
-  version: z.literal(1),
+  version: z.literal(2),
   threadId: z.string().min(1),
   branchName: z.string().min(1),
   createdAt: z.string().min(1),
-  settings: z.preprocess(
-    (value) => value === undefined ? null : value,
-    PromptRequestThreadSettingsSchema.nullable(),
-  ),
+  settings: PromptRequestThreadSettingsSchema,
   checkpoint: PromptRequestCheckpointSchema,
   transcriptEntries: z.array(PromptRequestTranscriptEntrySchema),
 });

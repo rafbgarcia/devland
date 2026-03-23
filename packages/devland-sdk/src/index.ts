@@ -37,6 +37,11 @@ export const DevlandNewCodesSessionResultSchema = z.object({
 });
 export type DevlandNewCodesSessionResult = z.infer<typeof DevlandNewCodesSessionResultSchema>;
 
+export const DevlandPromptRequestAssetResultSchema = z.object({
+  dataUrl: z.string().min(1),
+});
+export type DevlandPromptRequestAssetResult = z.infer<typeof DevlandPromptRequestAssetResultSchema>;
+
 export const DevlandHostRequestSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('devland:ready'),
@@ -57,6 +62,13 @@ export const DevlandHostRequestSchema = z.discriminatedUnion('type', [
     requestId: z.string().min(1),
     prompt: z.string().min(1),
   }),
+  z.object({
+    type: z.literal('devland:get-prompt-request-asset'),
+    requestId: z.string().min(1),
+    ref: z.string().min(1),
+    path: z.string().min(1),
+    mimeType: z.string().min(1),
+  }),
 ]);
 export type DevlandHostRequest = z.infer<typeof DevlandHostRequestSchema>;
 
@@ -75,6 +87,11 @@ export const DevlandHostResponseSchema = z.discriminatedUnion('type', [
     type: z.literal('devland:new-codes-session-result'),
     requestId: z.string().min(1),
     result: DevlandNewCodesSessionResultSchema,
+  }),
+  z.object({
+    type: z.literal('devland:prompt-request-asset'),
+    requestId: z.string().min(1),
+    result: DevlandPromptRequestAssetResultSchema,
   }),
   z.object({
     type: z.literal('devland:error'),
@@ -123,6 +140,9 @@ export function createDevlandClient() {
       case 'devland:new-codes-session-result':
         pending.resolve(message.result);
         break;
+      case 'devland:prompt-request-asset':
+        pending.resolve(message.result);
+        break;
       case 'devland:error':
         pending.reject(new Error(message.message));
         break;
@@ -141,6 +161,12 @@ export function createDevlandClient() {
       | {
           type: 'devland:new-codes-session';
           prompt: string;
+        }
+      | {
+          type: 'devland:get-prompt-request-asset';
+          ref: string;
+          path: string;
+          mimeType: string;
         },
   ): Promise<TResponse> => {
     const requestId = `${message.type}:${++requestCount}`;
@@ -180,6 +206,17 @@ export function createDevlandClient() {
       await requestFromHost<DevlandNewCodesSessionResult>({
         type: 'devland:new-codes-session',
         prompt,
+      }),
+    getPromptRequestAsset: async (input: {
+      ref: string;
+      path: string;
+      mimeType: string;
+    }): Promise<DevlandPromptRequestAssetResult> =>
+      await requestFromHost<DevlandPromptRequestAssetResult>({
+        type: 'devland:get-prompt-request-asset',
+        ref: input.ref,
+        path: input.path,
+        mimeType: input.mimeType,
       }),
   };
 }

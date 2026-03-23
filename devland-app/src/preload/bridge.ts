@@ -30,6 +30,7 @@ import {
   REMOVE_GIT_WORKTREE_CHANNEL,
   COMMIT_WORKING_TREE_SELECTION_CHANNEL,
   GET_COMMIT_DIFF_CHANNEL,
+  GET_GIT_PROMPT_REQUEST_ASSET_DATA_URL_CHANNEL,
   GET_GIT_BLOB_TEXT_CHANNEL,
   GET_WORKING_TREE_FILE_TEXT_CHANNEL,
   GET_COMMIT_PARENT_CHANNEL,
@@ -163,6 +164,8 @@ export const electronApi: ElectronApi = {
     ipcRenderer.invoke(WRITE_GIT_PROMPT_REQUEST_NOTE_CHANNEL, input),
   getCommitDiff: (repoPath, commitSha) =>
     ipcRenderer.invoke(GET_COMMIT_DIFF_CHANNEL, repoPath, commitSha),
+  getGitPromptRequestAssetDataUrl: (input) =>
+    ipcRenderer.invoke(GET_GIT_PROMPT_REQUEST_ASSET_DATA_URL_CHANNEL, input),
   getGitBlobText: (input) =>
     ipcRenderer.invoke(GET_GIT_BLOB_TEXT_CHANNEL, input),
   getWorkingTreeFileText: (input) =>

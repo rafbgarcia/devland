@@ -34,7 +34,6 @@ function sanitizeTranscriptEntry(entry: CodexTranscriptEntry): CodexPromptReques
       text: entry.message.text,
       attachments: entry.message.attachments.map((attachment) => ({
         ...attachment,
-        previewUrl: null,
       })),
       createdAt: entry.message.createdAt,
       completedAt: entry.message.completedAt,
@@ -58,7 +57,7 @@ export function buildGitPromptRequestSnapshot(input: {
   const transcriptEntryStart = Math.min(input.checkpoint, transcriptEntryEnd);
 
   return {
-    version: 1,
+    version: 2,
     threadId: input.sessionState.threadId,
     branchName: input.branchName,
     createdAt: new Date().toISOString(),
