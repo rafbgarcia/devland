@@ -10,11 +10,39 @@ import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
 import { DevAppLauncherPlugin } from './forge.dev-app';
 
+const macBundleId = 'com.rafbgarcia.devland';
+const isMacSigningEnabled = process.env.DEVLAND_MAC_SIGNING_ENABLED === 'true';
+const appleApiKey = process.env.APPLE_API_KEY;
+const appleApiKeyId = process.env.APPLE_API_KEY_ID;
+const appleApiIssuer = process.env.APPLE_API_ISSUER;
+
+if (
+  isMacSigningEnabled &&
+  (!appleApiKey || !appleApiKeyId || !appleApiIssuer)
+) {
+  throw new Error(
+    'macOS signing is enabled, but APPLE_API_KEY, APPLE_API_KEY_ID, or APPLE_API_ISSUER is missing.',
+  );
+}
+
+const packagerConfig: ForgeConfig['packagerConfig'] = {
+  asar: true,
+  icon: path.resolve(__dirname, 'assets/icons/devland'),
+  appBundleId: macBundleId,
+  appCategoryType: 'public.app-category.developer-tools',
+};
+
+if (isMacSigningEnabled) {
+  packagerConfig.osxSign = {};
+  packagerConfig.osxNotarize = {
+    appleApiKey: appleApiKey!,
+    appleApiKeyId: appleApiKeyId!,
+    appleApiIssuer: appleApiIssuer!,
+  };
+}
+
 const config: ForgeConfig = {
-  packagerConfig: {
-    asar: true,
-    icon: path.resolve(__dirname, 'assets/icons/devland'),
-  },
+  packagerConfig,
   rebuildConfig: {},
   makers: [
     new MakerSquirrel({
