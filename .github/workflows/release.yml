@@ -1,0 +1,132 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  validate-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate release versions
+        run: node scripts/validate-release.mjs "${GITHUB_REF_NAME}"
+
+  build-extensions:
+    needs: validate-release
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Build extension archives
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p release-assets/extensions
+
+          for extension_dir in extensions/*; do
+            [ -d "$extension_dir" ] || continue
+
+            bun install --cwd "$extension_dir" --frozen-lockfile
+            bun run --cwd "$extension_dir" pack
+
+            extension_name="$(basename "$extension_dir")"
+            cp "$extension_dir/$extension_name.tgz" "release-assets/extensions/$extension_name.tgz"
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extensions-release-assets
+          path: release-assets/extensions/*
+          if-no-files-found: error
+
+  build-app:
+    needs: validate-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            artifact_name: app-macos
+          - os: windows-latest
+            artifact_name: app-windows
+          - os: ubuntu-latest
+            artifact_name: app-linux
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Linux packaging tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install --yes rpm
+
+      - name: Install app dependencies
+        run: bun install --cwd devland-app --frozen-lockfile
+
+      - name: Build app packages
+        run: bun run --cwd devland-app make
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: |
+            devland-app/out/make/**/*
+            !devland-app/out/make/**/*.blockmap
+          if-no-files-found: error
+
+  publish-release:
+    needs:
+      - build-extensions
+      - build-app
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s globstar nullglob
+
+          files=()
+          for path in release-assets/**/*; do
+            [ -f "$path" ] || continue
+            files+=("$path")
+          done
+
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No release assets were downloaded."
+            exit 1
+          fi
+
+          if gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload "${GITHUB_REF_NAME}" "${files[@]}" --repo "${GITHUB_REPOSITORY}" --clobber
+            exit 0
+          fi
+
+          gh release create "${GITHUB_REF_NAME}" "${files[@]}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes
