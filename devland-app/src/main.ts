@@ -1,6 +1,7 @@
 import {
   app,
   BrowserWindow,
+  globalShortcut,
   net,
   nativeImage,
   protocol,
@@ -15,7 +16,11 @@ import started from 'electron-squirrel-startup';
 import {
   APP_SHORTCUT_COMMAND_CHANNEL,
 } from '@/ipc/contracts';
-import { registerAppShortcutForwarding } from './main-process/app-shortcuts';
+import {
+  createAppShortcutCommandDispatcher,
+  registerAppShortcutForwarding,
+  registerGlobalAppShortcutBindings,
+} from './main-process/app-shortcuts';
 import {
   DEVLAND_EXTENSION_PROTOCOL,
   resolveExtensionAssetPath,
@@ -223,16 +228,40 @@ const createWindow = async (): Promise<BrowserWindow> => {
     event.preventDefault();
     openExternalUrl(navigationUrl);
   });
+  const dispatchAppShortcutCommand = createAppShortcutCommandDispatcher((command) => {
+    mainWindow?.webContents.send(APP_SHORTCUT_COMMAND_CHANNEL, command);
+  });
   registerAppShortcutForwarding(
     mainWindow.webContents,
-    (command) => mainWindow?.webContents.send(APP_SHORTCUT_COMMAND_CHANNEL, command),
+    dispatchAppShortcutCommand,
   );
+  browserViewManager.setAppShortcutCommandDispatcher(dispatchAppShortcutCommand);
+
+  let unregisterGlobalAppShortcuts: (() => void) | null = null;
+  const ensureGlobalAppShortcuts = () => {
+    if (unregisterGlobalAppShortcuts !== null) {
+      return;
+    }
+
+    unregisterGlobalAppShortcuts = registerGlobalAppShortcutBindings(
+      globalShortcut,
+      dispatchAppShortcutCommand,
+    );
+  };
+  const releaseGlobalAppShortcuts = () => {
+    unregisterGlobalAppShortcuts?.();
+    unregisterGlobalAppShortcuts = null;
+  };
+
+  mainWindow.on('focus', ensureGlobalAppShortcuts);
+  mainWindow.on('blur', releaseGlobalAppShortcuts);
 
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();
   });
 
   mainWindow.on('closed', () => {
+    releaseGlobalAppShortcuts();
     mainWindow = null;
   });
 
@@ -242,6 +271,10 @@ const createWindow = async (): Promise<BrowserWindow> => {
     await mainWindow.loadFile(
       path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
     );
+  }
+
+  if (mainWindow.isFocused()) {
+    ensureGlobalAppShortcuts();
   }
 
   return mainWindow;
