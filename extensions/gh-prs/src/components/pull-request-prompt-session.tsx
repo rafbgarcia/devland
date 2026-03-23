@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 import {
   ChevronDownIcon,
@@ -8,6 +9,7 @@ import {
   GitCommitHorizontalIcon,
   SparklesIcon,
   WrenchIcon,
+  XIcon,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
@@ -70,11 +72,60 @@ function AssistantMarkdown({ text }: { text: string }) {
   );
 }
 
+function ImagePreviewDialog({
+  open,
+  onClose,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  useEffect(() => {
+    if (!open) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/72 cursor-zoom-out"
+      onClick={onClose}
+    >
+      <div
+        className="relative"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {children}
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-3 top-3 flex size-9 items-center justify-center rounded-full bg-background/88 text-foreground shadow-sm backdrop-blur-sm transition-colors hover:bg-background"
+          aria-label="Close preview"
+        >
+          <XIcon className="size-4" />
+        </button>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 function PromptRequestAttachmentPreview({
   attachment,
 }: {
   attachment: PromptRequestAttachment;
 }) {
+  const [previewOpen, setPreviewOpen] = useState(false);
   const hasAsset = attachment.asset !== null && attachment.asset !== undefined;
   const [state, setState] = useState<
     | { status: 'idle' | 'loading'; dataUrl: null; error: null }
@@ -132,11 +183,18 @@ function PromptRequestAttachmentPreview({
     <div className="flex w-[132px] flex-col gap-2 overflow-hidden rounded-xl border border-border/70 bg-background/60 p-2">
       <div className="flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-muted/30">
         {state.status === 'ready' ? (
-          <img
-            src={state.dataUrl}
-            alt={attachment.name}
-            className="size-full object-cover"
-          />
+          <button
+            type="button"
+            onClick={() => setPreviewOpen(true)}
+            className="size-full cursor-zoom-in"
+            aria-label={`Preview ${attachment.name}`}
+          >
+            <img
+              src={state.dataUrl}
+              alt={attachment.name}
+              className="size-full object-cover"
+            />
+          </button>
         ) : !hasAsset ? (
           <div className="flex flex-col items-center gap-1 px-2 text-center text-[11px] text-muted-foreground">
             <FileIcon className="size-4" />
@@ -159,6 +217,16 @@ function PromptRequestAttachmentPreview({
           <p className="mt-1 text-[10px] text-destructive">{state.error}</p>
         ) : null}
       </div>
+
+      {state.status === 'ready' ? (
+        <ImagePreviewDialog open={previewOpen} onClose={() => setPreviewOpen(false)}>
+          <img
+            src={state.dataUrl}
+            alt={attachment.name}
+            className="max-h-[92vh] max-w-[92vw] rounded-xl object-contain"
+          />
+        </ImagePreviewDialog>
+      ) : null}
     </div>
   );
 }
