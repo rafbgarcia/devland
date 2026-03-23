@@ -99,3 +99,5 @@ out/
 .env.local
 
 dist/
+
+.tmp

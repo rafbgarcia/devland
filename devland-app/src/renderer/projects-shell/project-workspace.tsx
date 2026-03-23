@@ -1,7 +1,7 @@
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react';
 import { getRouteApi, useRouter, useRouterState } from '@tanstack/react-router';
 import { AnimatePresence, Reorder } from 'motion/react';
-import { CodeIcon, FolderOpenIcon, PlusIcon, XIcon } from 'lucide-react';
+import { CodeIcon, FolderOpenIcon, GithubIcon, PlusIcon, XIcon } from 'lucide-react';
 
 import { CodeTabMenu } from '@/renderer/code-screen/code-tab-menu';
 import { ExternalEditorDialog } from '@/renderer/code-screen/external-editor-dialog';
@@ -387,6 +387,7 @@ export function ProjectWorkspace({
           <AnimatePresence initial={false}>
             {repos.map((repo) => {
               const isActive = repo.id === activeRepoId;
+              const showGithubIcon = !isAbsoluteProjectPath(repo.path);
 
               return (
                 <Reorder.Item
@@ -416,8 +417,11 @@ export function ProjectWorkspace({
                   as="div"
                   whileDrag={{ scale: 1.03, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
                 >
-                  <span className="truncate select-none whitespace-nowrap">
-                    {getProjectLabel(repo.path)}
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    {showGithubIcon ? <GithubIcon className="size-3.5 shrink-0" /> : null}
+                    <span className="truncate select-none whitespace-nowrap">
+                      {getProjectLabel(repo.path)}
+                    </span>
                   </span>
                   <button
                     className={cn(
