@@ -7,7 +7,8 @@ import {
 } from '@/ipc/contracts';
 
 export type ProjectTabRouteTo =
-  '/projects/$repoId/code';
+  '/projects/$repoId/code' |
+  '/projects/$repoId/prompt-requests';
 
 export type ProjectExtensionTabId = `extension:${string}`;
 
@@ -21,6 +22,7 @@ const GITHUB_PULL_REQUESTS_EXTENSION_ID = 'gh-prs';
 
 const PROJECT_TAB_ROUTE_BY_VALUE: Record<ProjectViewTab, ProjectTabRouteTo> = {
   code: '/projects/$repoId/code',
+  'prompt-requests': '/projects/$repoId/prompt-requests',
 };
 
 export const isAbsoluteProjectPath = (value: string): boolean =>
@@ -148,6 +150,8 @@ export const getProjectTabIdFromRouteMatch = ({
   switch (fullPath) {
     case '/projects/$repoId/code':
       return 'code';
+    case '/projects/$repoId/prompt-requests':
+      return 'prompt-requests';
     case '/projects/$repoId/extensions/$extensionId':
       return extensionId ? toProjectExtensionTabId(extensionId) : DEFAULT_PROJECT_VIEW_TAB;
     default:

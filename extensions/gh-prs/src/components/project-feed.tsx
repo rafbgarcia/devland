@@ -172,12 +172,14 @@ export function ProjectFeedItemFrame<TItem extends FeedItemBase>({
   leadingIcon,
   sublineAside,
   sublineExtra,
+  actions,
 }: {
   item: TItem;
   title: ReactNode;
   leadingIcon?: ReactNode;
   sublineAside?: ReactNode;
   sublineExtra?: ReactNode;
+  actions?: ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-1 px-5 py-3.5">
@@ -186,7 +188,10 @@ export function ProjectFeedItemFrame<TItem extends FeedItemBase>({
           {leadingIcon}
           {title}
         </div>
-        <FeedLabels labels={item.labels} />
+        <div className="flex shrink-0 items-center gap-2">
+          {actions}
+          <FeedLabels labels={item.labels} />
+        </div>
       </div>
       <div className="flex items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">

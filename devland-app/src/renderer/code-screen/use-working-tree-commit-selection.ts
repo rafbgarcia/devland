@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import type { CodexSessionStatus } from '@/ipc/contracts';
+import type { CodexComposerSettings } from '@/lib/codex-chat';
 import {
   DiffSelection,
   getDiffChangeGroupSelectableLineNumbers,
@@ -10,6 +12,8 @@ import {
   type DiffFile,
   type DiffRow,
 } from '@/lib/diff';
+import { buildGitPromptRequestSnapshot } from '@/renderer/code-screen/prompt-request-snapshot';
+import type { CodexSessionState } from '@/renderer/code-screen/codex-session-state';
 import { commitWorkingTreeSelectionAndRefresh } from '@/renderer/code-screen/working-tree-commit';
 
 type WholeFileSelection = {
@@ -82,7 +86,11 @@ export type WorkingTreeCommitSelectionState = {
     nextSelected: boolean,
     side?: DiffSelectionSide,
   ) => void;
-  commitSelection: (draft: { summary: string; description: string }) => Promise<boolean>;
+  commitSelection: (draft: {
+    summary: string;
+    description: string;
+    includeCodexContext: boolean;
+  }) => Promise<boolean>;
 };
 
 type CommitSelectionPayloadFile = {
@@ -94,12 +102,22 @@ type CommitSelectionPayloadFile = {
 
 export function useWorkingTreeCommitSelection({
   repoPath,
+  branchName,
   diffFiles,
   enabled,
+  codexContext,
 }: {
   repoPath: string;
+  branchName: string;
   diffFiles: DiffFile[];
   enabled: boolean;
+  codexContext?: {
+    status: CodexSessionStatus;
+    threadId: string | null;
+    transcriptEntries: CodexSessionState['transcriptEntries'];
+    model: CodexComposerSettings['model'];
+    reasoningEffort: CodexComposerSettings['reasoningEffort'];
+  } | null;
 }): WorkingTreeCommitSelectionState {
   const [selectionByPath, setSelectionByPath] = useState<Record<string, FileCommitSelection>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -280,7 +298,7 @@ export function useWorkingTreeCommitSelection({
   );
 
   const commitSelection = useCallback(async (
-    draft: { summary: string; description: string },
+    draft: { summary: string; description: string; includeCodexContext: boolean },
   ) => {
     const summary = draft.summary.trim();
 
@@ -332,12 +350,65 @@ export function useWorkingTreeCommitSelection({
     setError(null);
 
     try {
-      await commitWorkingTreeSelectionAndRefresh({
+      let snapshot = null;
+      let noteWarning: string | null = null;
+
+      if (
+        draft.includeCodexContext &&
+        codexContext?.threadId &&
+        codexContext.status !== 'running'
+      ) {
+        try {
+          snapshot = buildGitPromptRequestSnapshot({
+            sessionState: {
+              threadId: codexContext.threadId,
+              transcriptEntries: codexContext.transcriptEntries,
+            },
+            settings: {
+              model: codexContext.model,
+              reasoningEffort: codexContext.reasoningEffort,
+            },
+            branchName,
+            checkpoint: await window.electronAPI.getCodexPromptRequestCheckpoint({
+              repoPath,
+              threadId: codexContext.threadId,
+            }),
+          });
+        } catch (checkpointError) {
+          noteWarning =
+            checkpointError instanceof Error
+              ? `Commit succeeded, but failed to prepare Codex context: ${checkpointError.message}`
+              : 'Commit succeeded, but failed to prepare Codex context.';
+        }
+      }
+
+      const result = await commitWorkingTreeSelectionAndRefresh({
         repoPath,
         summary,
         description: draft.description.trim(),
         files,
       });
+
+      if (snapshot && codexContext?.threadId) {
+        try {
+          await window.electronAPI.writeGitPromptRequestNote({
+            repoPath,
+            commitSha: result.commitSha,
+            threadId: codexContext.threadId,
+            transcriptEntryCount: snapshot.checkpoint.transcriptEntryEnd,
+            snapshot,
+          });
+        } catch (noteError) {
+          noteWarning =
+            noteError instanceof Error
+              ? `Commit succeeded, but failed to attach Codex context: ${noteError.message}`
+              : 'Commit succeeded, but failed to attach Codex context.';
+        }
+      }
+
+      if (noteWarning !== null) {
+        setError(noteWarning);
+      }
       return true;
     } catch (commitError) {
       setError(
@@ -349,7 +420,7 @@ export function useWorkingTreeCommitSelection({
     } finally {
       setIsSubmitting(false);
     }
-  }, [diffFiles, enabled, isSubmitting, repoPath, selectionByPath]);
+  }, [branchName, codexContext, diffFiles, enabled, isSubmitting, repoPath, selectionByPath]);
 
   return {
     isSubmitting,

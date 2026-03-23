@@ -14,6 +14,7 @@ import {
   PullRequestDetailDrawer,
 } from './pull-request-detail-drawer';
 import { PullRequestFeedItem } from './pull-request-feed-item';
+import { PullRequestReviewDialog } from './pull-request-review-dialog';
 
 export function ProjectPullRequestsView({
   repo,
@@ -22,8 +23,12 @@ export function ProjectPullRequestsView({
 }) {
   const { refetch, isRefetching, ...feedState } = useProjectPullRequests(repo);
   const [selectedPrNumber, setSelectedPrNumber] = useState<number | null>(null);
+  const [reviewPrNumber, setReviewPrNumber] = useState<number | null>(null);
   const selectedPr = feedState.status === 'ready'
     ? feedState.data.items.find((item) => item.number === selectedPrNumber) ?? null
+    : null;
+  const reviewPr = feedState.status === 'ready'
+    ? feedState.data.items.find((item) => item.number === reviewPrNumber) ?? null
     : null;
 
   const pullRequestFeedDefinition: ProjectFeedDefinition<ProjectPullRequestFeed> = useMemo(
@@ -43,6 +48,7 @@ export function ProjectPullRequestsView({
           item={item}
           isSelected={item.number === selectedPrNumber}
           onSelect={(candidate) => setSelectedPrNumber(candidate.number)}
+          onReview={(candidate) => setReviewPrNumber(candidate.number)}
         />
       ),
     }),
@@ -61,6 +67,12 @@ export function ProjectPullRequestsView({
         pr={selectedPr}
         prNumber={selectedPrNumber}
         onClose={() => setSelectedPrNumber(null)}
+      />
+      <PullRequestReviewDialog
+        repo={repo}
+        pr={reviewPr}
+        open={reviewPrNumber !== null}
+        onClose={() => setReviewPrNumber(null)}
       />
     </>
   );
