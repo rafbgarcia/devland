@@ -732,11 +732,20 @@ export const CodexPromptRequestCheckpointSchema = z.object({
 });
 export type CodexPromptRequestCheckpoint = z.infer<typeof CodexPromptRequestCheckpointSchema>;
 
+export const CodexPromptRequestThreadSettingsSchema = z.object({
+  model: z.string().min(1),
+  reasoningEffort: z.string().min(1),
+});
+export type CodexPromptRequestThreadSettings = z.infer<
+  typeof CodexPromptRequestThreadSettingsSchema
+>;
+
 export const GitPromptRequestSnapshotSchema = z.object({
   version: z.literal(1),
   threadId: z.string().min(1),
   branchName: z.string().min(1),
   createdAt: z.string().min(1),
+  settings: CodexPromptRequestThreadSettingsSchema,
   checkpoint: CodexPromptRequestCheckpointSchema,
   transcriptEntries: z.array(CodexPromptRequestTranscriptEntrySchema),
 });

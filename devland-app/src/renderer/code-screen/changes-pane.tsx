@@ -8,6 +8,7 @@ import type {
   GitStatusFile,
   PrCommit,
 } from '@/ipc/contracts';
+import type { CodexComposerSettings } from '@/lib/codex-chat';
 import {
   getDiffChangeGroupSelectableLineNumbers,
   type DiffCommentAnchor,
@@ -197,7 +198,10 @@ export function ChangesPane({
   baseBranchName: string;
   branchName: string;
   headRevision: string | null;
-  codexSessionState: Pick<CodexSessionState, 'status' | 'threadId' | 'transcriptEntries'>;
+  codexSessionState: Pick<
+    CodexSessionState,
+    'status' | 'threadId' | 'transcriptEntries'
+  > & Pick<CodexComposerSettings, 'model' | 'reasoningEffort'>;
   workingTreeFiles: GitStatusFile[];
   workingTreeStatusRefreshVersion: number;
   isViewportActive: boolean;
