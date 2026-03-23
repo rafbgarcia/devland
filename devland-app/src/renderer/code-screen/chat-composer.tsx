@@ -44,7 +44,10 @@ import { ChatContextWindowIndicator } from '@/renderer/code-screen/chat-context-
 import {
   readFileAsDataUrl,
 } from '@/renderer/code-screen/chat-composer-attachments';
-import { deriveChatComposerRuntimeState } from '@/renderer/code-screen/chat-composer.logic';
+import {
+  deriveChatComposerRuntimeState,
+  shouldRestoreFailedComposerDraft,
+} from '@/renderer/code-screen/chat-composer.logic';
 import { appendPromptBlock as appendPromptBlockText } from '@/renderer/code-screen/chat-composer-prompt';
 import { useComposerDraft } from '@/renderer/code-screen/use-composer-drafts';
 import { VscodeEntryIcon } from '@/renderer/shared/ui/vscode-entry-icon';
@@ -418,11 +421,14 @@ export const ChatComposer = memo(forwardRef<ChatComposerHandle, ChatComposerProp
     const pendingAttachments = attachments;
 
     setIsSending(true);
+    promptRef.current = '';
+    clearDraft();
+    setOpenAttachmentId(null);
+    setTagTrigger(null);
+    setTagSuggestions([]);
+    setComposerNotice(null);
 
     try {
-      const nextAttachments = await window.electronAPI.hydrateCodexAttachments({
-        attachments: pendingAttachments,
-      });
       const persistedAttachments: CodexChatImageAttachment[] = pendingAttachments.map((attachment) => ({
         type: 'image',
         name: attachment.name,
@@ -434,18 +440,21 @@ export const ChatComposer = memo(forwardRef<ChatComposerHandle, ChatComposerProp
       await onSendPrompt({
         prompt: trimmedPrompt,
         settings,
-        attachments: nextAttachments,
+        attachments: pendingAttachments,
         persistedAttachments,
       });
-
-      promptRef.current = '';
-      clearDraft();
-      setOpenAttachmentId(null);
-      setTagTrigger(null);
-      setTagSuggestions([]);
-      setComposerNotice(null);
     } catch (error) {
-      promptRef.current = pendingPrompt;
+      if (
+        shouldRestoreFailedComposerDraft({
+          prompt: promptRef.current,
+          attachmentCount: attachmentsRef.current.length,
+        })
+      ) {
+        promptRef.current = pendingPrompt;
+        setDraftPrompt(pendingPrompt);
+        setDraftAttachments(pendingAttachments);
+      }
+
       setComposerNotice('Failed to send prompt.');
       console.error('Failed to send prompt:', error);
     } finally {
@@ -708,7 +717,7 @@ export const ChatComposer = memo(forwardRef<ChatComposerHandle, ChatComposerProp
                 className="ml-1 mb-1 flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
                 aria-label="Composer actions"
               >
-                <PlusIcon className="size-[18px]" />
+                <PlusIcon className="size-4" />
               </DropdownMenuTrigger>
               <DropdownMenuContent side="top" sideOffset={6} align="start">
                 <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>

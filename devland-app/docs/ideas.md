@@ -4,3 +4,4 @@ MLP
 - One-click setup repo `devland.json` "initialDevelopmentSetupCommand"
 - Notifications
 - Tab dot feedback
+- Codex settings do not persist

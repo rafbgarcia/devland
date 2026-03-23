@@ -10,6 +10,7 @@ import type {
 import type {
   CodexComposerSettings,
   CodexChatImageAttachment,
+  CodexPromptAttachment,
   CodexPromptSubmission,
 } from '@/lib/codex-chat';
 import {
@@ -57,15 +58,15 @@ function getSessionState(get: Getter, sessionId: string) {
   return readSessionState(get(sessionStatesAtom), get(persistedSessionSnapshotsAtom), sessionId);
 }
 
-function toTransientChatAttachments(
-  attachments: ReadonlyArray<CodexPromptSubmission['attachments'][number]>,
+function toPersistedChatAttachments(
+  attachments: ReadonlyArray<CodexPromptAttachment>,
 ): CodexChatImageAttachment[] {
   return attachments.map((attachment) => ({
     type: attachment.type,
     name: attachment.name,
     mimeType: attachment.mimeType,
     sizeBytes: attachment.sizeBytes,
-    previewUrl: attachment.dataUrl,
+    previewUrl: attachment.previewUrl,
   }));
 }
 
@@ -284,17 +285,7 @@ export function useCodexSessionActions() {
     const previous = appJotaiStore.get(getSessionStateAtom(sessionId));
     const persistedAttachments =
       submission.persistedAttachments
-        ?? (submission.attachments.length === 0
-        ? []
-        : await window.electronAPI
-            .persistCodexAttachments({
-              sessionId,
-              attachments: submission.attachments,
-            })
-            .catch((error) => {
-              console.error('Failed to persist Codex chat attachments:', error);
-              return toTransientChatAttachments(submission.attachments);
-            }));
+        ?? toPersistedChatAttachments(submission.attachments);
     const transcriptBootstrap =
       previous.threadId && previous.messages.length > 0
         ? buildSessionHistoryBootstrap(

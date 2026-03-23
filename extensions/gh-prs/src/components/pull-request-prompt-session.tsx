@@ -9,6 +9,7 @@ import {
   SparklesIcon,
   WrenchIcon,
 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 import type { DevlandRepoContext } from '@devlandapp/sdk';
 
@@ -35,6 +36,39 @@ type ReviewState =
   | { status: 'loading'; commits: null; error: null }
   | { status: 'ready'; commits: PullRequestReviewCommit[]; error: null }
   | { status: 'error'; commits: null; error: string };
+
+function AssistantMarkdown({ text }: { text: string }) {
+  return (
+    <div className="min-w-0">
+      <div className="prose prose-sm max-w-none text-foreground prose-headings:font-medium prose-headings:text-foreground prose-p:text-foreground prose-p:leading-7 prose-a:text-primary prose-strong:text-foreground prose-code:rounded-md prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:font-medium prose-code:text-foreground prose-code:before:content-none prose-code:after:content-none prose-pre:overflow-x-auto prose-pre:rounded-xl prose-pre:border prose-pre:border-border/50 prose-pre:bg-card prose-pre:px-4 prose-pre:py-3 prose-pre:text-foreground dark:prose-invert">
+        <ReactMarkdown
+          components={{
+            ul: ({ children, ...props }) => (
+              <ul className="my-4 flex list-disc flex-col gap-1 pl-5" {...props}>
+                {children}
+              </ul>
+            ),
+            ol: ({ children, ...props }) => (
+              <ol className="my-4 flex list-decimal flex-col gap-1 pl-5" {...props}>
+                {children}
+              </ol>
+            ),
+            blockquote: ({ children, ...props }) => (
+              <blockquote
+                className="border-l-2 border-border/70 pl-4 text-muted-foreground"
+                {...props}
+              >
+                {children}
+              </blockquote>
+            ),
+          }}
+        >
+          {text}
+        </ReactMarkdown>
+      </div>
+    </div>
+  );
+}
 
 function PromptRequestAttachmentPreview({
   attachment,
@@ -203,9 +237,15 @@ function TranscriptMessages({ note }: { note: PromptRequestNote }) {
                 Attached: {entry.message.attachments.map((a) => a.name).join(', ')}
               </p>
             )}
-            <div className="mt-1 text-sm leading-relaxed whitespace-pre-wrap">
-              {entry.message.text || (isUser ? '(empty prompt)' : '(empty response)')}
-            </div>
+            {isUser ? (
+              <div className="mt-1 text-sm leading-relaxed whitespace-pre-wrap">
+                {entry.message.text || '(empty prompt)'}
+              </div>
+            ) : (
+              <div className="mt-1 text-sm leading-relaxed">
+                <AssistantMarkdown text={entry.message.text || '(empty response)'} />
+              </div>
+            )}
             {entry.message.attachments.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2">
                 {entry.message.attachments.map((attachment, index) => (

@@ -29,13 +29,12 @@ export function CommitComposer({
   const [summary, setSummary] = useState('');
   const [description, setDescription] = useState('');
   const [showDescription, setShowDescription] = useState(false);
-  const [includeCodexContext, setIncludeCodexContext] = useState(false);
+  const [includeCodexContext, setIncludeCodexContext] = useState(true);
 
   useEffect(() => {
     if (selectedFileCount === 0) {
       setSummary('');
       setDescription('');
-      setIncludeCodexContext(false);
     }
   }, [selectedFileCount]);
 
@@ -112,12 +111,7 @@ export function CommitComposer({
             className="mt-0.5 size-3.5 rounded border border-border bg-background accent-primary disabled:opacity-50"
           />
           <span className="flex-1">
-            <span className="block font-medium text-foreground/80">Include Codex context</span>
-            <span className="block text-muted-foreground/70">
-              {codexContext.enabled
-                ? 'Attach the active Codex thread delta to this commit via Git notes.'
-                : (codexContext.reason ?? 'Codex context is unavailable for this commit.')}
-            </span>
+            <span className="block font-medium text-foreground/80">Include Codex session snapshot</span>
           </span>
         </label>
       ) : null}

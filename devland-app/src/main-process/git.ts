@@ -1436,7 +1436,6 @@ async function storePromptRequestAssets(
 
   const tempDir = mkdtempSync(path.join(tmpdir(), 'devland-prompt-request-assets-'));
   const indexPath = path.join(tempDir, 'index');
-  writeFileSync(indexPath, '');
 
   try {
     const parentCommit = await resolveGitRefCommit(repoPath, GIT_PROMPT_REQUEST_ASSETS_REF);

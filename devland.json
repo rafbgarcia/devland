@@ -6,6 +6,12 @@
       "tabName": "Pull requests",
       "tabIcon": "git-pull-request-arrow",
       "port": 4310
+    },
+    {
+      "source": "path:/Users/rafa/github.com/rafbgarcia/devland/extensions/gh-issues",
+      "tabName": "Issues",
+      "tabIcon": "bug",
+      "port": 4311
     }
   ]
 }

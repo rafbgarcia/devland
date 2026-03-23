@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { deriveChatComposerRuntimeState } from '@/renderer/code-screen/chat-composer.logic';
+import {
+  deriveChatComposerRuntimeState,
+  shouldRestoreFailedComposerDraft,
+} from '@/renderer/code-screen/chat-composer.logic';
 
 describe('chat-composer runtime state', () => {
   it('keeps follow-up editing enabled while Codex is running', () => {
@@ -29,6 +32,30 @@ describe('chat-composer runtime state', () => {
         canSubmitPrompt: false,
         showInterruptAction: false,
       },
+    );
+  });
+
+  it('restores a failed submission only when the composer is still empty', () => {
+    assert.equal(
+      shouldRestoreFailedComposerDraft({
+        prompt: '',
+        attachmentCount: 0,
+      }),
+      true,
+    );
+    assert.equal(
+      shouldRestoreFailedComposerDraft({
+        prompt: 'new draft',
+        attachmentCount: 0,
+      }),
+      false,
+    );
+    assert.equal(
+      shouldRestoreFailedComposerDraft({
+        prompt: '',
+        attachmentCount: 2,
+      }),
+      false,
     );
   });
 });

@@ -6,8 +6,8 @@ import { app } from 'electron';
 import type {
   CodexChatImageAttachment,
   CodexImageAttachmentInput,
+  CodexPromptAttachment,
 } from '@/lib/codex-chat';
-import type { CodexDraftAttachment } from '@/ipc/contracts';
 
 export const DEVLAND_CODEX_ATTACHMENT_PROTOCOL = 'devland-codex-attachment';
 
@@ -165,7 +165,7 @@ export const persistCodexAttachments = async (
 
 export const hydrateCodexAttachmentsFromRoot = async (
   attachmentsRootPath: string,
-  attachments: readonly CodexDraftAttachment[],
+  attachments: readonly CodexPromptAttachment[],
 ): Promise<CodexImageAttachmentInput[]> =>
   Promise.all(
     attachments.map(async (attachment) => {
@@ -191,6 +191,6 @@ export const hydrateCodexAttachmentsFromRoot = async (
   );
 
 export const hydrateCodexAttachments = async (
-  attachments: readonly CodexDraftAttachment[],
+  attachments: readonly CodexPromptAttachment[],
 ): Promise<CodexImageAttachmentInput[]> =>
   hydrateCodexAttachmentsFromRoot(getAttachmentsRoot(), attachments);
