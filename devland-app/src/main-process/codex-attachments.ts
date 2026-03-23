@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { app } from 'electron';
 
@@ -7,6 +7,7 @@ import type {
   CodexChatImageAttachment,
   CodexImageAttachmentInput,
 } from '@/lib/codex-chat';
+import type { CodexDraftAttachment } from '@/ipc/contracts';
 
 export const DEVLAND_CODEX_ATTACHMENT_PROTOCOL = 'devland-codex-attachment';
 
@@ -78,6 +79,9 @@ const parseImageDataUrl = (dataUrl: string): { mimeType: string; bytes: Buffer }
     bytes: Buffer.from(payload, 'base64'),
   };
 };
+
+const toImageDataUrl = (mimeType: string, bytes: Buffer): string =>
+  `data:${mimeType};base64,${bytes.toString('base64')}`;
 
 export const getCodexAttachmentEntryUrl = (relativePath: string): string =>
   `${DEVLAND_CODEX_ATTACHMENT_PROTOCOL}://${ATTACHMENT_PROTOCOL_HOST}/${encodeRelativePath(relativePath)}`;
@@ -158,3 +162,35 @@ export const persistCodexAttachments = async (
     }),
   );
 };
+
+export const hydrateCodexAttachmentsFromRoot = async (
+  attachmentsRootPath: string,
+  attachments: readonly CodexDraftAttachment[],
+): Promise<CodexImageAttachmentInput[]> =>
+  Promise.all(
+    attachments.map(async (attachment) => {
+      const absolutePath = resolveCodexAttachmentPathFromRoot(
+        attachmentsRootPath,
+        attachment.previewUrl,
+      );
+
+      if (absolutePath === null) {
+        throw new Error(`Unsupported attachment preview URL: ${attachment.previewUrl}`);
+      }
+
+      const bytes = await readFile(absolutePath);
+
+      return {
+        type: 'image',
+        name: attachment.name,
+        mimeType: attachment.mimeType,
+        sizeBytes: attachment.sizeBytes,
+        dataUrl: toImageDataUrl(attachment.mimeType, bytes),
+      };
+    }),
+  );
+
+export const hydrateCodexAttachments = async (
+  attachments: readonly CodexDraftAttachment[],
+): Promise<CodexImageAttachmentInput[]> =>
+  hydrateCodexAttachmentsFromRoot(getAttachmentsRoot(), attachments);

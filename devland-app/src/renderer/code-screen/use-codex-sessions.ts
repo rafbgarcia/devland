@@ -283,7 +283,8 @@ export function useCodexSessionActions() {
   ) => {
     const previous = appJotaiStore.get(getSessionStateAtom(sessionId));
     const persistedAttachments =
-      submission.attachments.length === 0
+      submission.persistedAttachments
+        ?? (submission.attachments.length === 0
         ? []
         : await window.electronAPI
             .persistCodexAttachments({
@@ -293,7 +294,7 @@ export function useCodexSessionActions() {
             .catch((error) => {
               console.error('Failed to persist Codex chat attachments:', error);
               return toTransientChatAttachments(submission.attachments);
-            });
+            }));
     const transcriptBootstrap =
       previous.threadId && previous.messages.length > 0
         ? buildSessionHistoryBootstrap(

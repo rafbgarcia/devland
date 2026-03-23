@@ -48,6 +48,7 @@ import {
   VALIDATE_EXTERNAL_EDITOR_PATH_CHANNEL,
   OPEN_FILE_IN_EXTERNAL_EDITOR_CHANNEL,
   PERSIST_CODEX_ATTACHMENTS_CHANNEL,
+  HYDRATE_CODEX_ATTACHMENTS_CHANNEL,
   START_GIT_STATE_WATCH_CHANNEL,
   STOP_GIT_STATE_WATCH_CHANNEL,
   LIST_CODEX_THREADS_CHANNEL,
@@ -77,11 +78,12 @@ import {
   WRITE_GIT_PROMPT_REQUEST_NOTE_CHANNEL,
   type AppBootstrap,
   type CodexApprovalDecision,
+  type CodexDraftAttachment,
   type GitPromptRequestSnapshot,
 } from '../ipc/contracts';
 import { browserViewManager } from './browser/browser-view-manager';
 import { codexAppServerManager } from './codex-app-server';
-import { persistCodexAttachments } from './codex-attachments';
+import { hydrateCodexAttachments, persistCodexAttachments } from './codex-attachments';
 import {
   getCodexPromptRequestCheckpoint,
   recordCodexPromptRequestCheckpoint,
@@ -407,6 +409,11 @@ export const registerAppIpcHandlers = (
     PERSIST_CODEX_ATTACHMENTS_CHANNEL,
     (_event, input: { sessionId: string; attachments: CodexImageAttachmentInput[] }) =>
       persistCodexAttachments(input.sessionId, input.attachments),
+  );
+  ipcMain.handle(
+    HYDRATE_CODEX_ATTACHMENTS_CHANNEL,
+    (_event, input: { attachments: CodexDraftAttachment[] }) =>
+      hydrateCodexAttachments(input.attachments),
   );
   ipcMain.handle(
     SEND_CODEX_SESSION_PROMPT_CHANNEL,

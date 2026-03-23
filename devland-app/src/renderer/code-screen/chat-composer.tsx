@@ -25,10 +25,12 @@ import {
   CODEX_IMAGE_ATTACHMENT_MAX_BYTES,
   CODEX_IMAGE_ATTACHMENT_MAX_BYTES_LABEL,
   CODEX_IMAGE_ATTACHMENTS_MAX_COUNT,
+  type CodexChatImageAttachment,
   type CodexComposerSettings,
   type CodexPromptSubmission,
 } from '@/lib/codex-chat';
 import type {
+  CodexDraftAttachment,
   CodexPathSearchResultItem,
   CodexThreadTokenUsage,
 } from '@/ipc/contracts';
@@ -40,11 +42,11 @@ import {
 } from '@/renderer/code-screen/chat-composer-tags';
 import { ChatContextWindowIndicator } from '@/renderer/code-screen/chat-context-window-indicator';
 import {
-  createComposerImageAttachment,
-  type ComposerImageAttachment,
+  readFileAsDataUrl,
 } from '@/renderer/code-screen/chat-composer-attachments';
 import { deriveChatComposerRuntimeState } from '@/renderer/code-screen/chat-composer.logic';
 import { appendPromptBlock as appendPromptBlockText } from '@/renderer/code-screen/chat-composer-prompt';
+import { useComposerDraft } from '@/renderer/code-screen/use-composer-drafts';
 import { VscodeEntryIcon } from '@/renderer/shared/ui/vscode-entry-icon';
 import {
   Dialog,
@@ -168,6 +170,7 @@ function PathSuggestionMenu({
 }
 
 type ChatComposerProps = {
+  targetId: string;
   activeRepoPath: string;
   storedRepoPaths: string[];
   settings: CodexComposerSettings;
@@ -178,6 +181,7 @@ type ChatComposerProps = {
 };
 
 export const ChatComposer = memo(forwardRef<ChatComposerHandle, ChatComposerProps>(function ChatComposer({
+  targetId,
   activeRepoPath,
   storedRepoPaths,
   settings,
@@ -186,8 +190,6 @@ export const ChatComposer = memo(forwardRef<ChatComposerHandle, ChatComposerProp
   onSendPrompt,
   onInterrupt,
 }, ref) {
-  const [prompt, setPrompt] = useState('');
-  const [attachments, setAttachments] = useState<ComposerImageAttachment[]>([]);
   const [openAttachmentId, setOpenAttachmentId] = useState<string | null>(null);
   const [composerNotice, setComposerNotice] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -196,12 +198,20 @@ export const ChatComposer = memo(forwardRef<ChatComposerHandle, ChatComposerProp
   const [tagSuggestions, setTagSuggestions] = useState<CodexPathSearchResultItem[]>([]);
   const [activeTagSuggestionIndex, setActiveTagSuggestionIndex] = useState(0);
   const [isTagSearchLoading, setIsTagSearchLoading] = useState(false);
+  const {
+    draft,
+    setPrompt: setDraftPrompt,
+    setAttachments: setDraftAttachments,
+    clearDraft,
+  } = useComposerDraft(targetId);
   const dragDepthRef = useRef(0);
-  const attachmentsRef = useRef<ComposerImageAttachment[]>([]);
+  const attachmentsRef = useRef<CodexDraftAttachment[]>([]);
   const promptRef = useRef('');
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const fileInputId = useId();
+  const prompt = draft.prompt;
+  const attachments = draft.attachments;
 
   const { canSubmitPrompt, isInputDisabled, showInterruptAction } = deriveChatComposerRuntimeState({
     isRunning,
@@ -287,7 +297,7 @@ export const ChatComposer = memo(forwardRef<ChatComposerHandle, ChatComposerProp
       }
 
       promptRef.current = nextPrompt;
-      setPrompt(nextPrompt);
+      setDraftPrompt(nextPrompt);
       setTagTrigger(null);
       setTagSuggestions([]);
       setActiveTagSuggestionIndex(0);
@@ -340,11 +350,35 @@ export const ChatComposer = memo(forwardRef<ChatComposerHandle, ChatComposerProp
 
     if (acceptedFiles.length > 0) {
       try {
-        const nextAttachments = await Promise.all(
-          acceptedFiles.map((file) => createComposerImageAttachment(file)),
+        const draftAttachments = await Promise.all(
+          acceptedFiles.map(async (file) => ({
+            type: 'image' as const,
+            name: file.name || 'image',
+            mimeType: file.type,
+            sizeBytes: file.size,
+            dataUrl: await readFileAsDataUrl(file),
+          })),
         );
+        const persistedAttachments = await window.electronAPI.persistCodexAttachments({
+          sessionId: targetId,
+          attachments: draftAttachments,
+        });
+        const nextAttachments = persistedAttachments.map((attachment) => {
+          if (attachment.previewUrl === null) {
+            throw new Error(`Persisted attachment is missing a preview URL for ${attachment.name}.`);
+          }
 
-        setAttachments((current) => [...current, ...nextAttachments]);
+          return {
+            id: crypto.randomUUID(),
+            type: 'image' as const,
+            name: attachment.name,
+            mimeType: attachment.mimeType,
+            sizeBytes: attachment.sizeBytes,
+            previewUrl: attachment.previewUrl,
+          };
+        });
+
+        setDraftAttachments((current) => [...current, ...nextAttachments]);
       } catch (readError) {
         setComposerNotice('Failed to read image.');
         console.error('Failed to prepare composer attachments:', readError);
@@ -384,34 +418,34 @@ export const ChatComposer = memo(forwardRef<ChatComposerHandle, ChatComposerProp
     const pendingAttachments = attachments;
 
     setIsSending(true);
-    promptRef.current = '';
-    setPrompt('');
-    setAttachments([]);
-    setOpenAttachmentId(null);
-    setTagTrigger(null);
-    setTagSuggestions([]);
-    setComposerNotice(null);
 
     try {
-      const nextAttachments = await Promise.all(
-        pendingAttachments.map(async (attachment) => ({
-          type: 'image' as const,
-          name: attachment.name,
-          mimeType: attachment.mimeType,
-          sizeBytes: attachment.sizeBytes,
-          dataUrl: attachment.dataUrl,
-        })),
-      );
+      const nextAttachments = await window.electronAPI.hydrateCodexAttachments({
+        attachments: pendingAttachments,
+      });
+      const persistedAttachments: CodexChatImageAttachment[] = pendingAttachments.map((attachment) => ({
+        type: 'image',
+        name: attachment.name,
+        mimeType: attachment.mimeType,
+        sizeBytes: attachment.sizeBytes,
+        previewUrl: attachment.previewUrl,
+      }));
 
       await onSendPrompt({
         prompt: trimmedPrompt,
         settings,
         attachments: nextAttachments,
+        persistedAttachments,
       });
+
+      promptRef.current = '';
+      clearDraft();
+      setOpenAttachmentId(null);
+      setTagTrigger(null);
+      setTagSuggestions([]);
+      setComposerNotice(null);
     } catch (error) {
       promptRef.current = pendingPrompt;
-      setPrompt(pendingPrompt);
-      setAttachments(pendingAttachments);
       setComposerNotice('Failed to send prompt.');
       console.error('Failed to send prompt:', error);
     } finally {
@@ -458,7 +492,7 @@ export const ChatComposer = memo(forwardRef<ChatComposerHandle, ChatComposerProp
           );
 
           promptRef.current = nextState.value;
-          setPrompt(nextState.value);
+          setDraftPrompt(nextState.value);
           setTagTrigger(null);
           setTagSuggestions([]);
           setActiveTagSuggestionIndex(0);
@@ -547,7 +581,7 @@ export const ChatComposer = memo(forwardRef<ChatComposerHandle, ChatComposerProp
       setOpenAttachmentId(null);
     }
 
-    setAttachments((current) => current.filter((candidate) => candidate.id !== attachmentId));
+    setDraftAttachments((current) => current.filter((candidate) => candidate.id !== attachmentId));
   };
 
   const handlePromptChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
@@ -555,7 +589,7 @@ export const ChatComposer = memo(forwardRef<ChatComposerHandle, ChatComposerProp
     const nextCursor = event.target.selectionStart ?? nextPrompt.length;
 
     promptRef.current = nextPrompt;
-    setPrompt(nextPrompt);
+    setDraftPrompt(nextPrompt);
     setResolvedTagTrigger(detectComposerTagTrigger(nextPrompt, nextCursor));
     setActiveTagSuggestionIndex(0);
   };
@@ -590,7 +624,7 @@ export const ChatComposer = memo(forwardRef<ChatComposerHandle, ChatComposerProp
     );
 
     promptRef.current = nextState.value;
-    setPrompt(nextState.value);
+    setDraftPrompt(nextState.value);
     setTagTrigger(null);
     setTagSuggestions([]);
     setActiveTagSuggestionIndex(0);
@@ -629,7 +663,7 @@ export const ChatComposer = memo(forwardRef<ChatComposerHandle, ChatComposerProp
                   aria-label={`Open ${attachment.name}`}
                 >
                   <img
-                    src={attachment.dataUrl}
+                    src={attachment.previewUrl}
                     alt={attachment.name}
                     className="size-16 object-cover"
                   />
@@ -740,7 +774,7 @@ export const ChatComposer = memo(forwardRef<ChatComposerHandle, ChatComposerProp
           {openAttachment ? (
             <div className="relative">
               <img
-                src={openAttachment.dataUrl}
+                src={openAttachment.previewUrl}
                 alt={openAttachment.name}
                 className="max-h-[92vh] max-w-[92vw] rounded-xl object-contain"
               />
