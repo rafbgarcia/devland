@@ -9,6 +9,7 @@ import {
   BROWSER_VIEW_EVENT_CHANNEL,
   CODEX_SESSION_EVENT_CHANNEL,
   CLOSE_CURRENT_WINDOW_CHANNEL,
+  GET_CODEX_PROMPT_REQUEST_CHECKPOINT_CHANNEL,
   GET_APP_BOOTSTRAP_CHANNEL,
   GET_GITHUB_REPO_DETAILS_CHANNEL,
   GET_REPO_CONFIG_CHANNEL,
@@ -23,6 +24,7 @@ import {
   GIT_STATE_CHANGED_CHANNEL,
   GET_GIT_BRANCH_COMPARE_META_CHANNEL,
   GET_GIT_BRANCH_COMPARE_DIFF_CHANNEL,
+  GET_GIT_BRANCH_PROMPT_REQUESTS_CHANNEL,
   GET_GIT_STATUS_CHANNEL,
   GET_GIT_WORKING_TREE_DIFF_CHANNEL,
   CHECKOUT_GIT_BRANCH_CHANNEL,
@@ -34,6 +36,7 @@ import {
   REMOVE_GIT_WORKTREE_CHANNEL,
   COMMIT_WORKING_TREE_SELECTION_CHANNEL,
   GET_COMMIT_DIFF_CHANNEL,
+  GET_GIT_PROMPT_REQUEST_ASSET_DATA_URL_CHANNEL,
   GET_GIT_BLOB_TEXT_CHANNEL,
   GET_WORKING_TREE_FILE_TEXT_CHANNEL,
   GET_COMMIT_PARENT_CHANNEL,
@@ -71,12 +74,18 @@ import {
   OPEN_BROWSER_VIEW_DEVTOOLS_CHANNEL,
   DISPOSE_BROWSER_VIEW_CHANNEL,
   DISPOSE_BROWSER_TARGET_CHANNEL,
+  WRITE_GIT_PROMPT_REQUEST_NOTE_CHANNEL,
   type AppBootstrap,
   type CodexApprovalDecision,
+  type GitPromptRequestSnapshot,
 } from '../ipc/contracts';
 import { browserViewManager } from './browser/browser-view-manager';
 import { codexAppServerManager } from './codex-app-server';
 import { persistCodexAttachments } from './codex-attachments';
+import {
+  getCodexPromptRequestCheckpoint,
+  recordCodexPromptRequestCheckpoint,
+} from './codex-prompt-request-checkpoint-store';
 import { searchCodexPaths } from './codex-path-search';
 import { codexExecutable } from './codex-cli';
 import { suggestGitWorktreeBranchName } from './codex-use-cases/worktree-branch-name';
@@ -93,9 +102,11 @@ import {
   findLocalGithubRepoPath,
   getGitBranchCompareDiff,
   getGitBranchCompareMeta,
+  getGitBranchPromptRequests,
   getGitBlobText,
   getCommitDiff,
   getCommitParent,
+  getGitPromptRequestAssetDataUrl,
   getGitBranches,
   getGitDefaultBranch,
   getGitBranchHistory,
@@ -104,6 +115,7 @@ import {
   getGitStatus,
   getGithubRepoDetails,
   removeGitWorktree,
+  writeGitPromptRequestNote,
   getWorkingTreeFileText,
   validateLocalGitRepository,
 } from './git';
@@ -249,6 +261,11 @@ export const registerAppIpcHandlers = (
       getGitBranchCompareDiff(repoPath, baseBranch, headBranch),
   );
   ipcMain.handle(
+    GET_GIT_BRANCH_PROMPT_REQUESTS_CHANNEL,
+    (_event, input: { repoPath: string; baseBranch: string; headBranch: string }) =>
+      getGitBranchPromptRequests(input),
+  );
+  ipcMain.handle(
     GET_GIT_STATUS_CHANNEL,
     (_event, repoPath: string) => getGitStatus(repoPath),
   );
@@ -308,9 +325,40 @@ export const registerAppIpcHandlers = (
     (_event, input) => commitWorkingTreeSelection(input),
   );
   ipcMain.handle(
+    GET_CODEX_PROMPT_REQUEST_CHECKPOINT_CHANNEL,
+    (_event, input: { repoPath: string; threadId: string }) =>
+      getCodexPromptRequestCheckpoint(input),
+  );
+  ipcMain.handle(
+    WRITE_GIT_PROMPT_REQUEST_NOTE_CHANNEL,
+    async (_event, input: {
+      repoPath: string;
+      commitSha: string;
+      threadId: string;
+      transcriptEntryCount: number;
+      snapshot: GitPromptRequestSnapshot;
+    }) => {
+      await writeGitPromptRequestNote({
+        repoPath: input.repoPath,
+        commitSha: input.commitSha,
+        snapshot: input.snapshot,
+      });
+      await recordCodexPromptRequestCheckpoint({
+        repoPath: input.repoPath,
+        threadId: input.threadId,
+        transcriptEntryCount: input.transcriptEntryCount,
+      });
+    },
+  );
+  ipcMain.handle(
     GET_COMMIT_DIFF_CHANNEL,
     (_event, repoPath: string, commitSha: string) =>
       getCommitDiff(repoPath, commitSha),
+  );
+  ipcMain.handle(
+    GET_GIT_PROMPT_REQUEST_ASSET_DATA_URL_CHANNEL,
+    (_event, input: { repoPath: string; ref: string; assetPath: string; mimeType: string }) =>
+      getGitPromptRequestAssetDataUrl(input),
   );
   ipcMain.handle(
     GET_GIT_BLOB_TEXT_CHANNEL,

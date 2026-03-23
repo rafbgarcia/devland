@@ -265,6 +265,37 @@ export function ProjectExtensionView({
         return;
       }
 
+      if (request.type === 'devland:get-prompt-request-asset') {
+        void window.electronAPI
+          .getGitPromptRequestAssetDataUrl({
+            repoPath: extensionContext.repo.projectPath,
+            ref: request.ref,
+            assetPath: request.path,
+            mimeType: request.mimeType,
+          })
+          .then((dataUrl) => {
+            postToFrame(iframeRef.current, extensionMessaging.targetOrigin, {
+              type: 'devland:prompt-request-asset',
+              requestId: request.requestId,
+              result: {
+                dataUrl,
+              },
+            });
+          })
+          .catch((error: unknown) => {
+            postToFrame(iframeRef.current, extensionMessaging.targetOrigin, {
+              type: 'devland:error',
+              requestId: request.requestId,
+              message:
+                error instanceof Error
+                  ? error.message
+                  : 'Could not read prompt request asset.',
+            });
+          });
+
+        return;
+      }
+
       if (request.type !== 'devland:run-command') {
         return;
       }

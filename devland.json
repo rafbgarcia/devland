@@ -1,4 +1,11 @@
 {
   "worktreeSetupCommand": "bun install --cwd devland-app",
-  "extensions": []
+  "extensions": [
+    {
+      "source": "path:/Users/rafa/github.com/rafbgarcia/devland/extensions/gh-prs",
+      "tabName": "Pull requests",
+      "tabIcon": "git-pull-request-arrow",
+      "port": 4310
+    }
+  ]
 }

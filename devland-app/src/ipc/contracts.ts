@@ -32,6 +32,7 @@ export const STOP_GIT_STATE_WATCH_CHANNEL = 'app:stop-git-state-watch';
 export const GIT_STATE_CHANGED_CHANNEL = 'app:git-state-changed';
 export const GET_GIT_BRANCH_COMPARE_META_CHANNEL = 'app:get-git-branch-compare-meta';
 export const GET_GIT_BRANCH_COMPARE_DIFF_CHANNEL = 'app:get-git-branch-compare-diff';
+export const GET_GIT_BRANCH_PROMPT_REQUESTS_CHANNEL = 'app:get-git-branch-prompt-requests';
 export const GET_GIT_STATUS_CHANNEL = 'app:get-git-status';
 export const GET_GIT_WORKING_TREE_DIFF_CHANNEL = 'app:get-git-working-tree-diff';
 export const CHECKOUT_GIT_BRANCH_CHANNEL = 'app:checkout-git-branch';
@@ -42,6 +43,8 @@ export const CREATE_GIT_BRANCH_CHANNEL = 'app:create-git-branch';
 export const CHECK_GIT_WORKTREE_REMOVAL_CHANNEL = 'app:check-git-worktree-removal';
 export const REMOVE_GIT_WORKTREE_CHANNEL = 'app:remove-git-worktree';
 export const COMMIT_WORKING_TREE_SELECTION_CHANNEL = 'app:commit-working-tree-selection';
+export const GET_CODEX_PROMPT_REQUEST_CHECKPOINT_CHANNEL = 'app:get-codex-prompt-request-checkpoint';
+export const WRITE_GIT_PROMPT_REQUEST_NOTE_CHANNEL = 'app:write-git-prompt-request-note';
 export const SEND_CODEX_SESSION_PROMPT_CHANNEL = 'app:send-codex-session-prompt';
 export const PERSIST_CODEX_ATTACHMENTS_CHANNEL = 'app:persist-codex-attachments';
 export const LIST_CODEX_THREADS_CHANNEL = 'app:list-codex-threads';
@@ -73,6 +76,7 @@ export const GET_COMMIT_DIFF_CHANNEL = 'app:get-commit-diff';
 export const GET_GIT_BLOB_TEXT_CHANNEL = 'app:get-git-blob-text';
 export const GET_WORKING_TREE_FILE_TEXT_CHANNEL = 'app:get-working-tree-file-text';
 export const GET_COMMIT_PARENT_CHANNEL = 'app:get-commit-parent';
+export const GET_GIT_PROMPT_REQUEST_ASSET_DATA_URL_CHANNEL = 'app:get-git-prompt-request-asset-data-url';
 export const GET_REPO_EXTENSIONS_CHANNEL = 'app:get-repo-extensions';
 export const INSTALL_REPO_EXTENSION_CHANNEL = 'app:install-repo-extension';
 export const RUN_EXTENSION_COMMAND_CHANNEL = 'app:run-extension-command';
@@ -83,6 +87,7 @@ export const OPEN_FILE_IN_EXTERNAL_EDITOR_CHANNEL = 'app:open-file-in-external-e
 
 export const PROJECT_VIEW_TABS = [
   'code',
+  'prompt-requests',
 ] as const;
 
 export const ProjectViewTabSchema = z.enum(PROJECT_VIEW_TABS);
@@ -681,6 +686,103 @@ export const GitBranchHistorySchema = z.object({
 });
 export type GitBranchHistory = z.infer<typeof GitBranchHistorySchema>;
 
+export const CodexPromptRequestActivitySchema = z.object({
+  id: z.string().min(1),
+  tone: z.enum(['info', 'tool', 'error']),
+  phase: z.enum(['started', 'updated', 'completed', 'instant']),
+  label: z.string().min(1),
+  detail: z.string().nullable(),
+  itemId: z.string().min(1).nullable(),
+  itemType: z.string().min(1).nullable(),
+  filePath: z.string().min(1).nullable().optional(),
+  filePaths: z.array(z.string().min(1)).optional(),
+});
+export type CodexPromptRequestActivity = z.infer<typeof CodexPromptRequestActivitySchema>;
+
+export const CodexPromptRequestImageAssetSchema = z.object({
+  ref: z.string().min(1),
+  path: z.string().min(1),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/i),
+});
+export type CodexPromptRequestImageAsset = z.infer<typeof CodexPromptRequestImageAssetSchema>;
+
+export const CodexPromptRequestImageAttachmentSchema = z.object({
+  type: z.literal('image'),
+  name: z.string(),
+  mimeType: z.string(),
+  sizeBytes: z.number().int().nonnegative(),
+  previewUrl: z.string().min(1).nullable(),
+  asset: CodexPromptRequestImageAssetSchema.nullable().optional(),
+});
+export type CodexPromptRequestImageAttachment = z.infer<
+  typeof CodexPromptRequestImageAttachmentSchema
+>;
+
+export const CodexPromptRequestMessageSchema = z.object({
+  id: z.string().min(1),
+  role: z.enum(['user', 'assistant']),
+  text: z.string(),
+  attachments: z.array(CodexPromptRequestImageAttachmentSchema),
+  createdAt: z.string().min(1),
+  completedAt: z.string().min(1).nullable(),
+  turnId: z.string().min(1).nullable(),
+  itemId: z.string().min(1).nullable(),
+});
+export type CodexPromptRequestMessage = z.infer<typeof CodexPromptRequestMessageSchema>;
+
+export const CodexPromptRequestTranscriptEntrySchema = z.discriminatedUnion('kind', [
+  z.object({
+    id: z.string().min(1),
+    kind: z.literal('message'),
+    message: CodexPromptRequestMessageSchema,
+  }),
+  z.object({
+    id: z.string().min(1),
+    kind: z.literal('work'),
+    activities: z.array(CodexPromptRequestActivitySchema),
+  }),
+]);
+export type CodexPromptRequestTranscriptEntry = z.infer<
+  typeof CodexPromptRequestTranscriptEntrySchema
+>;
+
+export const CodexPromptRequestCheckpointSchema = z.object({
+  transcriptEntryStart: z.number().int().nonnegative(),
+  transcriptEntryEnd: z.number().int().nonnegative(),
+});
+export type CodexPromptRequestCheckpoint = z.infer<typeof CodexPromptRequestCheckpointSchema>;
+
+export const CodexPromptRequestThreadSettingsSchema = z.object({
+  model: z.string().min(1),
+  reasoningEffort: z.string().min(1),
+});
+export type CodexPromptRequestThreadSettings = z.infer<
+  typeof CodexPromptRequestThreadSettingsSchema
+>;
+
+export const GitPromptRequestSnapshotSchema = z.object({
+  version: z.literal(2),
+  threadId: z.string().min(1),
+  branchName: z.string().min(1),
+  createdAt: z.string().min(1),
+  settings: CodexPromptRequestThreadSettingsSchema,
+  checkpoint: CodexPromptRequestCheckpointSchema,
+  transcriptEntries: z.array(CodexPromptRequestTranscriptEntrySchema),
+});
+export type GitPromptRequestSnapshot = z.infer<typeof GitPromptRequestSnapshotSchema>;
+
+export const GitPromptRequestCommitSchema = PrCommitSchema.extend({
+  snapshot: GitPromptRequestSnapshotSchema.nullable(),
+});
+export type GitPromptRequestCommit = z.infer<typeof GitPromptRequestCommitSchema>;
+
+export const GitBranchPromptRequestsSchema = z.object({
+  baseBranch: z.string().min(1),
+  headBranch: z.string().min(1),
+  commits: z.array(GitPromptRequestCommitSchema),
+});
+export type GitBranchPromptRequests = z.infer<typeof GitBranchPromptRequestsSchema>;
+
 export interface ElectronApi {
   readonly platform: NodeJS.Platform;
   readonly versions: {
@@ -716,6 +818,11 @@ export interface ElectronApi {
     baseBranch: string,
     headBranch: string,
   ) => Promise<string>;
+  getGitBranchPromptRequests: (input: {
+    repoPath: string;
+    baseBranch: string;
+    headBranch: string;
+  }) => Promise<GitBranchPromptRequests>;
   getGitStatus: (repoPath: string) => Promise<GitStatus>;
   getGitWorkingTreeDiff: (repoPath: string) => Promise<string>;
   checkoutGitBranch: (repoPath: string, branchName: string) => Promise<void>;
@@ -738,7 +845,24 @@ export interface ElectronApi {
   commitWorkingTreeSelection: (
     input: CommitWorkingTreeSelectionInput,
   ) => Promise<CommitWorkingTreeSelectionResult>;
+  getCodexPromptRequestCheckpoint: (input: {
+    repoPath: string;
+    threadId: string;
+  }) => Promise<number>;
+  writeGitPromptRequestNote: (input: {
+    repoPath: string;
+    commitSha: string;
+    threadId: string;
+    transcriptEntryCount: number;
+    snapshot: GitPromptRequestSnapshot;
+  }) => Promise<void>;
   getCommitDiff: (repoPath: string, commitSha: string) => Promise<string>;
+  getGitPromptRequestAssetDataUrl: (input: {
+    repoPath: string;
+    ref: string;
+    assetPath: string;
+    mimeType: string;
+  }) => Promise<string>;
   getGitBlobText: (input: {
     repoPath: string;
     revision: string;

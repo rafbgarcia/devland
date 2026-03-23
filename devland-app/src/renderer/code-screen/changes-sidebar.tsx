@@ -94,9 +94,17 @@ export const ChangesSidebar = memo(function ChangesSidebar({
     totalFileCount: number;
     isSubmitting: boolean;
     error: string | null;
+    codexContext?: {
+      enabled: boolean;
+      reason: string | null;
+    };
     getFileSelectionType: (path: string) => DiffSelectionType;
     onToggleFileSelection: (path: string) => void;
-    onCommit: (draft: { summary: string; description: string }) => Promise<boolean>;
+    onCommit: (draft: {
+      summary: string;
+      description: string;
+      includeCodexContext: boolean;
+    }) => Promise<boolean>;
   } | undefined;
   historyCommits: PrCommit[];
   historyIsLoading: boolean;
@@ -149,6 +157,11 @@ export const ChangesSidebar = memo(function ChangesSidebar({
           totalFileCount={workingTreeCommitState.totalFileCount}
           isSubmitting={workingTreeCommitState.isSubmitting}
           error={workingTreeCommitState.error}
+          {...(
+            workingTreeCommitState.codexContext
+              ? { codexContext: workingTreeCommitState.codexContext }
+              : {}
+          )}
           onCommit={workingTreeCommitState.onCommit}
         />
       ) : undefined}

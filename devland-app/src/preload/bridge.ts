@@ -30,6 +30,7 @@ import {
   REMOVE_GIT_WORKTREE_CHANNEL,
   COMMIT_WORKING_TREE_SELECTION_CHANNEL,
   GET_COMMIT_DIFF_CHANNEL,
+  GET_GIT_PROMPT_REQUEST_ASSET_DATA_URL_CHANNEL,
   GET_GIT_BLOB_TEXT_CHANNEL,
   GET_WORKING_TREE_FILE_TEXT_CHANNEL,
   GET_COMMIT_PARENT_CHANNEL,
@@ -62,6 +63,7 @@ import {
   BROWSER_VIEW_EVENT_CHANNEL,
   BrowserViewEventSchema,
   CLOSE_CURRENT_WINDOW_CHANNEL,
+  GET_CODEX_PROMPT_REQUEST_CHECKPOINT_CHANNEL,
   SHOW_BROWSER_VIEW_CHANNEL,
   HIDE_BROWSER_VIEW_CHANNEL,
   UPDATE_BROWSER_VIEW_BOUNDS_CHANNEL,
@@ -72,6 +74,8 @@ import {
   OPEN_BROWSER_VIEW_DEVTOOLS_CHANNEL,
   DISPOSE_BROWSER_VIEW_CHANNEL,
   DISPOSE_BROWSER_TARGET_CHANNEL,
+  GET_GIT_BRANCH_PROMPT_REQUESTS_CHANNEL,
+  WRITE_GIT_PROMPT_REQUEST_NOTE_CHANNEL,
   type ElectronApi,
 } from '@/ipc/contracts';
 
@@ -132,6 +136,8 @@ export const electronApi: ElectronApi = {
       baseBranch,
       headBranch,
     ),
+  getGitBranchPromptRequests: (input) =>
+    ipcRenderer.invoke(GET_GIT_BRANCH_PROMPT_REQUESTS_CHANNEL, input),
   getGitStatus: (repoPath) =>
     ipcRenderer.invoke(GET_GIT_STATUS_CHANNEL, repoPath),
   getGitWorkingTreeDiff: (repoPath) =>
@@ -152,8 +158,14 @@ export const electronApi: ElectronApi = {
     ipcRenderer.invoke(REMOVE_GIT_WORKTREE_CHANNEL, repoPath, worktreePath, force),
   commitWorkingTreeSelection: (input) =>
     ipcRenderer.invoke(COMMIT_WORKING_TREE_SELECTION_CHANNEL, input),
+  getCodexPromptRequestCheckpoint: (input) =>
+    ipcRenderer.invoke(GET_CODEX_PROMPT_REQUEST_CHECKPOINT_CHANNEL, input),
+  writeGitPromptRequestNote: (input) =>
+    ipcRenderer.invoke(WRITE_GIT_PROMPT_REQUEST_NOTE_CHANNEL, input),
   getCommitDiff: (repoPath, commitSha) =>
     ipcRenderer.invoke(GET_COMMIT_DIFF_CHANNEL, repoPath, commitSha),
+  getGitPromptRequestAssetDataUrl: (input) =>
+    ipcRenderer.invoke(GET_GIT_PROMPT_REQUEST_ASSET_DATA_URL_CHANNEL, input),
   getGitBlobText: (input) =>
     ipcRenderer.invoke(GET_GIT_BLOB_TEXT_CHANNEL, input),
   getWorkingTreeFileText: (input) =>
