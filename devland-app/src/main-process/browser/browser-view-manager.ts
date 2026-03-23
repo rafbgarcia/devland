@@ -10,7 +10,7 @@ import {
 } from 'electron';
 
 import {
-  APP_SHORTCUT_COMMAND_CHANNEL,
+  type AppShortcutCommand,
   type BrowserViewBounds,
   type BrowserViewEvent,
   type BrowserViewSnapshot,
@@ -97,8 +97,16 @@ export class BrowserViewManager extends EventEmitter<{
 
   private getMainWindow: () => BrowserWindow | null = () => null;
 
+  private dispatchAppShortcutCommand: (command: AppShortcutCommand) => void = () => undefined;
+
   setMainWindowProvider(provider: () => BrowserWindow | null): void {
     this.getMainWindow = provider;
+  }
+
+  setAppShortcutCommandDispatcher(
+    dispatcher: (command: AppShortcutCommand) => void,
+  ): void {
+    this.dispatchAppShortcutCommand = dispatcher;
   }
 
   async show(input: {
@@ -309,7 +317,7 @@ export class BrowserViewManager extends EventEmitter<{
       return { action: 'deny' };
     });
     registerAppShortcutForwarding(view.webContents, (command) => {
-      this.getMainWindow()?.webContents.send(APP_SHORTCUT_COMMAND_CHANNEL, command);
+      this.dispatchAppShortcutCommand(command);
     });
 
     view.webContents.on('will-navigate', (event, navigationUrl) => {

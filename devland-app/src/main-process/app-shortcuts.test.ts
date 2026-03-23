@@ -3,7 +3,12 @@ import { describe, it } from 'node:test';
 
 import type { Input } from 'electron';
 
-import { getAppShortcutCommand } from '@/main-process/app-shortcuts';
+import {
+  APP_SHORTCUT_ACCELERATORS,
+  createAppShortcutCommandDispatcher,
+  getAppShortcutCommand,
+  registerGlobalAppShortcutBindings,
+} from '@/main-process/app-shortcuts';
 
 function createInput(overrides: Partial<Input>): Input {
   return {
@@ -97,5 +102,88 @@ describe('getAppShortcutCommand', () => {
       },
     );
   });
+});
 
+describe('createAppShortcutCommandDispatcher', () => {
+  it('deduplicates identical commands dispatched in the same event burst', () => {
+    const receivedCommands: string[] = [];
+    const dispatch = createAppShortcutCommandDispatcher((command) => {
+      receivedCommands.push(JSON.stringify(command));
+    });
+
+    dispatch({
+      type: 'cycle-code-pane',
+      direction: 'next',
+    });
+    dispatch({
+      type: 'cycle-code-pane',
+      direction: 'next',
+    });
+    dispatch({
+      type: 'cycle-code-pane',
+      direction: 'previous',
+    });
+
+    assert.deepEqual(receivedCommands, [
+      JSON.stringify({
+        type: 'cycle-code-pane',
+        direction: 'next',
+      }),
+      JSON.stringify({
+        type: 'cycle-code-pane',
+        direction: 'previous',
+      }),
+    ]);
+  });
+});
+
+describe('registerGlobalAppShortcutBindings', () => {
+  it('registers the expected accelerator set and can clean it up', () => {
+    const registeredAccelerators: string[] = [];
+    const unregisteredAccelerators: string[] = [];
+    const firedCommands: string[] = [];
+    const callbacksByAccelerator = new Map<string, () => void>();
+
+    const unregister = registerGlobalAppShortcutBindings(
+      {
+        register: (accelerator, callback) => {
+          registeredAccelerators.push(accelerator);
+          callbacksByAccelerator.set(accelerator, callback);
+          return true;
+        },
+        unregister: (accelerator) => {
+          unregisteredAccelerators.push(accelerator);
+        },
+      },
+      (command) => {
+        firedCommands.push(JSON.stringify(command));
+      },
+    );
+
+    assert.deepEqual(
+      registeredAccelerators,
+      APP_SHORTCUT_ACCELERATORS.map((binding) => binding.accelerator),
+    );
+
+    callbacksByAccelerator.get('CommandOrControl+]')?.();
+    callbacksByAccelerator.get('CommandOrControl+3')?.();
+
+    assert.deepEqual(firedCommands, [
+      JSON.stringify({
+        type: 'cycle-code-pane',
+        direction: 'next',
+      }),
+      JSON.stringify({
+        type: 'activate-project-tab-by-shortcut-slot',
+        slot: 3,
+      }),
+    ]);
+
+    unregister();
+
+    assert.deepEqual(
+      unregisteredAccelerators,
+      APP_SHORTCUT_ACCELERATORS.map((binding) => binding.accelerator),
+    );
+  });
 });
