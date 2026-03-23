@@ -1,0 +1,7 @@
+{
+  "id": "@devlandapp/channels",
+  "name": "Channels",
+  "version": "0.1.0",
+  "entry": "dist/index.html",
+  "commands": []
+}

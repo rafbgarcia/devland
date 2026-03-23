@@ -12,6 +12,12 @@
       "tabName": "Issues",
       "tabIcon": "bug",
       "port": 4311
+    },
+    {
+      "source": "path:/Users/rafa/github.com/rafbgarcia/devland/extensions/channels",
+      "tabName": "Community",
+      "tabIcon": "heart",
+      "port": 4312
     }
   ]
 }
