@@ -45,10 +45,11 @@ describe('worktree session helpers', () => {
         attachments: [
           {
             type: 'image',
+            id: 'attachment-1',
             name: 'error.png',
             mimeType: 'image/png',
             sizeBytes: 1,
-            dataUrl: 'data:image/png;base64,AA==',
+            previewUrl: 'devland-codex-attachment://asset/ab/error.png',
           },
         ],
       })),

@@ -420,9 +420,6 @@ export const ChatComposer = memo(forwardRef<ChatComposerHandle, ChatComposerProp
     setIsSending(true);
 
     try {
-      const nextAttachments = await window.electronAPI.hydrateCodexAttachments({
-        attachments: pendingAttachments,
-      });
       const persistedAttachments: CodexChatImageAttachment[] = pendingAttachments.map((attachment) => ({
         type: 'image',
         name: attachment.name,
@@ -434,7 +431,7 @@ export const ChatComposer = memo(forwardRef<ChatComposerHandle, ChatComposerProp
       await onSendPrompt({
         prompt: trimmedPrompt,
         settings,
-        attachments: nextAttachments,
+        attachments: pendingAttachments,
         persistedAttachments,
       });
 

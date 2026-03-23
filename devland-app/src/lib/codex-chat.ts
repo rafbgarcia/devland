@@ -43,10 +43,19 @@ export type CodexChatImageAttachment = {
   previewUrl: string | null;
 };
 
+export type CodexPromptAttachment = {
+  type: 'image';
+  id: string;
+  name: string;
+  mimeType: string;
+  sizeBytes: number;
+  previewUrl: string;
+};
+
 export type CodexPromptSubmission = {
   prompt: string;
   settings: CodexComposerSettings;
-  attachments: CodexImageAttachmentInput[];
+  attachments: CodexPromptAttachment[];
   persistedAttachments?: CodexChatImageAttachment[];
 };
 

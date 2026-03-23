@@ -17,8 +17,10 @@ import type {
   CodexComposerSettings,
   CodexImageAttachmentInput,
   CodexInteractionMode,
+  CodexPromptAttachment,
   CodexRuntimeMode,
 } from '@/lib/codex-chat';
+import { hydrateCodexAttachments } from '@/main-process/codex-attachments';
 import {
   type CodexActivityItemType,
   formatCodexActivityLabel,
@@ -802,7 +804,7 @@ export class CodexAppServerManager extends EventEmitter<{
     cwd: string,
     prompt: string,
     settings: CodexComposerSettings,
-    attachments: readonly CodexImageAttachmentInput[],
+    attachments: readonly CodexPromptAttachment[],
     persistedAttachments: readonly CodexChatImageAttachment[] = [],
     resumeThreadId: string | null = null,
     transcriptBootstrap: string | null = null,
@@ -842,6 +844,7 @@ export class CodexAppServerManager extends EventEmitter<{
         throw new Error('Codex session is missing a thread id.');
       }
 
+      const hydratedAttachments = await hydrateCodexAttachments(attachments);
       const response = await this.sendRequest(
         context,
         'turn/start',
@@ -849,7 +852,7 @@ export class CodexAppServerManager extends EventEmitter<{
           threadId: context.threadId,
           prompt: turnStartPrompt,
           settings,
-          attachments,
+          attachments: hydratedAttachments,
         }),
       );
       const turnId = asString(asObject(asObject(response)?.turn)?.id);

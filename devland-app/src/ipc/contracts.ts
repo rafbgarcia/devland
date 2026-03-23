@@ -5,6 +5,7 @@ import type {
   CodexComposerSettings,
   CodexChatImageAttachment,
   CodexImageAttachmentInput,
+  CodexPromptAttachment,
 } from '@/lib/codex-chat';
 import {
   ProjectExtensionSchema,
@@ -47,7 +48,6 @@ export const GET_CODEX_PROMPT_REQUEST_CHECKPOINT_CHANNEL = 'app:get-codex-prompt
 export const WRITE_GIT_PROMPT_REQUEST_NOTE_CHANNEL = 'app:write-git-prompt-request-note';
 export const SEND_CODEX_SESSION_PROMPT_CHANNEL = 'app:send-codex-session-prompt';
 export const PERSIST_CODEX_ATTACHMENTS_CHANNEL = 'app:persist-codex-attachments';
-export const HYDRATE_CODEX_ATTACHMENTS_CHANNEL = 'app:hydrate-codex-attachments';
 export const LIST_CODEX_THREADS_CHANNEL = 'app:list-codex-threads';
 export const RESUME_CODEX_THREAD_CHANNEL = 'app:resume-codex-thread';
 export const SEARCH_CODEX_PATHS_CHANNEL = 'app:search-codex-paths';
@@ -901,15 +901,12 @@ export interface ElectronApi {
     sessionId: string;
     attachments: CodexImageAttachmentInput[];
   }) => Promise<CodexChatImageAttachment[]>;
-  hydrateCodexAttachments: (input: {
-    attachments: CodexDraftAttachment[];
-  }) => Promise<CodexImageAttachmentInput[]>;
   sendCodexSessionPrompt: (input: {
     sessionId: string;
     cwd: string;
     prompt: string;
     settings: CodexComposerSettings;
-    attachments: CodexImageAttachmentInput[];
+    attachments: CodexPromptAttachment[];
     persistedAttachments?: CodexChatImageAttachment[];
     resumeThreadId?: string | null;
     transcriptBootstrap?: string | null;
