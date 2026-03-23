@@ -2,22 +2,19 @@
   "worktreeSetupCommand": "bun install --cwd devland-app",
   "extensions": [
     {
-      "source": "path:/Users/rafa/github.com/rafbgarcia/devland/extensions/gh-prs",
+      "source": "github:rafbgarcia/devland@v0.2.0#gh-prs.tgz",
       "tabName": "Pull requests",
-      "tabIcon": "git-pull-request-arrow",
-      "port": 4310
+      "tabIcon": "git-pull-request-arrow"
     },
     {
-      "source": "path:/Users/rafa/github.com/rafbgarcia/devland/extensions/gh-issues",
+      "source": "github:rafbgarcia/devland@v0.2.0#gh-issues.tgz",
       "tabName": "Issues",
-      "tabIcon": "bug",
-      "port": 4311
+      "tabIcon": "bug"
     },
     {
-      "source": "path:/Users/rafa/github.com/rafbgarcia/devland/extensions/channels",
+      "source": "github:rafbgarcia/devland@v0.2.0#channels.tgz",
       "tabName": "Community",
-      "tabIcon": "heart",
-      "port": 4312
+      "tabIcon": "heart"
     }
   ]
 }
