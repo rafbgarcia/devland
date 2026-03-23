@@ -23,11 +23,13 @@ const config: ForgeConfig = {
     new MakerZIP({}, ['darwin']),
     new MakerRpm({
       options: {
+        bin: 'Devland',
         icon: path.resolve(__dirname, 'assets/icons/devland.png'),
       },
     }),
     new MakerDeb({
       options: {
+        bin: 'Devland',
         icon: path.resolve(__dirname, 'assets/icons/devland.png'),
       },
     }),
