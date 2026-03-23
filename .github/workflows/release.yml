@@ -29,6 +29,9 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Install SDK dependencies
+        run: bun install --cwd packages/devland-sdk --frozen-lockfile
+
       - name: Build extension archives
         shell: bash
         run: |
