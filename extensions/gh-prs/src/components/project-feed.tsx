@@ -278,14 +278,25 @@ export function ProjectFeedScaffold<TFeed extends FeedBase<FeedItemBase>>({
 
   if (state.data.items.length === 0) {
     return (
-      <div className="px-6 py-16">
-        <Empty>
-          <EmptyHeader>
-            <EmptyMedia variant="icon">{definition.emptyState.icon}</EmptyMedia>
-            <EmptyTitle>{definition.emptyState.title}</EmptyTitle>
-            <EmptyDescription>{definition.emptyState.description}</EmptyDescription>
-          </EmptyHeader>
-        </Empty>
+      <div>
+        <div className="flex items-center justify-end border-b border-border px-5 py-3">
+          <ProjectFeedHeader
+            itemCount={0}
+            fetchedAt={state.data.fetchedAt}
+            isRefetching={isRefetching}
+            onRefetch={onRefetch}
+            refreshLabel={definition.labels.refresh}
+          />
+        </div>
+        <div className="px-6 py-16">
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">{definition.emptyState.icon}</EmptyMedia>
+              <EmptyTitle>{definition.emptyState.title}</EmptyTitle>
+              <EmptyDescription>{definition.emptyState.description}</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        </div>
       </div>
     );
   }
