@@ -55,6 +55,11 @@ import { SessionTranscript } from '@/renderer/code-screen/session-transcript';
 import { TargetBrowserPanel } from '@/renderer/code-screen/target-browser-panel';
 import { TargetTerminalPanel } from '@/renderer/code-screen/target-terminal-panel';
 import { ExternalEditorDialog } from '@/renderer/code-screen/external-editor-dialog';
+import {
+  isComposerDraftDirty,
+  useComposerDraftActions,
+  useComposerDrafts,
+} from '@/renderer/code-screen/use-composer-drafts';
 import { useCodeTargets } from '@/renderer/code-screen/use-code-targets';
 import { useRepoBrowserTabs } from '@/renderer/code-screen/use-browser-tabs';
 import {
@@ -120,6 +125,10 @@ type PendingWorktreeRemoval = {
   target: CodeTarget;
   wasActive: boolean;
   reasons: RemoveGitWorktreeReason[];
+};
+
+type PendingDraftTargetClose = {
+  target: CodeTarget;
 };
 
 function formatCodeTargetLabel(target: CodeTarget, rootBranch: string) {
@@ -188,6 +197,7 @@ export function CodeWorkspaceScreen({
   repoPath: string;
 }) {
   const [isCreatingWorktree, setIsCreatingWorktree] = useState(false);
+  const [pendingDraftTargetClose, setPendingDraftTargetClose] = useState<PendingDraftTargetClose | null>(null);
   const [pendingWorktreeRemoval, setPendingWorktreeRemoval] = useState<PendingWorktreeRemoval | null>(null);
   const [isRemovingWorktree, setIsRemovingWorktree] = useState(false);
   const [isExternalEditorDialogOpen, setIsExternalEditorDialogOpen] = useState(false);
@@ -202,6 +212,8 @@ export function CodeWorkspaceScreen({
   const composerRef = useRef<ChatComposerHandle | null>(null);
   const repos = useRepos();
   const { session, updateSession } = useWorkspaceSession();
+  const composerDrafts = useComposerDrafts();
+  const { clearDraft: clearComposerDraft } = useComposerDraftActions();
   const { preferences, setExternalEditorPreference } = useAppPreferences();
   useEnsureExternalEditorPreference();
   const {
@@ -536,7 +548,8 @@ export function CodeWorkspaceScreen({
     clearCodeTargetBrowserState(target.id);
     removeBrowserTabState(target.id);
     removeTerminalTabState(target.id);
-  }, [getTerminalTabsState, removeBrowserTabState, removeTerminalTabState, stopSession]);
+    clearComposerDraft(target.id);
+  }, [clearComposerDraft, getTerminalTabsState, removeBrowserTabState, removeTerminalTabState, stopSession]);
 
   const removeClosedWorktree = useCallback(async (
     target: CodeTarget,
@@ -557,6 +570,7 @@ export function CodeWorkspaceScreen({
       await stopSession(target.id);
       removeBrowserTabState(target.id);
       removeTerminalTabState(target.id);
+      clearComposerDraft(target.id);
     } catch (error) {
       console.error('Failed to remove worktree:', error);
 
@@ -571,12 +585,21 @@ export function CodeWorkspaceScreen({
     repoPath,
     restoreTargetInUi,
     stopSession,
+    clearComposerDraft,
   ]);
 
-  const handleRemoveTarget = useCallback(async (targetId: string) => {
+  const handleRemoveTarget = useCallback(async (targetId: string, skipDraftConfirmation = false) => {
     const target = targets.find((candidate) => candidate.id === targetId);
 
     if (!target || target.kind === 'root') {
+      return;
+    }
+
+    if (
+      !skipDraftConfirmation &&
+      isComposerDraftDirty(composerDrafts[target.id] ?? { prompt: '', attachments: [] })
+    ) {
+      setPendingDraftTargetClose({ target });
       return;
     }
 
@@ -616,6 +639,7 @@ export function CodeWorkspaceScreen({
   }, [
     activeTargetId,
     disposeTargetResources,
+    composerDrafts,
     removeClosedWorktree,
     removeTargetFromUi,
     repoPath,
@@ -645,6 +669,11 @@ export function CodeWorkspaceScreen({
     pendingWorktreeRemoval,
     removeTargetFromUi,
   ]);
+
+  const handleResetSession = useCallback(async (targetId: string) => {
+    await resetSession(targetId);
+    clearComposerDraft(targetId);
+  }, [clearComposerDraft, resetSession]);
 
   useEffect(() => {
     if (activeTarget.kind !== 'worktree' || statusState.status !== 'ready') {
@@ -699,7 +728,7 @@ export function CodeWorkspaceScreen({
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === 'n' && event.metaKey && !event.shiftKey && !event.altKey) {
         event.preventDefault();
-        resetSession(activeTarget.id);
+        void handleResetSession(activeTarget.id);
       }
 
       if (event.key === 'Escape' && sessionState.status === 'running') {
@@ -710,7 +739,7 @@ export function CodeWorkspaceScreen({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeTarget.id, interruptSession, resetSession, sessionState.status]);
+  }, [activeTarget.id, handleResetSession, interruptSession, sessionState.status]);
 
   const isRunning =
     sessionState.status === 'connecting' || sessionState.status === 'running';
@@ -778,7 +807,7 @@ export function CodeWorkspaceScreen({
     renameTerminalTab(activeTarget.id, tabId, title);
   }, [activeTarget.id, renameTerminalTab]);
   const handleAppShortcutCommand = useEffectEvent((command: AppShortcutCommand) => {
-    if (pendingWorktreeRemoval !== null || isRemovingWorktree) {
+    if (pendingDraftTargetClose !== null || pendingWorktreeRemoval !== null || isRemovingWorktree) {
       return;
     }
 
@@ -835,7 +864,9 @@ export function CodeWorkspaceScreen({
                 currentThreadId={sessionState.threadId}
                 settings={composerSettings}
                 onSettingsChange={handleComposerSettingsChange}
-                onNewSession={() => resetSession(activeTarget.id)}
+                onNewSession={() => {
+                  void handleResetSession(activeTarget.id);
+                }}
                 onSelectThread={(threadId) =>
                   resumeThread(activeTarget.id, activeTarget.cwd, composerSettings, threadId)
                 }
@@ -920,6 +951,7 @@ export function CodeWorkspaceScreen({
           <ChatComposer
             key={activeTarget.id}
             ref={composerRef}
+            targetId={activeTarget.id}
             activeRepoPath={activeTarget.cwd}
             storedRepoPaths={storedRepoPaths}
             settings={composerSettings}
@@ -950,12 +982,12 @@ export function CodeWorkspaceScreen({
     handleCloseTerminalTab,
     handleImplementPlan,
     handleRenameTerminalTab,
+    handleResetSession,
     handleSendPrompt,
     handleSidebarResize,
     interruptSession,
     isRunning,
     rememberActivePane,
-    resetSession,
     respondToApproval,
     respondToUserInput,
     resumeThread,
@@ -971,6 +1003,50 @@ export function CodeWorkspaceScreen({
 
   return (
     <>
+      <Dialog
+        open={pendingDraftTargetClose !== null}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            setPendingDraftTargetClose(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Discard unsent draft?</DialogTitle>
+            <DialogDescription>
+              {pendingDraftTargetClose === null
+                ? ''
+                : `Closing ${pendingDraftTargetClose.target.title} will discard the unsent text and images in its composer.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setPendingDraftTargetClose(null)}
+            >
+              Keep draft
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => {
+                if (pendingDraftTargetClose === null) {
+                  return;
+                }
+
+                const { target } = pendingDraftTargetClose;
+                setPendingDraftTargetClose(null);
+                void handleRemoveTarget(target.id, true);
+              }}
+            >
+              Discard and close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog
         open={pendingWorktreeRemoval !== null}
         onOpenChange={(nextOpen) => {
@@ -1035,6 +1111,9 @@ export function CodeWorkspaceScreen({
               {targets.map((target) => {
                 const isActive = activeTargetId === target.id;
                 const label = targetLabels[target.id] ?? target.title;
+                const hasDirtyDraft = isComposerDraftDirty(
+                  composerDrafts[target.id] ?? { prompt: '', attachments: [] },
+                );
 
                 return (
                   <Reorder.Item
@@ -1065,6 +1144,15 @@ export function CodeWorkspaceScreen({
                   >
                     {target.kind === 'worktree' ? (
                       <GitBranchPlusIcon className="size-3 shrink-0 text-muted-foreground/60" />
+                    ) : null}
+                    {hasDirtyDraft ? (
+                      <span
+                        className={cn(
+                          'size-1.5 shrink-0 rounded-full bg-amber-500/90',
+                          isActive ? 'opacity-100' : 'opacity-80',
+                        )}
+                        aria-hidden="true"
+                      />
                     ) : null}
                     <span className="truncate select-none whitespace-nowrap">{label}</span>
                     {target.kind !== 'root' ? (

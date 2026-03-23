@@ -41,6 +41,7 @@ import {
   VALIDATE_EXTERNAL_EDITOR_PATH_CHANNEL,
   OPEN_FILE_IN_EXTERNAL_EDITOR_CHANNEL,
   PERSIST_CODEX_ATTACHMENTS_CHANNEL,
+  HYDRATE_CODEX_ATTACHMENTS_CHANNEL,
   GitStateChangedEventSchema,
   LIST_CODEX_THREADS_CHANNEL,
   RESUME_CODEX_THREAD_CHANNEL,
@@ -185,6 +186,8 @@ export const electronApi: ElectronApi = {
     ipcRenderer.invoke(OPEN_FILE_IN_EXTERNAL_EDITOR_CHANNEL, input),
   persistCodexAttachments: (input) =>
     ipcRenderer.invoke(PERSIST_CODEX_ATTACHMENTS_CHANNEL, input),
+  hydrateCodexAttachments: (input) =>
+    ipcRenderer.invoke(HYDRATE_CODEX_ATTACHMENTS_CHANNEL, input),
   sendCodexSessionPrompt: (input) =>
     ipcRenderer.invoke(SEND_CODEX_SESSION_PROMPT_CHANNEL, input),
   listCodexThreads: (input) =>

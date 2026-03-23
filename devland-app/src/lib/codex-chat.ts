@@ -47,6 +47,7 @@ export type CodexPromptSubmission = {
   prompt: string;
   settings: CodexComposerSettings;
   attachments: CodexImageAttachmentInput[];
+  persistedAttachments?: CodexChatImageAttachment[];
 };
 
 export const DEFAULT_CODEX_COMPOSER_SETTINGS: CodexComposerSettings = {
