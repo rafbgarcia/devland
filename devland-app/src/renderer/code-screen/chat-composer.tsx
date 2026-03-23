@@ -44,7 +44,10 @@ import { ChatContextWindowIndicator } from '@/renderer/code-screen/chat-context-
 import {
   readFileAsDataUrl,
 } from '@/renderer/code-screen/chat-composer-attachments';
-import { deriveChatComposerRuntimeState } from '@/renderer/code-screen/chat-composer.logic';
+import {
+  deriveChatComposerRuntimeState,
+  shouldRestoreFailedComposerDraft,
+} from '@/renderer/code-screen/chat-composer.logic';
 import { appendPromptBlock as appendPromptBlockText } from '@/renderer/code-screen/chat-composer-prompt';
 import { useComposerDraft } from '@/renderer/code-screen/use-composer-drafts';
 import { VscodeEntryIcon } from '@/renderer/shared/ui/vscode-entry-icon';
@@ -418,6 +421,12 @@ export const ChatComposer = memo(forwardRef<ChatComposerHandle, ChatComposerProp
     const pendingAttachments = attachments;
 
     setIsSending(true);
+    promptRef.current = '';
+    clearDraft();
+    setOpenAttachmentId(null);
+    setTagTrigger(null);
+    setTagSuggestions([]);
+    setComposerNotice(null);
 
     try {
       const persistedAttachments: CodexChatImageAttachment[] = pendingAttachments.map((attachment) => ({
@@ -434,15 +443,18 @@ export const ChatComposer = memo(forwardRef<ChatComposerHandle, ChatComposerProp
         attachments: pendingAttachments,
         persistedAttachments,
       });
-
-      promptRef.current = '';
-      clearDraft();
-      setOpenAttachmentId(null);
-      setTagTrigger(null);
-      setTagSuggestions([]);
-      setComposerNotice(null);
     } catch (error) {
-      promptRef.current = pendingPrompt;
+      if (
+        shouldRestoreFailedComposerDraft({
+          prompt: promptRef.current,
+          attachmentCount: attachmentsRef.current.length,
+        })
+      ) {
+        promptRef.current = pendingPrompt;
+        setDraftPrompt(pendingPrompt);
+        setDraftAttachments(pendingAttachments);
+      }
+
       setComposerNotice('Failed to send prompt.');
       console.error('Failed to send prompt:', error);
     } finally {
