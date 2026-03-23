@@ -16,8 +16,10 @@ import {
   checkGitWorktreeRemoval,
   commitWorkingTreeSelection,
   createGitWorktree,
+  GIT_PROMPT_REQUEST_ASSETS_REF,
   getGitDefaultBranch,
   getGitBranchHistory,
+  writeGitPromptRequestNote,
   getGitStatus,
   getGitWorkingTreeDiff,
   removeGitWorktree,
@@ -318,6 +320,83 @@ describe('getGitStatus', () => {
       const diffPaths = parseUnifiedDiffDocument(diff).files.map((file) => file.displayPath).sort();
 
       assert.deepEqual(diffPaths, ['dist/assets/bundle.js', 'dist/index.html']);
+    } finally {
+      rmSync(repoPath, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('writeGitPromptRequestNote', () => {
+  it('stores prompt request image assets when the asset ref does not exist yet', async () => {
+    const repoPath = await createCommittedRepo();
+
+    try {
+      const commitSha = (await execGit(repoPath, ['rev-parse', 'HEAD'])).stdout.trim();
+      const imageBytes = Buffer.from('fake image bytes', 'utf8');
+
+      await writeGitPromptRequestNote({
+        repoPath,
+        commitSha,
+        snapshot: {
+          version: 2,
+          threadId: 'thread-1',
+          branchName: 'main',
+          createdAt: '2026-03-23T00:00:00.000Z',
+          settings: {
+            model: 'gpt-5',
+            reasoningEffort: 'medium',
+          },
+          checkpoint: {
+            transcriptEntryStart: 0,
+            transcriptEntryEnd: 1,
+          },
+          transcriptEntries: [
+            {
+              id: 'entry-1',
+              kind: 'message',
+              message: {
+                id: 'message-1',
+                role: 'user',
+                text: 'Investigate this screenshot.',
+                attachments: [
+                  {
+                    type: 'image',
+                    name: 'screenshot.png',
+                    mimeType: 'image/png',
+                    sizeBytes: imageBytes.length,
+                    previewUrl: `data:image/png;base64,${imageBytes.toString('base64')}`,
+                    asset: null,
+                  },
+                ],
+                createdAt: '2026-03-23T00:00:00.000Z',
+                completedAt: null,
+                turnId: null,
+                itemId: null,
+              },
+            },
+          ],
+        },
+      });
+
+      const { stdout: noteStdout } = await execGit(repoPath, [
+        'notes',
+        '--ref=devland-prompt-requests',
+        'show',
+        commitSha,
+      ]);
+      const note = JSON.parse(noteStdout);
+      const attachment = note.transcriptEntries[0]?.message.attachments[0];
+
+      assert.equal(attachment.previewUrl, null);
+      assert.equal(attachment.asset?.ref, GIT_PROMPT_REQUEST_ASSETS_REF);
+      assert.match(attachment.asset?.path ?? '', /^images\/[a-f0-9]{2}\/[a-f0-9]{64}\.png$/);
+
+      const { stdout: storedAssetStdout } = await execGit(repoPath, [
+        'show',
+        `${GIT_PROMPT_REQUEST_ASSETS_REF}:${attachment.asset.path}`,
+      ]);
+
+      assert.equal(storedAssetStdout, imageBytes.toString('utf8'));
     } finally {
       rmSync(repoPath, { recursive: true, force: true });
     }
