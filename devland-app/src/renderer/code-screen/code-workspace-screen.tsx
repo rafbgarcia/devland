@@ -1138,21 +1138,13 @@ export function CodeWorkspaceScreen({
                       isActive
                         ? 'bg-background text-foreground shadow-sm'
                         : 'text-muted-foreground hover:bg-background/50 hover:text-foreground/80',
+                      hasDirtyDraft && !isActive ? 'ring-1 ring-inset ring-amber-500/35' : null,
                     )}
                     as="div"
                     whileDrag={{ scale: 1.03, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
                   >
                     {target.kind === 'worktree' ? (
                       <GitBranchPlusIcon className="size-3 shrink-0 text-muted-foreground/60" />
-                    ) : null}
-                    {hasDirtyDraft ? (
-                      <span
-                        className={cn(
-                          'size-1.5 shrink-0 rounded-full bg-amber-500/90',
-                          isActive ? 'opacity-100' : 'opacity-80',
-                        )}
-                        aria-hidden="true"
-                      />
                     ) : null}
                     <span className="truncate select-none whitespace-nowrap">{label}</span>
                     {target.kind !== 'root' ? (
