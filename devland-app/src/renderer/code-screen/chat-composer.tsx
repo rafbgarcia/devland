@@ -708,7 +708,7 @@ export const ChatComposer = memo(forwardRef<ChatComposerHandle, ChatComposerProp
                 className="ml-1 mb-1 flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
                 aria-label="Composer actions"
               >
-                <PlusIcon className="size-[18px]" />
+                <PlusIcon className="size-4" />
               </DropdownMenuTrigger>
               <DropdownMenuContent side="top" sideOffset={6} align="start">
                 <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
