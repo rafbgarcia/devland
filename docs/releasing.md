@@ -32,7 +32,6 @@ Each extension archive is attached to the same GitHub Release, so repository con
 
 ## Release flow
 
-1. Run `bun run scripts/release.ts 0.2.0` to bump the managed versions and validate that `v0.2.0` is newer than the latest existing release tag.
-2. Commit the version bump.
-3. Create and push a tag such as `v0.2.0`.
-4. Wait for the `Release` GitHub Actions workflow to publish the assets.
+1. Run `bun run scripts/release.ts 0.2.0`.
+2. The script validates the version, updates the managed version files, commits `chore: release v0.2.0`, creates tag `v0.2.0`, and pushes the branch plus tag to `origin`.
+3. Wait for the `Release` GitHub Actions workflow to publish the assets.

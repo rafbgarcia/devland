@@ -236,6 +236,16 @@ const resolveLatestReleasedVersion = async (): Promise<string | null> => {
 
 const normalizeVersionInput = (value: string): string => value.trim().replace(/^v(?=\d)/i, '');
 
+const ensureCleanWorktree = async (): Promise<void> => {
+  const statusOutput = await runGit(['status', '--short']);
+
+  if (statusOutput.trim().length > 0) {
+    throw new Error(
+      'Refusing to release from a dirty worktree. Commit, stash, or discard existing changes first.',
+    );
+  }
+};
+
 const validateReleaseVersion = async (version: string): Promise<void> => {
   parseSemver(version);
 
@@ -293,28 +303,21 @@ const main = async (): Promise<void> => {
   const version = normalizeVersionInput(rawVersion);
   const releaseTag = `v${version}`;
 
+  await ensureCleanWorktree();
   await validateReleaseVersion(version);
 
   const updatedPaths = updateManagedVersions(version);
-  await Bun.$`node ${path.join(repoRoot, 'scripts/validate-release.mjs')} ${releaseTag}`;
-
-  console.log(`Prepared release ${releaseTag}.`);
-
   if (updatedPaths.length === 0) {
-    console.log('All managed versions were already set to this version.');
-  } else {
-    console.log('Updated files:');
-
-    for (const updatedPath of updatedPaths) {
-      console.log(`- ${updatedPath}`);
-    }
+    throw new Error(`No managed version files changed for ${releaseTag}.`);
   }
 
-  console.log('\nNext steps:');
-  console.log(`- git add devland-app/package.json extensions/*/package.json extensions/*/devland.json`);
-  console.log(`- git commit -m "chore: release ${releaseTag}"`);
-  console.log(`- git tag ${releaseTag}`);
-  console.log(`- git push origin HEAD --tags`);
+  await Bun.$`node ${path.join(repoRoot, 'scripts/validate-release.mjs')} ${releaseTag}`;
+  await runGit(['add', '--', ...updatedPaths]);
+  await runGit(['commit', '-m', `chore: release ${releaseTag}`]);
+  await runGit(['tag', releaseTag]);
+  await runGit(['push', 'origin', 'HEAD', `refs/tags/${releaseTag}`]);
+
+  console.log(`Released ${releaseTag}.`);
 };
 
 if (import.meta.main) {
