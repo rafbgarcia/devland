@@ -1,7 +1,10 @@
 {
   "id": "@devlandapp/gh-prs",
   "name": "GitHub Pull Requests",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "entry": "dist/index.html",
-  "commands": ["gh", "git"]
+  "commands": [
+    "gh",
+    "git"
+  ]
 }
