@@ -20,6 +20,7 @@ import {
   useGitWorkingTreeDiff,
 } from '@/renderer/code-screen/use-git-code-changes';
 import { useWorkingTreeCommitSelection } from '@/renderer/code-screen/use-working-tree-commit-selection';
+import type { CodexSessionState } from '@/renderer/code-screen/codex-session-state';
 import { getParsedDiffFiles } from '@/renderer/shared/ui/diff/parsed-diff-files';
 import { SingleFileDiffView } from '@/renderer/shared/ui/diff/single-file-diff-view';
 import { getExpandedDiffHighlightLineFilters } from '@/renderer/shared/ui/diff/diff-expansion';
@@ -181,6 +182,7 @@ export function ChangesPane({
   baseBranchName,
   branchName,
   headRevision,
+  codexSessionState,
   workingTreeFiles,
   workingTreeStatusRefreshVersion,
   isViewportActive,
@@ -195,6 +197,7 @@ export function ChangesPane({
   baseBranchName: string;
   branchName: string;
   headRevision: string | null;
+  codexSessionState: Pick<CodexSessionState, 'status' | 'threadId' | 'transcriptEntries'>;
   workingTreeFiles: GitStatusFile[];
   workingTreeStatusRefreshVersion: number;
   isViewportActive: boolean;
@@ -328,8 +331,10 @@ export function ChangesPane({
 
   const workingTreeCommitSelection = useWorkingTreeCommitSelection({
     repoPath,
+    branchName,
     diffFiles: selection.type === 'working-tree' ? activeDiffFiles : [],
     enabled: selection.type === 'working-tree',
+    codexContext: codexSessionState,
   });
   const isWorkingTreeSelection = selection.type === 'working-tree';
 
@@ -432,7 +437,7 @@ export function ChangesPane({
   ]);
 
   const handleCommitSelection = useCallback((
-    draft: { summary: string; description: string },
+    draft: { summary: string; description: string; includeCodexContext: boolean },
   ) => workingTreeCommitSelection.commitSelection(draft), [workingTreeCommitSelection]);
   const workingTreeCommitState = useMemo(
     () =>
@@ -442,6 +447,17 @@ export function ChangesPane({
             totalFileCount: workingTreeSidebarFiles.length,
             isSubmitting: workingTreeCommitSelection.isSubmitting,
             error: workingTreeCommitSelection.error,
+            codexContext: {
+              enabled:
+                codexSessionState.threadId !== null &&
+                codexSessionState.status !== 'running',
+              reason:
+                codexSessionState.threadId === null
+                  ? 'Start a Codex session on this code target to attach context.'
+                  : codexSessionState.status === 'running'
+                    ? 'Wait for the active Codex turn to finish before attaching context.'
+                    : null,
+            },
             getFileSelectionType: workingTreeCommitSelection.getFileSelectionType,
             onToggleFileSelection: toggleWorkingTreeFileSelection,
             onCommit: handleCommitSelection,
@@ -450,6 +466,8 @@ export function ChangesPane({
     [
       handleCommitSelection,
       isWorkingTreeSelection,
+      codexSessionState.status,
+      codexSessionState.threadId,
       toggleWorkingTreeFileSelection,
       workingTreeSidebarFiles.length,
       workingTreeCommitSelection.error,

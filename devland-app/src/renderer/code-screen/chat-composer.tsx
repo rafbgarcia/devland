@@ -16,6 +16,7 @@ import {
 import {
   ImagePlusIcon,
   LoaderCircleIcon,
+  PlusIcon,
   SquareIcon,
   XIcon,
 } from 'lucide-react';
@@ -51,6 +52,12 @@ import {
   DialogContent,
   DialogTitle,
 } from '@/shadcn/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/shadcn/components/ui/dropdown-menu';
 import { cn } from '@/shadcn/lib/utils';
 
 const TAG_SEARCH_DEBOUNCE_MS = 120;
@@ -661,15 +668,21 @@ export const ChatComposer = memo(forwardRef<ChatComposerHandle, ChatComposerProp
               className="hidden"
               onChange={handleFilesSelected}
             />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isInputDisabled}
-              className="ml-1 mb-1 flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-              aria-label="Attach images"
-            >
-              <ImagePlusIcon className="size-[18px]" />
-            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                disabled={isInputDisabled}
+                className="ml-1 mb-1 flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                aria-label="Composer actions"
+              >
+                <PlusIcon className="size-[18px]" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="top" sideOffset={6} align="start">
+                <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                  <ImagePlusIcon className="size-4" />
+                  Attach images
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             <textarea
               ref={textareaRef}

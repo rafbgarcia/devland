@@ -11,7 +11,9 @@ import {
   CommitWorkingTreeSelectionResultSchema,
   CheckGitWorktreeRemovalResultSchema,
   CreateGitWorktreeResultSchema,
+  GitBranchPromptRequestsSchema,
   GitBranchHistorySchema,
+  GitPromptRequestSnapshotSchema,
   RepoDetailsSchema,
   type CodeChangesMeta,
   type CheckGitWorktreeRemovalResult,
@@ -19,9 +21,11 @@ import {
   type CommitWorkingTreeSelectionResult,
   type CodexTurnDiff,
   type CreateGitWorktreeResult,
+  type GitBranchPromptRequests,
   type GitBranchHistory,
   type GitBranch,
   type GitFileStatus,
+  type GitPromptRequestSnapshot,
   type GitStatus,
   type RemoveGitWorktreeReason,
   type RepoDetails,
@@ -47,6 +51,7 @@ const getGitReadOnlyExecOptions = () =>
 
 const DEFAULT_TEXT_READ_MAX_BYTES = 256 * 1024;
 const MAX_GIT_BRANCH_HISTORY_COMMITS = 30;
+const GIT_PROMPT_REQUEST_NOTES_REF = 'devland-prompt-requests';
 
 const normalizeGitHubSlug = (value: string): string | null => {
   const normalizedValue = value.trim().replace(/\.git$/i, '').replace(/\/$/, '');
@@ -1219,6 +1224,89 @@ export const getGitBranchCompareMeta = async (
     commits: parsePrCommitLogOutput(logOutput),
   });
 };
+
+async function readGitPromptRequestNote(
+  repoPath: string,
+  commitSha: string,
+): Promise<GitPromptRequestSnapshot | null> {
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['-C', repoPath, 'notes', `--ref=${GIT_PROMPT_REQUEST_NOTES_REF}`, 'show', commitSha],
+      { ...getGitReadOnlyExecOptions(), timeout: 15000 },
+    );
+
+    return GitPromptRequestSnapshotSchema.parse(JSON.parse(stdout));
+  } catch (error) {
+    const gitError = error as NodeJS.ErrnoException & { stderr?: string };
+
+    if (gitError.stderr?.includes('no note found for object')) {
+      return null;
+    }
+
+    if (error instanceof SyntaxError) {
+      throw new Error(`Prompt request note for ${commitSha} is not valid JSON.`, { cause: error });
+    }
+
+    throw error;
+  }
+}
+
+export async function writeGitPromptRequestNote(input: {
+  repoPath: string;
+  commitSha: string;
+  snapshot: GitPromptRequestSnapshot;
+}): Promise<void> {
+  const parsedSnapshot = GitPromptRequestSnapshotSchema.parse(input.snapshot);
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'devland-prompt-request-'));
+  const tempFilePath = path.join(tempDir, 'note.json');
+
+  try {
+    writeFileSync(tempFilePath, JSON.stringify(parsedSnapshot), 'utf8');
+
+    await execFileAsync(
+      'git',
+      [
+        '-C',
+        input.repoPath,
+        'notes',
+        `--ref=${GIT_PROMPT_REQUEST_NOTES_REF}`,
+        'add',
+        '--force',
+        '--file',
+        tempFilePath,
+        input.commitSha,
+      ],
+      getGitExecOptions(),
+    );
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+export async function getGitBranchPromptRequests(input: {
+  repoPath: string;
+  baseBranch: string;
+  headBranch: string;
+}): Promise<GitBranchPromptRequests> {
+  const compareMeta = await getGitBranchCompareMeta(
+    input.repoPath,
+    input.baseBranch,
+    input.headBranch,
+  );
+  const commits = await Promise.all(
+    compareMeta.commits.map(async (commit) => ({
+      ...commit,
+      snapshot: await readGitPromptRequestNote(input.repoPath, commit.sha),
+    })),
+  );
+
+  return GitBranchPromptRequestsSchema.parse({
+    baseBranch: compareMeta.baseBranch,
+    headBranch: compareMeta.headBranch,
+    commits,
+  });
+}
 
 export const getGitBranchHistory = async (
   repoPath: string,

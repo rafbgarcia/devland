@@ -1,7 +1,7 @@
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react';
 import { getRouteApi, useRouter, useRouterState } from '@tanstack/react-router';
 import { AnimatePresence, Reorder } from 'motion/react';
-import { CodeIcon, FolderOpenIcon, PlusIcon, XIcon } from 'lucide-react';
+import { CodeIcon, FolderOpenIcon, GitCommitHorizontalIcon, PlusIcon, XIcon } from 'lucide-react';
 
 import { CodeTabMenu } from '@/renderer/code-screen/code-tab-menu';
 import { ExternalEditorDialog } from '@/renderer/code-screen/external-editor-dialog';
@@ -63,6 +63,7 @@ const rootRouteApi = getRouteApi('__root__');
 
 const VIEW_TABS = [
   { value: 'code', label: 'Code', icon: CodeIcon },
+  { value: 'prompt-requests', label: 'Prompt requests', icon: GitCommitHorizontalIcon },
 ] as const satisfies ReadonlyArray<{
   value: ProjectViewTab;
   label: string;

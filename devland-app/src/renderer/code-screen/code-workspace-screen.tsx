@@ -1154,6 +1154,7 @@ export function CodeWorkspaceScreen({
             baseBranchName={visibleBaseBranchName}
             branchName={visibleChangesStatus.branch}
             headRevision={visibleChangesStatus.headRevision}
+            codexSessionState={sessionState}
             workingTreeFiles={visibleChangesStatus.files}
             workingTreeStatusRefreshVersion={statusState.refreshVersion}
             isViewportActive={activePaneId === 'changes'}
