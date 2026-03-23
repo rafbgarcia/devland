@@ -35,7 +35,6 @@ export function CommitComposer({
     if (selectedFileCount === 0) {
       setSummary('');
       setDescription('');
-      setIncludeCodexContext(false);
     }
   }, [selectedFileCount]);
 
