@@ -5,6 +5,7 @@ import type { CodeTarget } from '@/ipc/contracts';
 import {
   getAdjacentCodePaneId,
   getAdjacentCodeTargetId,
+  getCodeTargetIdAfterClose,
   getRootCodeTargetId,
   isRootCodeTargetId,
 } from '@/renderer/shared/lib/workspace-shortcuts';
@@ -54,6 +55,20 @@ describe('getAdjacentCodeTargetId', () => {
   it('falls back to the first or last target when the current one is unknown', () => {
     assert.equal(getAdjacentCodeTargetId(targets, 'missing', 'next'), 'repo-1:root');
     assert.equal(getAdjacentCodeTargetId(targets, 'missing', 'previous'), 'worktree-1');
+  });
+});
+
+describe('getCodeTargetIdAfterClose', () => {
+  it('prefers the next target when closing the active target', () => {
+    assert.equal(getCodeTargetIdAfterClose(targets, 'session-1'), 'worktree-1');
+  });
+
+  it('falls back to the previous target when closing the last target', () => {
+    assert.equal(getCodeTargetIdAfterClose(targets, 'worktree-1'), 'session-1');
+  });
+
+  it('returns null when the closing target cannot be found', () => {
+    assert.equal(getCodeTargetIdAfterClose(targets, 'missing'), null);
   });
 });
 

@@ -50,3 +50,26 @@ export const getAdjacentCodeTargetId = (
 
   return targets[adjacentTargetIndex]?.id ?? null;
 };
+
+export const getCodeTargetIdAfterClose = (
+  targets: CodeTarget[],
+  closingTargetId: string | null,
+): string | null => {
+  if (targets.length === 0 || closingTargetId === null) {
+    return null;
+  }
+
+  const closingTargetIndex = targets.findIndex((target) => target.id === closingTargetId);
+
+  if (closingTargetIndex === -1) {
+    return null;
+  }
+
+  const remainingTargets = targets.filter((target) => target.id !== closingTargetId);
+
+  return (
+    remainingTargets[closingTargetIndex]?.id ??
+    remainingTargets[closingTargetIndex - 1]?.id ??
+    null
+  );
+};

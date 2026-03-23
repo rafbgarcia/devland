@@ -97,6 +97,7 @@ import {
 import {
   getAdjacentCodePaneId,
   getAdjacentCodeTargetId,
+  getCodeTargetIdAfterClose,
 } from '@/renderer/shared/lib/workspace-shortcuts';
 import { useWorkspaceSession } from '@/renderer/projects-shell/use-workspace-session';
 import { useRepos } from '@/renderer/projects-shell/use-repos';
@@ -515,15 +516,19 @@ export function CodeWorkspaceScreen({
   };
 
   const removeTargetFromUi = useCallback((target: CodeTarget, wasActive: boolean) => {
+    const nextActiveTargetId = wasActive
+      ? getCodeTargetIdAfterClose(targets, target.id)
+      : null;
+
     removeTarget(target.id);
 
-    if (wasActive) {
-      rememberActiveTarget(rootTarget.id);
+    if (nextActiveTargetId !== null) {
+      rememberActiveTarget(nextActiveTargetId);
     }
   }, [
     rememberActiveTarget,
     removeTarget,
-    rootTarget.id,
+    targets,
   ]);
 
   const restoreTargetInUi = useCallback((target: CodeTarget, wasActive: boolean) => {
