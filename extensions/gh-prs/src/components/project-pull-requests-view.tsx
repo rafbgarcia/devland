@@ -15,15 +15,21 @@ import {
 } from './pull-request-detail-drawer';
 import { PullRequestFeedItem } from './pull-request-feed-item';
 
+type DrawerState = {
+  prNumber: number | null;
+  initialTab: 'details' | 'prompt-session';
+};
+
 export function ProjectPullRequestsView({
   repo,
 }: {
   repo: DevlandRepoContext;
 }) {
   const { refetch, isRefetching, ...feedState } = useProjectPullRequests(repo);
-  const [selectedPrNumber, setSelectedPrNumber] = useState<number | null>(null);
+  const [drawer, setDrawer] = useState<DrawerState>({ prNumber: null, initialTab: 'details' });
+
   const selectedPr = feedState.status === 'ready'
-    ? feedState.data.items.find((item) => item.number === selectedPrNumber) ?? null
+    ? feedState.data.items.find((item) => item.number === drawer.prNumber) ?? null
     : null;
 
   const pullRequestFeedDefinition: ProjectFeedDefinition<ProjectPullRequestFeed> = useMemo(
@@ -41,12 +47,17 @@ export function ProjectPullRequestsView({
       renderItem: (item) => (
         <PullRequestFeedItem
           item={item}
-          isSelected={item.number === selectedPrNumber}
-          onSelect={(candidate) => setSelectedPrNumber(candidate.number)}
+          isSelected={item.number === drawer.prNumber}
+          onSelect={(candidate) =>
+            setDrawer({ prNumber: candidate.number, initialTab: 'details' })
+          }
+          onReview={(candidate) =>
+            setDrawer({ prNumber: candidate.number, initialTab: 'prompt-session' })
+          }
         />
       ),
     }),
-    [selectedPrNumber],
+    [drawer.prNumber],
   );
 
   return (
@@ -58,9 +69,11 @@ export function ProjectPullRequestsView({
         definition={pullRequestFeedDefinition}
       />
       <PullRequestDetailDrawer
+        repo={repo}
         pr={selectedPr}
-        prNumber={selectedPrNumber}
-        onClose={() => setSelectedPrNumber(null)}
+        prNumber={drawer.prNumber}
+        initialTab={drawer.initialTab}
+        onClose={() => setDrawer({ prNumber: null, initialTab: 'details' })}
       />
     </>
   );

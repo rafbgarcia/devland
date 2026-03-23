@@ -19,12 +19,20 @@ const getCommandErrorMessage = (
   return detail || `Command "${command}" failed with exit code ${result.exitCode}.`;
 };
 
+export const runCommandResult = async (input: {
+  command: string;
+  args: string[];
+  cwd?: string | null;
+}): Promise<DevlandRunCommandResult> => {
+  return await devland.runCommand(input);
+};
+
 const runCommand = async (input: {
   command: string;
   args: string[];
   cwd?: string | null;
 }): Promise<string> => {
-  const result = await devland.runCommand(input);
+  const result = await runCommandResult(input);
 
   if (result.exitCode !== 0) {
     throw new Error(getCommandErrorMessage(input.command, result));

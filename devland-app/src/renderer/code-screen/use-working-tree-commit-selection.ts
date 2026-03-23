@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { CodexSessionStatus } from '@/ipc/contracts';
+import type { CodexComposerSettings } from '@/lib/codex-chat';
 import {
   DiffSelection,
   getDiffChangeGroupSelectableLineNumbers,
@@ -114,6 +115,8 @@ export function useWorkingTreeCommitSelection({
     status: CodexSessionStatus;
     threadId: string | null;
     transcriptEntries: CodexSessionState['transcriptEntries'];
+    model: CodexComposerSettings['model'];
+    reasoningEffort: CodexComposerSettings['reasoningEffort'];
   } | null;
 }): WorkingTreeCommitSelectionState {
   const [selectionByPath, setSelectionByPath] = useState<Record<string, FileCommitSelection>>({});
@@ -360,6 +363,10 @@ export function useWorkingTreeCommitSelection({
             sessionState: {
               threadId: codexContext.threadId,
               transcriptEntries: codexContext.transcriptEntries,
+            },
+            settings: {
+              model: codexContext.model,
+              reasoningEffort: codexContext.reasoningEffort,
             },
             branchName,
             checkpoint: await window.electronAPI.getCodexPromptRequestCheckpoint({

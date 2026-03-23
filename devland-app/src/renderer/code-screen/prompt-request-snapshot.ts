@@ -2,6 +2,7 @@ import type {
   CodexPromptRequestTranscriptEntry,
   GitPromptRequestSnapshot,
 } from '@/ipc/contracts';
+import type { CodexComposerSettings } from '@/lib/codex-chat';
 import type {
   CodexSessionActivity,
   CodexSessionState,
@@ -45,6 +46,7 @@ function sanitizeTranscriptEntry(entry: CodexTranscriptEntry): CodexPromptReques
 
 export function buildGitPromptRequestSnapshot(input: {
   sessionState: Pick<CodexSessionState, 'threadId' | 'transcriptEntries'>;
+  settings: Pick<CodexComposerSettings, 'model' | 'reasoningEffort'>;
   branchName: string;
   checkpoint: number;
 }): GitPromptRequestSnapshot | null {
@@ -60,6 +62,10 @@ export function buildGitPromptRequestSnapshot(input: {
     threadId: input.sessionState.threadId,
     branchName: input.branchName,
     createdAt: new Date().toISOString(),
+    settings: {
+      model: input.settings.model,
+      reasoningEffort: input.settings.reasoningEffort,
+    },
     checkpoint: {
       transcriptEntryStart,
       transcriptEntryEnd,

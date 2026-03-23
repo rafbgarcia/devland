@@ -1,26 +1,40 @@
+import { useState } from 'react';
+
 import {
   ExternalLinkIcon,
   GitPullRequestDraftIcon,
   GitPullRequestIcon,
 } from 'lucide-react';
 
+import type { DevlandRepoContext } from '@devlandapp/sdk';
+
 import { RelativeTime } from '@/components/relative-time';
 import { SlidingDetailDrawer } from '@/components/sliding-detail-drawer';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { getAuthorLogin } from '@/lib/github';
+import { cn } from '@/lib/utils';
 import type { ProjectPullRequestFeedItem } from '@/types/pull-requests';
 
 import { PullRequestDiffStats } from './pull-request-diff-stats';
+import { PullRequestPromptSession } from './pull-request-prompt-session';
+
+type Tab = 'details' | 'prompt-session';
 
 function PullRequestDetailContent({
+  repo,
   pr,
+  initialTab,
 }: {
+  repo: DevlandRepoContext;
   pr: ProjectPullRequestFeedItem;
+  initialTab: Tab;
 }) {
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
+
   return (
-    <div className="flex flex-1 flex-col overflow-y-auto">
-      <div className="flex flex-col gap-3 p-4">
+    <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex flex-col gap-3 p-4 pb-0">
         <div className="flex items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-1.5">
             {pr.isDraft ? (
@@ -69,7 +83,59 @@ function PullRequestDetailContent({
         </div>
       </div>
 
-      <div className="px-4 pt-1">
+      <div className="flex gap-1 border-b border-border px-4 pt-2">
+        <TabButton active={activeTab === 'details'} onClick={() => setActiveTab('details')}>
+          Details
+        </TabButton>
+        <TabButton
+          active={activeTab === 'prompt-session'}
+          onClick={() => setActiveTab('prompt-session')}
+        >
+          Prompt session
+        </TabButton>
+      </div>
+
+      {activeTab === 'details' ? (
+        <DetailsTab pr={pr} />
+      ) : (
+        <PullRequestPromptSession repo={repo} pr={pr} />
+      )}
+    </div>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'relative px-3 py-2 text-sm font-medium transition-colors',
+        active
+          ? 'text-foreground'
+          : 'text-muted-foreground hover:text-foreground/80',
+      )}
+    >
+      {children}
+      {active && (
+        <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-primary" />
+      )}
+    </button>
+  );
+}
+
+function DetailsTab({ pr }: { pr: ProjectPullRequestFeedItem }) {
+  return (
+    <div className="flex-1 overflow-y-auto">
+      <div className="px-4 pt-4">
         <div className="rounded-lg border border-border bg-muted/30">
           <div className="flex items-center gap-2 rounded-t-lg border-b border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
@@ -130,12 +196,16 @@ function PullRequestDetailContent({
 }
 
 export function PullRequestDetailDrawer({
+  repo,
   pr,
   prNumber,
+  initialTab,
   onClose,
 }: {
+  repo: DevlandRepoContext;
   pr: ProjectPullRequestFeedItem | null;
   prNumber: number | null;
+  initialTab?: Tab;
   onClose: () => void;
 }) {
   return (
@@ -147,7 +217,12 @@ export function PullRequestDetailDrawer({
           </p>
         </div>
       ) : (
-        <PullRequestDetailContent pr={pr} />
+        <PullRequestDetailContent
+          key={`${pr.number}-${initialTab}`}
+          repo={repo}
+          pr={pr}
+          initialTab={initialTab ?? 'details'}
+        />
       )}
     </SlidingDetailDrawer>
   );

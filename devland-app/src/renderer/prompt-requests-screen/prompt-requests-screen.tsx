@@ -215,6 +215,11 @@ function PromptRequestDetailDialog({
                       {commit.snapshot.checkpoint.transcriptEntryStart}..{commit.snapshot.checkpoint.transcriptEntryEnd}
                     </Badge>
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    {commit.snapshot.settings
+                      ? `${commit.snapshot.settings.model} · reasoning ${commit.snapshot.settings.reasoningEffort}`
+                      : 'Model and reasoning settings unavailable for this legacy note.'}
+                  </p>
                   <SnapshotTranscript snapshot={commit.snapshot} />
                 </div>
               ) : null}
@@ -364,7 +369,10 @@ export function PromptRequestsScreen({
                 ) : null}
                 {commit.snapshot ? (
                   <p className="mt-2 text-xs text-muted-foreground">
-                    Thread {commit.snapshot.threadId} · entries {commit.snapshot.checkpoint.transcriptEntryStart}..{commit.snapshot.checkpoint.transcriptEntryEnd}
+                    {commit.snapshot.settings
+                      ? `${commit.snapshot.settings.model} · ${commit.snapshot.settings.reasoningEffort} · `
+                      : ''}
+                    thread {commit.snapshot.threadId} · entries {commit.snapshot.checkpoint.transcriptEntryStart}..{commit.snapshot.checkpoint.transcriptEntryEnd}
                   </p>
                 ) : null}
               </button>
