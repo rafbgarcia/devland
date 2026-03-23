@@ -96,9 +96,7 @@ export function ProjectExtensionView({
   const { updateSession } = useWorkspaceSession();
   const { sendPrompt } = useCodexSessionActions();
   const extensions = useProjectExtensions(
-    repoDetails.status === 'ready' && isAbsoluteProjectPath(repoDetails.data.path)
-      ? repoDetails.data.path
-      : null,
+    repoDetails.status === 'ready' ? repoDetails.data.path : null,
   );
   const { addWorktreeTarget, updateTarget } = useCodeTargets(
     repoDetails.status === 'ready' ? repoDetails.data.id : '__pending__',
@@ -427,9 +425,16 @@ export function ProjectExtensionView({
     );
   }
 
+  const repo = repoDetails.data;
+
+  if (repo === null) {
+    return null;
+  }
+
   const showInstalledFrame =
     extension.entryUrl !== null &&
     (extension.status === 'ready' || extension.status === 'update-available');
+  const showCloneRequired = extension.status === 'clone-required';
   const showInstallPrompt = extension.status === 'install-required';
   const showUpdateAlert = extension.status === 'update-available';
   const canInstallFromGithub = extension.source.kind === 'github';
@@ -524,6 +529,32 @@ export function ProjectExtensionView({
               </Button>
               ) : null}
             </div>
+          </Empty>
+        </div>
+      ) : null}
+
+      {showCloneRequired ? (
+        <div className="flex min-h-0 flex-1 items-center justify-center px-6">
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <ExtensionTabIcon iconName={extension.tabIcon} />
+              </EmptyMedia>
+              <EmptyTitle>Clone repository to use this tab</EmptyTitle>
+              <EmptyDescription>
+                {extension.tabName} is configured from the repository filesystem, so Devland
+                can only open it after this repo is cloned locally.
+              </EmptyDescription>
+            </EmptyHeader>
+            <Button
+              type="button"
+              onClick={() => {
+                void router.navigate(getProjectTabRoute(repo.id, 'code'));
+              }}
+            >
+              <DownloadIcon data-icon="inline-start" />
+              Open code tab
+            </Button>
           </Empty>
         </div>
       ) : null}

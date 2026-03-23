@@ -12,6 +12,7 @@ import {
   InstallRepoExtensionInputSchema,
   PathRepoExtensionSourceSchema,
   ProjectExtensionSchema,
+  type RepoConfig,
   type GitHubRepoExtensionSource,
   type InstallRepoExtensionInput,
   type PathRepoExtensionSource,
@@ -21,6 +22,7 @@ import {
 } from '@/extensions/contracts';
 import { getExtensionEntryUrl } from '@/main-process/extensions/protocol';
 import { ghExecutable } from '@/main-process/gh-cli';
+import { isAbsoluteRepoPath } from '@/main-process/git';
 import { DEVLAND_CONFIG_FILE, readRepoConfig } from '@/main-process/repo-config';
 
 const execFileAsync = promisify(execFile);
@@ -51,11 +53,16 @@ const deriveExtensionKey = (value: string): string => {
   return sanitizePathSegment(baseName);
 };
 
+const normalizeRequestedExtensionVersionLabel = (value: string): string =>
+  value.replace(/^v(?=\d)/i, '');
+
 const getRequestedExtensionVersionLabel = (value: string): string => {
   const normalizedValue = value.trim().replace(/\/+$/, '');
   const lastSegment = normalizedValue.split('/').filter(Boolean).at(-1);
 
-  return lastSegment && lastSegment.length > 0 ? lastSegment : normalizedValue;
+  return normalizeRequestedExtensionVersionLabel(
+    lastSegment && lastSegment.length > 0 ? lastSegment : normalizedValue,
+  );
 };
 
 const getGitHubRepoUrl = (owner: string, repo: string): string =>
@@ -68,12 +75,18 @@ const parseRepoExtensionSource = (
   const pathMatch = definition.source.match(/^path:(?<relativePath>.+)$/);
 
   if (pathMatch?.groups?.relativePath) {
+    const isLocalRepo = isAbsoluteRepoPath(repoPath);
+
     return PathRepoExtensionSourceSchema.parse({
       kind: 'path',
       raw: definition.source,
-      extensionPath: path.resolve(repoPath, pathMatch.groups.relativePath),
+      relativePath: pathMatch.groups.relativePath,
+      extensionPath: isLocalRepo
+        ? path.resolve(repoPath, pathMatch.groups.relativePath)
+        : null,
       port: definition.port ?? null,
       extensionKey: deriveExtensionKey(pathMatch.groups.relativePath),
+      requiresClone: !isLocalRepo,
     });
   }
 
@@ -301,6 +314,24 @@ const buildPathProjectExtension = async (
   source: PathRepoExtensionSource,
   definition: RepoExtensionDefinition,
 ): Promise<ProjectExtension> => {
+  if (source.requiresClone || source.extensionPath === null) {
+    return ProjectExtensionSchema.parse({
+      id: source.extensionKey,
+      tabName: definition.tabName,
+      tabIcon: definition.tabIcon,
+      status: 'clone-required',
+      name: null,
+      version: null,
+      requestedVersion: null,
+      commands: [],
+      entryUrl: null,
+      installPath: null,
+      repositoryUrl: null,
+      source,
+      error: null,
+    });
+  }
+
   try {
     const { manifest } = await readExtensionManifest(source.extensionPath);
 
@@ -412,8 +443,15 @@ const readRepoExtensionsConfig = async (repoPath: string): Promise<RepoExtension
   return config.extensions;
 };
 
-export const getRepoExtensions = async (repoPath: string): Promise<ProjectExtension[]> => {
-  const extensionDefinitions = await readRepoExtensionsConfig(repoPath);
+export const getRepoExtensions = async (
+  repoPath: string,
+  dependencies?: {
+    readRepoConfig?: (repoPath: string) => Promise<RepoConfig>;
+  },
+): Promise<ProjectExtension[]> => {
+  const extensionDefinitions = dependencies?.readRepoConfig
+    ? (await dependencies.readRepoConfig(repoPath)).extensions
+    : await readRepoExtensionsConfig(repoPath);
 
   return await Promise.all(
     extensionDefinitions.map(async (definition) => await buildProjectExtension(repoPath, definition)),

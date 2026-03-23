@@ -70,7 +70,7 @@ const developmentContentSecurityPolicy = [
   "default-src 'self'",
   "script-src 'self' 'sha256-Z2/iFzh9VMlVkEOar1f/oSHWwQk3ve1qk/C2WdsC4Xk='",
   "style-src 'self' 'unsafe-inline'",
-  `img-src 'self' data: https://*.githubusercontent.com ${DEVLAND_CODEX_ATTACHMENT_PROTOCOL}:`,
+  `img-src 'self' data: https: ${DEVLAND_CODEX_ATTACHMENT_PROTOCOL}:`,
   "font-src 'self' data:",
   `frame-src 'self' ${DEVLAND_EXTENSION_PROTOCOL}: http://127.0.0.1:* http://localhost:* https:`,
   `connect-src 'self' ${devServerOrigin} ${devServerOrigin?.replace(/^http/, 'ws') ?? ''}`,

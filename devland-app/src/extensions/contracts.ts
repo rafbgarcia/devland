@@ -43,9 +43,11 @@ export type RepoConfig = z.infer<typeof RepoConfigSchema>;
 export const PathRepoExtensionSourceSchema = z.object({
   kind: z.literal('path'),
   raw: z.string().min(1),
-  extensionPath: z.string().min(1),
+  relativePath: z.string().min(1),
+  extensionPath: z.string().min(1).nullable(),
   port: z.number().int().positive().nullable(),
   extensionKey: z.string().min(1),
+  requiresClone: z.boolean(),
 });
 export type PathRepoExtensionSource = z.infer<typeof PathRepoExtensionSourceSchema>;
 
@@ -70,6 +72,7 @@ export type RepoExtensionSource = z.infer<typeof RepoExtensionSourceSchema>;
 export const ProjectExtensionStatusSchema = z.enum([
   'ready',
   'install-required',
+  'clone-required',
   'update-available',
   'error',
 ]);

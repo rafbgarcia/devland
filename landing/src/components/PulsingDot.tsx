@@ -46,7 +46,7 @@ export function PulsingDot({ x, y, label, description, step, side = "top", delay
 
   return (
     <div
-      className="absolute"
+      className="absolute select-none"
       style={{ left: x, top: y }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}

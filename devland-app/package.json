@@ -2,7 +2,7 @@
   "name": "devland",
   "productName": "Devland",
   "version": "1.0.0",
-  "description": "Homeland for builders at <3",
+  "description": "Builders' homeland <3",
   "main": ".vite/build/main.js",
   "private": true,
   "scripts": {
@@ -76,6 +76,8 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-markdown": "10.1.0",
+    "rehype-raw": "^7.0.0",
+    "remark-gfm": "^4.0.1",
     "shadcn": "4.0.7",
     "shiki": "^4.0.2",
     "tailwind-merge": "3.5.0",

@@ -20,6 +20,8 @@ export const PICK_REPO_DIRECTORY_CHANNEL = 'app:pick-repo-directory';
 export const CLOSE_CURRENT_WINDOW_CHANNEL = 'app:close-current-window';
 export const VALIDATE_LOCAL_GIT_REPO_CHANNEL = 'app:validate-local-git-repo';
 export const GET_GITHUB_REPO_DETAILS_CHANNEL = 'app:get-github-repo-details';
+export const GET_REMOTE_REPO_README_CHANNEL = 'app:get-remote-repo-readme';
+export const GET_GITHUB_REPO_OVERVIEW_CHANNEL = 'app:get-github-repo-overview';
 export const GET_REPO_CONFIG_CHANNEL = 'app:get-repo-config';
 export const FIND_LOCAL_GITHUB_REPO_CHANNEL = 'app:find-local-github-repo';
 export const APP_SHORTCUT_COMMAND_CHANNEL = 'app:shortcut-command';
@@ -304,6 +306,25 @@ export const RepoDetailsSchema = z.object({
   name: z.string().min(1),
 });
 export type RepoDetails = z.infer<typeof RepoDetailsSchema>;
+
+export const GithubRepoOverviewSchema = z.object({
+  description: z.string().nullable(),
+  stars: z.number(),
+  forks: z.number(),
+  language: z.string().nullable(),
+  topics: z.array(z.string()),
+  updatedAt: z.string(),
+  license: z.string().nullable(),
+  openIssues: z.number(),
+});
+export type GithubRepoOverview = z.infer<typeof GithubRepoOverviewSchema>;
+
+export const RemoteRepoReadmeSchema = z.object({
+  path: z.string().min(1),
+  markdown: z.string(),
+  htmlUrl: z.string().url().nullable(),
+});
+export type RemoteRepoReadme = z.infer<typeof RemoteRepoReadmeSchema>;
 
 export const ProjectExtensionsSchema = z.array(ProjectExtensionSchema);
 export const InstallRepoExtensionResultSchema = z.void();
@@ -806,6 +827,8 @@ export interface ElectronApi {
   closeCurrentWindow: () => Promise<void>;
   validateLocalGitRepository: (directoryPath: string) => Promise<void>;
   getGithubRepoDetails: (projectPath: string) => Promise<RepoDetails>;
+  getRemoteRepoReadme: (slug: string) => Promise<RemoteRepoReadme | null>;
+  getGithubRepoOverview: (slug: string) => Promise<GithubRepoOverview | null>;
   getRepoConfig: (repoPath: string) => Promise<RepoConfig>;
   findLocalGithubRepoPath: (slug: string) => Promise<string | null>;
   onAppShortcutCommand: (listener: (command: AppShortcutCommand) => void) => () => void;

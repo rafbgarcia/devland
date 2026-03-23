@@ -74,6 +74,8 @@ type ProjectWorkspaceTab = {
   label: string;
   icon: ReactNode;
   tabId: ProjectTabId;
+  disabled?: boolean;
+  disabledReason?: string | null;
 };
 
 export function AddProjectDialog({
@@ -224,9 +226,7 @@ export function ProjectWorkspace({
   const { addRepo, removeRepo, reorderRepos } = useRepoActions();
   const { session, updateSession } = useWorkspaceSession();
   const projectExtensions = useProjectExtensions(
-    activeRepo !== null && isAbsoluteProjectPath(activeRepo.path)
-      ? activeRepo.path
-      : null,
+    activeRepo?.path ?? null,
   );
   const activeRouteMatch = useRouterState({
     select: (state) => state.matches.at(-1) ?? null,
@@ -260,6 +260,11 @@ export function ProjectWorkspace({
           label: extension.tabName,
           icon: <ExtensionTabIcon iconName={extension.tabIcon} className="size-3.5" />,
           tabId: toProjectExtensionTabId(extension.id),
+          disabled: extension.status === 'clone-required',
+          disabledReason:
+            extension.status === 'clone-required'
+              ? 'Clone repository to use this tab.'
+              : null,
         })),
       ]
     : [];
@@ -465,6 +470,7 @@ export function ProjectWorkspace({
                   isActive
                     ? 'border-foreground text-foreground'
                     : 'border-transparent text-muted-foreground hover:text-foreground',
+                  tab.disabled && 'cursor-not-allowed opacity-50 hover:text-muted-foreground',
                 );
 
                 if (tab.tabId === 'code') {
@@ -494,9 +500,15 @@ export function ProjectWorkspace({
                   <button
                     key={tab.key}
                     className={tabClassName}
+                    disabled={tab.disabled}
                     onClick={() => {
+                      if (tab.disabled) {
+                        return;
+                      }
+
                       navigateToTab(activeRepoId!, tab.tabId);
                     }}
+                    title={tab.disabledReason ?? undefined}
                     type="button"
                   >
                     {tab.icon}

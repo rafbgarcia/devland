@@ -91,4 +91,32 @@ describe('readRepoConfig', () => {
       suggestedPrompts: [],
     });
   });
+
+  it('reads repo config from a remote GitHub slug', async () => {
+    const config = await readRepoConfig('acme/remote-app', {
+      readRemoteFileText: async (slug, filePath) => {
+        assert.equal(slug, 'acme/remote-app');
+        assert.equal(filePath, 'devland.json');
+
+        return JSON.stringify({
+          suggestedPrompts: [
+            {
+              label: '  Investigate  ',
+              prompt: '  Inspect the open issues.  ',
+            },
+          ],
+        });
+      },
+    });
+
+    assert.deepEqual(config, {
+      extensions: [],
+      suggestedPrompts: [
+        {
+          label: 'Investigate',
+          prompt: 'Inspect the open issues.',
+        },
+      ],
+    });
+  });
 });

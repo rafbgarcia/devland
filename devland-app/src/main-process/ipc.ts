@@ -13,6 +13,8 @@ import {
   GET_CODEX_PROMPT_REQUEST_CHECKPOINT_CHANNEL,
   GET_APP_BOOTSTRAP_CHANNEL,
   GET_GITHUB_REPO_DETAILS_CHANNEL,
+  GET_REMOTE_REPO_README_CHANNEL,
+  GET_GITHUB_REPO_OVERVIEW_CHANNEL,
   GET_REPO_CONFIG_CHANNEL,
   FIND_LOCAL_GITHUB_REPO_CHANNEL,
   PICK_REPO_DIRECTORY_CHANNEL,
@@ -91,6 +93,7 @@ import { searchCodexPaths } from './codex-path-search';
 import { codexExecutable } from './codex-cli';
 import { suggestGitWorktreeBranchName } from './codex-use-cases/worktree-branch-name';
 import { ghExecutable } from './gh-cli';
+import { readRemoteGitHubRepoReadme, readGithubRepoOverview } from './github-repo-files';
 import { getRepoExtensions, installRepoExtension } from './extensions/repo-extensions';
 import { runExtensionCommand } from './extensions/runtime';
 import {
@@ -207,6 +210,14 @@ export const registerAppIpcHandlers = (
   ipcMain.handle(
     GET_GITHUB_REPO_DETAILS_CHANNEL,
     (_event, projectPath: string) => getGithubRepoDetails(projectPath),
+  );
+  ipcMain.handle(
+    GET_REMOTE_REPO_README_CHANNEL,
+    (_event, slug: string) => readRemoteGitHubRepoReadme(slug),
+  );
+  ipcMain.handle(
+    GET_GITHUB_REPO_OVERVIEW_CHANNEL,
+    (_event, slug: string) => readGithubRepoOverview(slug),
   );
   ipcMain.handle(
     GET_REPO_CONFIG_CHANNEL,
