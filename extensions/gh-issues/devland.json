@@ -1,7 +1,7 @@
 {
   "id": "@devlandapp/gh-issues",
   "name": "GitHub Issues",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "entry": "dist/index.html",
   "commands": [
     "gh"
