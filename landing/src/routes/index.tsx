@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { ArrowUpRight, Download } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect } from "react";
 import { devlandScreenshotFlow } from "#/features/screenshot-flow/devland-screenshot-flow";
@@ -63,6 +64,17 @@ function LandingPage() {
 					<p className="mt-3 text-2xl sm:text-4xl text-gray-200">
 						Your hackable development workspace
 					</p>
+					<div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+						<a
+							href={"https://github.com/rafbgarcia/devland/releases/latest"}
+							className="group inline-flex items-center gap-3 rounded-full border border-emerald-300/30 bg-emerald-400 px-6 py-3 font-medium text-slate-950 shadow-[0_18px_48px_rgba(16,185,129,0.28)] transition hover:-translate-y-0.5 hover:bg-emerald-300"
+						>
+							<span className="inline-flex size-8 items-center justify-center rounded-full bg-slate-950/10 transition group-hover:bg-slate-950/15">
+								<Download className="size-4" />
+							</span>
+							<span>Download</span>
+						</a>
+					</div>
 				</motion.div>
 			</section>
 
