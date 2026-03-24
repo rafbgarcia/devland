@@ -104,6 +104,46 @@ export const compareSemver = (left: string, right: string): number => {
 
 export const normalizeVersionInput = (value: string): string => value.trim().replace(/^v(?=\d)/i, '');
 
+const GITHUB_EXTENSION_SOURCE_PATTERN =
+  /^github:(?<owner>[A-Za-z0-9_.-]+)\/(?<repo>[A-Za-z0-9_.-]+)@(?<version>[^#]+)#(?<assetName>[^#]+\.tgz)$/i;
+
+export type GitHubExtensionSourceParts = {
+  owner: string;
+  repo: string;
+  version: string;
+  assetName: string;
+};
+
+export const parseGitHubExtensionSource = (source: string): GitHubExtensionSourceParts | null => {
+  const match = source.trim().match(GITHUB_EXTENSION_SOURCE_PATTERN);
+
+  if (
+    !match?.groups?.owner ||
+    !match.groups.repo ||
+    !match.groups.version ||
+    !match.groups.assetName
+  ) {
+    return null;
+  }
+
+  return {
+    owner: match.groups.owner,
+    repo: match.groups.repo,
+    version: match.groups.version,
+    assetName: match.groups.assetName,
+  };
+};
+
+export const rewriteGitHubExtensionSourceVersion = (source: string, version: string): string => {
+  const parsedSource = parseGitHubExtensionSource(source);
+
+  if (parsedSource === null) {
+    return source;
+  }
+
+  return `github:${parsedSource.owner}/${parsedSource.repo}@v${normalizeVersionInput(version)}#${parsedSource.assetName}`;
+};
+
 export const extractVersionFromTag = (tag: string): string | null => {
   const normalizedTag = tag.trim();
   const sharedTagMatch = normalizedTag.match(/^v(?<version>.+)$/);

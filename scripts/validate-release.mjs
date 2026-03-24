@@ -25,6 +25,25 @@ const expectedVersion = releaseTag.slice(1);
 const readJsonFile = (relativePath) =>
   JSON.parse(fs.readFileSync(path.join(repoRoot, relativePath), 'utf8'));
 
+const parseGitHubExtensionSource = (source) => {
+  const match = source
+    .trim()
+    .match(
+      /^github:(?<owner>[A-Za-z0-9_.-]+)\/(?<repo>[A-Za-z0-9_.-]+)@(?<version>[^#]+)#(?<assetName>[^#]+\.tgz)$/i,
+    );
+
+  if (!match?.groups?.version || !match.groups.assetName) {
+    return null;
+  }
+
+  return {
+    version: match.groups.version,
+    assetName: match.groups.assetName,
+  };
+};
+
+const normalizeVersionInput = (value) => value.trim().replace(/^v(?=\d)/i, '');
+
 const versionEntries = [
   {
     label: 'devland-app package',
@@ -39,6 +58,7 @@ const extensionDirectories = fs
   .filter((entry) => entry.isDirectory())
   .map((entry) => entry.name)
   .sort((left, right) => left.localeCompare(right));
+const localExtensionArchives = new Set(extensionDirectories.map((directory) => `${directory}.tgz`));
 
 for (const extensionDirectory of extensionDirectories) {
   const packageRelativePath = `extensions/${extensionDirectory}/package.json`;
@@ -58,6 +78,27 @@ for (const extensionDirectory of extensionDirectories) {
       version: extensionManifest.version,
     },
   );
+}
+
+const repoConfig = readJsonFile('devland.json');
+const repoConfigExtensions = Array.isArray(repoConfig.extensions) ? repoConfig.extensions : [];
+
+for (const [index, extension] of repoConfigExtensions.entries()) {
+  if (typeof extension !== 'object' || extension === null || typeof extension.source !== 'string') {
+    continue;
+  }
+
+  const parsedSource = parseGitHubExtensionSource(extension.source);
+
+  if (parsedSource === null || !localExtensionArchives.has(parsedSource.assetName)) {
+    continue;
+  }
+
+  versionEntries.push({
+    label: `repo config extension source #${index + 1}`,
+    relativePath: 'devland.json',
+    version: normalizeVersionInput(parsedSource.version),
+  });
 }
 
 const mismatches = versionEntries.filter((entry) => entry.version !== expectedVersion);

@@ -10,6 +10,8 @@ import {
   extractVersionFromTag,
   normalizeVersionInput,
   parseSemver,
+  parseGitHubExtensionSource,
+  rewriteGitHubExtensionSourceVersion,
 } from './release-utils';
 
 type ReleaseVersionTarget = {
@@ -48,6 +50,14 @@ const listManagedVersionTargets = (): ReleaseVersionTarget[] => {
 
   return targets;
 };
+
+const listLocalExtensionArchiveNames = (): Set<string> =>
+  new Set(
+    fs
+      .readdirSync(path.join(repoRoot, 'extensions'), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => `${entry.name}.tgz`),
+  );
 
 const readJsonFile = (relativePath: string): Record<string, unknown> =>
   JSON.parse(fs.readFileSync(path.join(repoRoot, relativePath), 'utf8')) as Record<string, unknown>;
@@ -169,6 +179,58 @@ const updateManagedVersions = (version: string): string[] => {
   return updatedPaths;
 };
 
+const updateRootRepoConfigExtensionSources = (version: string): string | null => {
+  const repoConfigPath = 'devland.json';
+  const repoConfig = readJsonFile(repoConfigPath);
+  const localExtensionArchives = listLocalExtensionArchiveNames();
+  const configuredExtensions = Array.isArray(repoConfig.extensions) ? repoConfig.extensions : null;
+
+  if (configuredExtensions === null) {
+    return null;
+  }
+
+  let didChange = false;
+  const nextExtensions = configuredExtensions.map((extension) => {
+    if (typeof extension !== 'object' || extension === null) {
+      return extension;
+    }
+
+    const source = extension.source;
+
+    if (typeof source !== 'string') {
+      return extension;
+    }
+
+    const parsedSource = parseGitHubExtensionSource(source);
+
+    if (parsedSource === null || !localExtensionArchives.has(parsedSource.assetName)) {
+      return extension;
+    }
+
+    const nextSource = rewriteGitHubExtensionSourceVersion(source, version);
+
+    if (nextSource === source) {
+      return extension;
+    }
+
+    didChange = true;
+
+    return {
+      ...extension,
+      source: nextSource,
+    };
+  });
+
+  if (!didChange) {
+    return null;
+  }
+
+  repoConfig.extensions = nextExtensions;
+  writeJsonFile(repoConfigPath, repoConfig);
+
+  return repoConfigPath;
+};
+
 const main = async (): Promise<void> => {
   const rawVersion = process.argv[2];
 
@@ -183,6 +245,12 @@ const main = async (): Promise<void> => {
   await validateReleaseVersion(version);
 
   const updatedPaths = updateManagedVersions(version);
+  const updatedRepoConfigPath = updateRootRepoConfigExtensionSources(version);
+
+  if (updatedRepoConfigPath !== null) {
+    updatedPaths.push(updatedRepoConfigPath);
+  }
+
   if (updatedPaths.length === 0) {
     throw new Error(`No managed version files changed for ${releaseTag}.`);
   }
