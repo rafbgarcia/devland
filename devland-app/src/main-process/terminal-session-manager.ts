@@ -1,4 +1,6 @@
 import { EventEmitter } from 'node:events';
+import { accessSync, constants, statSync } from 'node:fs';
+import { userInfo } from 'node:os';
 
 import { spawn as spawnPty, type IPty } from 'node-pty';
 
@@ -15,7 +17,6 @@ import type {
 const DEFAULT_TERMINAL_COLS = 120;
 const DEFAULT_TERMINAL_ROWS = 32;
 const MAX_TERMINAL_HISTORY_CHARS = 200_000;
-const DEFAULT_UNIX_SHELL = process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash';
 type SpawnPty = typeof spawnPty;
 type TerminalSessionInitInput = OpenTerminalSessionInput | ExecTerminalSessionCommandInput;
 
@@ -53,22 +54,76 @@ const createSnapshot = (session: TerminalSession): TerminalSessionSnapshot => ({
   updatedAt: session.updatedAt,
 });
 
-const resolveShellCommand = (): string => {
-  const shell = process.env.SHELL?.trim();
+const isExecutableFile = (filePath: string): boolean => {
+  try {
+    accessSync(filePath, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
-  if (shell) {
-    return shell;
+const getUserShell = (): string | null => {
+  try {
+    return userInfo().shell?.trim() || null;
+  } catch {
+    return null;
+  }
+};
+
+type ResolveTerminalShellCommandOptions = {
+  env?: NodeJS.ProcessEnv;
+  platform?: NodeJS.Platform;
+  userShell?: string | null;
+  isExecutable?: (filePath: string) => boolean;
+};
+
+export const resolveTerminalShellCommand = ({
+  env = process.env,
+  platform = process.platform,
+  userShell = getUserShell(),
+  isExecutable = isExecutableFile,
+}: ResolveTerminalShellCommandOptions = {}): string => {
+  if (platform === 'win32') {
+    return env.ComSpec?.trim() || 'powershell.exe';
   }
 
-  if (process.platform === 'win32') {
-    return process.env.ComSpec?.trim() || 'powershell.exe';
+  const candidates = [
+    env.SHELL?.trim(),
+    userShell?.trim(),
+    platform === 'darwin' ? '/bin/zsh' : '/bin/bash',
+    '/bin/sh',
+  ].filter((candidate): candidate is string => Boolean(candidate));
+
+  const uniqueCandidates = [...new Set(candidates)];
+
+  for (const candidate of uniqueCandidates) {
+    if (isExecutable(candidate)) {
+      return candidate;
+    }
   }
 
-  return DEFAULT_UNIX_SHELL;
+  throw new Error(`No supported shell found. Tried: ${uniqueCandidates.join(', ')}`);
 };
 
 const normalizeExecCommand = (command: string): string =>
   /[\r\n]$/.test(command) ? command : `${command}\r`;
+
+export const validateTerminalWorkingDirectory = (cwd: string): string => {
+  let stats: ReturnType<typeof statSync>;
+
+  try {
+    stats = statSync(cwd);
+  } catch {
+    throw new Error(`Terminal working directory does not exist: ${cwd}`);
+  }
+
+  if (!stats.isDirectory()) {
+    throw new Error(`Terminal working directory is not a directory: ${cwd}`);
+  }
+
+  return cwd;
+};
 
 export class TerminalSessionManager extends EventEmitter<{
   event: [TerminalSessionEvent];
@@ -188,18 +243,22 @@ export class TerminalSessionManager extends EventEmitter<{
   }
 
   private startSessionProcess(session: TerminalSession): void {
-    const shell = resolveShellCommand();
-
     session.status = 'starting';
     session.exitCode = null;
     session.exitSignal = null;
     session.error = null;
     session.updatedAt = nowIso();
 
+    let shell: string | null = null;
+    let cwd: string | null = null;
+
     try {
+      shell = resolveTerminalShellCommand();
+      cwd = validateTerminalWorkingDirectory(session.cwd);
+
       const child = this.spawn(shell, [], {
         name: 'xterm-256color',
-        cwd: session.cwd,
+        cwd,
         cols: session.cols,
         rows: session.rows,
         env: {
@@ -265,7 +324,17 @@ export class TerminalSessionManager extends EventEmitter<{
         snapshot: createSnapshot(session),
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to start terminal.';
+      const rawMessage = error instanceof Error ? error.message : 'Failed to start terminal.';
+      const launchContext = [
+        shell ? `shell "${shell}"` : null,
+        cwd ? `cwd "${cwd}"` : `cwd "${session.cwd}"`,
+      ]
+        .filter((value): value is string => value !== null)
+        .join(', ');
+      const message =
+        launchContext.length > 0
+          ? `Failed to start terminal (${launchContext}): ${rawMessage}`
+          : rawMessage;
 
       session.child = null;
       session.pid = null;

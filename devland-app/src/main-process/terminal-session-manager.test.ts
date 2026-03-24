@@ -1,9 +1,15 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { describe, it } from 'node:test';
 
 import type { IPty } from 'node-pty';
 
-import { TerminalSessionManager } from '@/main-process/terminal-session-manager';
+import {
+  resolveTerminalShellCommand,
+  TerminalSessionManager,
+} from '@/main-process/terminal-session-manager';
 
 class FakePty {
   readonly pid = 12_345;
@@ -58,9 +64,24 @@ class FakePty {
   }
 }
 
+const createTempDirectory = (): string =>
+  mkdtempSync(path.join(tmpdir(), 'devland-terminal-test-'));
+
 describe('TerminalSessionManager', () => {
+  it('prefers a valid fallback shell when SHELL is invalid', () => {
+    const resolved = resolveTerminalShellCommand({
+      env: { SHELL: '/definitely/missing/shell' },
+      platform: 'darwin',
+      userShell: null,
+      isExecutable: (filePath) => filePath === '/bin/zsh',
+    });
+
+    assert.equal(resolved, '/bin/zsh');
+  });
+
   it('starts a background terminal session and executes a command before the terminal is opened', async () => {
     const children: FakePty[] = [];
+    const cwd = createTempDirectory();
     const manager = new TerminalSessionManager((() => {
       const child = new FakePty();
       children.push(child);
@@ -69,7 +90,7 @@ describe('TerminalSessionManager', () => {
 
     await manager.exec({
       sessionId: 'worktree-1',
-      cwd: '/repo/worktree',
+      cwd,
       command: 'bun run setup-worktree',
     });
 
@@ -77,7 +98,7 @@ describe('TerminalSessionManager', () => {
 
     const snapshot = await manager.open({
       sessionId: 'worktree-1',
-      cwd: '/repo/worktree',
+      cwd,
     });
 
     assert.equal(children.length, 1);
@@ -86,7 +107,27 @@ describe('TerminalSessionManager', () => {
     assert.equal(snapshot.history, 'setting up...\r\n');
   });
 
+  it('surfaces a clear error when the terminal working directory is missing', async () => {
+    const tempRoot = createTempDirectory();
+    const missingCwd = path.join(tempRoot, 'missing');
+    const manager = new TerminalSessionManager((() => {
+      throw new Error('spawn should not be called');
+    }) as typeof import('node-pty').spawn);
+
+    const snapshot = await manager.open({
+      sessionId: 'missing-cwd',
+      cwd: missingCwd,
+    });
+
+    assert.equal(snapshot.status, 'error');
+    assert.match(
+      snapshot.error ?? '',
+      new RegExp(`Terminal working directory does not exist: ${missingCwd}`),
+    );
+  });
+
   it('rejects exec when the terminal process fails to start', async () => {
+    const cwd = createTempDirectory();
     const manager = new TerminalSessionManager((() => {
       throw new Error('spawn failed');
     }) as typeof import('node-pty').spawn);
@@ -95,7 +136,7 @@ describe('TerminalSessionManager', () => {
       () =>
         manager.exec({
           sessionId: 'worktree-2',
-          cwd: '/repo/worktree',
+          cwd,
           command: './bin/setup-worktree.sh',
         }),
       /spawn failed/,
