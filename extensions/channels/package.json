@@ -9,7 +9,7 @@
     "pack": "bun run build && tar -czf channels.tgz devland.json dist"
   },
   "dependencies": {
-    "@devlandapp/sdk": "file:../../packages/devland-sdk",
+    "@devlandapp/sdk": "0.1.5",
     "clsx": "2.1.1",
     "jotai": "^2.18.1",
     "lucide-react": "0.577.0",

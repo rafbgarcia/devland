@@ -5,7 +5,7 @@
     "": {
       "name": "@devlandapp/channels-extension",
       "dependencies": {
-        "@devlandapp/sdk": "file:../../packages/devland-sdk",
+        "@devlandapp/sdk": "0.1.5",
         "clsx": "2.1.1",
         "jotai": "^2.18.1",
         "lucide-react": "0.577.0",
@@ -27,7 +27,7 @@
     },
   },
   "packages": {
-    "@devlandapp/sdk": ["@devlandapp/sdk@file:../../packages/devland-sdk", { "dependencies": { "zod": "4.3.6" } }],
+    "@devlandapp/sdk": ["@devlandapp/sdk@0.1.5", "", { "dependencies": { "zod": "4.3.6" } }, "sha512-z78rA1doy6OxZCA1j5laIIo3rfKy2cBOPGZF4orfNRSox7gGXugwYdFkirNr5okNnFrWjRCASCPrV2/KUAOwWQ=="],
 
     "@emnapi/core": ["@emnapi/core@1.9.1", "", { "dependencies": { "@emnapi/wasi-threads": "1.2.0", "tslib": "^2.4.0" } }, "sha512-mukuNALVsoix/w1BJwFzwXBN/dHeejQtuVzcDsfOEsdpCumXb/E9j8w11h5S54tT1xhifGfbbSm/ICrObRb3KA=="],
 
