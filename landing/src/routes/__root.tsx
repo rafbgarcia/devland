@@ -3,30 +3,37 @@ import { HeadContent, Scripts, createRootRoute } from "@tanstack/react-router"
 import appCss from "../styles.css?url"
 
 export const Route = createRootRoute({
-  head: () => ({
-    meta: [
-      { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Devland — Your Hackable Development Workspace" },
-      {
-        name: "description",
-        content:
-          "A development workspace with AI agents, project tabs, git integration, and extensible tools — all in one app.",
-      },
-    ],
-    links: [
-      { rel: "stylesheet", href: appCss },
-      {
-        rel: "preconnect",
-        href: "https://fonts.googleapis.com",
-      },
-      {
-        rel: "preconnect",
-        href: "https://fonts.gstatic.com",
-        crossOrigin: "anonymous",
-      },
-    ],
-  }),
+  head: () => {
+    const baseUrl = import.meta.env.BASE_URL;
+
+    return {
+      meta: [
+        { charSet: "utf-8" },
+        { name: "viewport", content: "width=device-width, initial-scale=1" },
+        { title: "Devland — Your Hackable Development Workspace" },
+        {
+          name: "description",
+          content:
+            "A development workspace with AI agents, project tabs, git integration, and extensible tools — all in one app.",
+        },
+      ],
+      links: [
+        { rel: "stylesheet", href: appCss },
+        { rel: "icon", href: `${baseUrl}favicon.ico`, sizes: "any" },
+        { rel: "apple-touch-icon", href: `${baseUrl}devland.png` },
+        { rel: "manifest", href: `${baseUrl}manifest.json` },
+        {
+          rel: "preconnect",
+          href: "https://fonts.googleapis.com",
+        },
+        {
+          rel: "preconnect",
+          href: "https://fonts.gstatic.com",
+          crossOrigin: "anonymous",
+        },
+      ],
+    };
+  },
   shellComponent: RootDocument,
 })
 

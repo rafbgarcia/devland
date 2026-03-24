@@ -1,10 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ArrowUpRight, Download, Github } from "lucide-react";
+import { Github } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect } from "react";
 import { devlandScreenshotFlow } from "#/features/screenshot-flow/devland-screenshot-flow";
 import { ScreenshotFlowViewer } from "#/features/screenshot-flow/screenshot-flow-viewer";
-import { Kbd } from "#/components/ui/kbd";
 
 type LandingSearch = {
 	screen?: string;
@@ -20,6 +19,7 @@ export const Route = createFileRoute("/")({
 function LandingPage() {
 	const navigate = Route.useNavigate();
 	const search = Route.useSearch();
+	const heroLogoSrc = `${import.meta.env.BASE_URL}devland.png`;
 	const currentScreenId = isFlowScreenId(search.screen)
 		? search.screen
 		: devlandScreenshotFlow.initialScreenId;
@@ -69,7 +69,7 @@ function LandingPage() {
 					transition={{ duration: 2, ease: [0.16, 1, 0.3, 1] }}
 				>
 					<div className="relative">
-						<img src="/devland.png" loading="lazy" width={90} className="absolute right-full -top-2" />
+						<img src={heroLogoSrc} loading="lazy" width={90} className="absolute right-full -top-2" />
 						<h1 className="font-bold tracking-tight text-white text-5xl sm:text-7xl">
 							Devland
 						</h1>
