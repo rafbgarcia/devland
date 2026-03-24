@@ -556,7 +556,7 @@ const flowDefinition: ScreenshotFlowDefinition = {
           label: "Theo-inspired pull requests",
           description: (
             <>
-              <p>I ended up building Devland because Theo mentioned it would be super helpful<br/> to see lines changed on Github's Pull requests listing, and I really wanted to help OSS warriors somehow.</p>
+              <p>T3-Theo-inspired PRs view with the "number of lines changed" visible in the listing<br/>as he mentions in his <a className="underline text-blue-400" href="https://www.youtube.com/watch?v=l8pQeVVaqpY">Open source is dying</a> video.</p>
             </>
           ),
           step: 1,

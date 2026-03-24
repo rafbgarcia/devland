@@ -88,13 +88,13 @@ function LandingPage() {
 				>
 					<div className="text-slate-200 mt-10">
 						<p>
-							What if we could view everything related to a project in a single place?
+							What if you could view everything related to a project in a single place?
 						</p>
 						<p>
-							Code review, issues, bugs, infra, observability, errors, Q&A, chat, ...
+							Code review, issues, error tracking, observability, chat, ...
 						</p>
 						<p>
-							Meet Devland.
+							Meet Devland:
 						</p>
 					</div>
 				</motion.div>

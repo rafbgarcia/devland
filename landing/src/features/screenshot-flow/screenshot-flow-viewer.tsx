@@ -121,7 +121,7 @@ export function ScreenshotFlowViewer({
 								: "opacity-0",
 						)}
 					>
-						{currentScreen.pulsingDots.map((dot) => (
+						{currentScreen.pulsingDots.map((dot, index) => (
 							<PulsingDot
 								key={`${currentScreen.id}-${dot.id}`}
 								x={dot.x}
@@ -130,7 +130,7 @@ export function ScreenshotFlowViewer({
 								description={dot.description}
 								step={dot.step}
 								side={dot.side}
-								delay={dot.delay}
+								delay={(dot.delay ?? 0) + (hasHoveredScreenshot ? 0 : (index + 1) * 1)}
 							/>
 						))}
 					</div>
