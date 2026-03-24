@@ -35,7 +35,11 @@ if (
 }
 
 const packagerConfig: ForgeConfig['packagerConfig'] = {
-  asar: true,
+  asar: {
+    // node-pty's macOS runtime launches a sibling spawn-helper executable next
+    // to the unpacked native module, so it cannot stay inside app.asar.
+    unpack: '**/node_modules/node-pty/**/spawn-helper',
+  },
   icon: path.resolve(__dirname, 'assets/icons/devland'),
   appBundleId: macBundleId,
   appCategoryType: 'public.app-category.developer-tools',
