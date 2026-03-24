@@ -10,6 +10,10 @@ const sharedDimensions = {
   height: 1800,
 } as const;
 
+function publicAsset(path: string) {
+  return `${import.meta.env.BASE_URL}${path.replace(/^\//, "")}`;
+}
+
 const flowDefinition: ScreenshotFlowDefinition = {
   initialScreenId: "changes",
   areaGroups: [
@@ -160,7 +164,7 @@ const flowDefinition: ScreenshotFlowDefinition = {
       title: "Commit changes with Codex session context",
       description:
         "The workspace keeps code, git changes, and Codex in one place. Click the highlighted tool tabs to move between panels.",
-      src: "/images/1changes.png",
+      src: publicAsset("/images/1changes.png"),
       alt: "Devland changes panel with a diff viewer and commit composer.",
       dimensions: sharedDimensions,
       areaGroupIds: ["repo-tabs", "workspace-nav", "workspace-panels"],
@@ -296,7 +300,7 @@ const flowDefinition: ScreenshotFlowDefinition = {
       title: "Codex stays inside the workspace",
       description:
         "The AI session is not a separate product surface. It sits beside your code, browser, and terminal.",
-      src: "/images/2codex.png",
+      src: publicAsset("/images/2codex.png"),
       alt: "Devland Codex panel showing an AI transcript inside the coding workspace.",
       dimensions: sharedDimensions,
       areaGroupIds: ["repo-tabs", "workspace-nav", "workspace-panels"],
@@ -322,7 +326,7 @@ const flowDefinition: ScreenshotFlowDefinition = {
       title: "Use the browser without leaving the repo",
       description:
         "Research and validation stay attached to the same project session, so the context is not fragmented.",
-      src: "/images/3browser.png",
+      src: publicAsset("/images/3browser.png"),
       alt: "Devland browser panel rendering a website inside the workspace.",
       dimensions: sharedDimensions,
       areaGroupIds: ["repo-tabs", "workspace-nav", "workspace-panels"],
@@ -348,7 +352,7 @@ const flowDefinition: ScreenshotFlowDefinition = {
       title: "Run commands in the same flow",
       description:
         "Terminal sessions are first-class panels, so the loop from prompt to command to code review stays tight.",
-      src: "/images/4terminal.png",
+      src: publicAsset("/images/4terminal.png"),
       alt: "Devland terminal panel running shell commands inside the workspace.",
       dimensions: sharedDimensions,
       areaGroupIds: ["repo-tabs", "workspace-nav", "workspace-panels"],
@@ -374,7 +378,7 @@ const flowDefinition: ScreenshotFlowDefinition = {
       title: "Pull requests keep the prompt history attached",
       description:
         "The prompt session follows the pull request, which makes reviewable AI-assisted work much easier to inspect.",
-      src: "/images/5promptsession.png",
+      src: publicAsset("/images/5promptsession.png"),
       alt: "Devland pull request detail page showing an attached prompt session.",
       dimensions: sharedDimensions,
       areaGroupIds: ["repo-tabs", "workspace-nav"],
@@ -401,7 +405,7 @@ const flowDefinition: ScreenshotFlowDefinition = {
       title: "Project communication lives next to execution",
       description:
         "Channels, status, and product work can sit inside the same surface instead of spreading across separate apps.",
-      src: "/images/6communities.png",
+      src: publicAsset("/images/6communities.png"),
       alt: "Devland community channels view with chat messages and member presence.",
       dimensions: sharedDimensions,
       areaGroupIds: ["repo-tabs", "workspace-nav"],
@@ -441,7 +445,7 @@ const flowDefinition: ScreenshotFlowDefinition = {
       title: "Remote repos are explorable before cloning",
       description:
         "You can browse repository context and decide when it is worth opening a local working copy.",
-      src: "/images/dub.png",
+      src: publicAsset("/images/dub.png"),
       alt: "Devland remote GitHub repository view for the dubinc/dub project.",
       dimensions: sharedDimensions,
       areaGroupIds: ["repo-tabs"],
@@ -467,7 +471,7 @@ const flowDefinition: ScreenshotFlowDefinition = {
       title: "Extensions can turn repos into focused workflows",
       description:
         "This example extension pulls issues into a native list, then lets you pivot into a detail view in place.",
-      src: "/images/t3issues.png",
+      src: publicAsset("/images/t3issues.png"),
       alt: "Devland issue list view for the t3code repository.",
       dimensions: sharedDimensions,
       areaGroupIds: ["repo-tabs", "t3-nav"],
@@ -506,7 +510,7 @@ const flowDefinition: ScreenshotFlowDefinition = {
       title: "Issue detail stays anchored to the list",
       description:
         "The split layout keeps surrounding context visible while you inspect the selected issue and comments.",
-      src: "/images/t3issuedetail.png",
+      src: publicAsset("/images/t3issuedetail.png"),
       alt: "Devland issue split view with a selected issue detail panel.",
       dimensions: sharedDimensions,
       areaGroupIds: ["repo-tabs", "t3-nav"],
@@ -529,7 +533,7 @@ const flowDefinition: ScreenshotFlowDefinition = {
       title: "Pull requests can become their own workspace",
       description:
         "Extensions can promote the data that matters for review, not just embed a web view of GitHub.",
-      src: "/images/t3prs.png",
+      src: publicAsset("/images/t3prs.png"),
       alt: "Devland pull request list view for the t3code repository.",
       dimensions: sharedDimensions,
       areaGroupIds: ["repo-tabs", "t3-nav"],
@@ -567,7 +571,7 @@ const flowDefinition: ScreenshotFlowDefinition = {
       title: "Prompt sessions can travel with pull request review",
       description:
         "The PR detail view shows how review metadata and prompt context can sit together in one extension surface.",
-      src: "/images/t3prdetail.png",
+      src: publicAsset("/images/t3prdetail.png"),
       alt: "Devland pull request split view with prompt-session-aware detail content.",
       dimensions: sharedDimensions,
       areaGroupIds: ["repo-tabs", "t3-nav"],
