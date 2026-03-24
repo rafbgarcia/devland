@@ -7,47 +7,13 @@ import { fileURLToPath } from 'node:url';
 
 import {
   compareSemver,
-  extractVersionFromTag,
+  extractSdkVersionFromTag,
   normalizeVersionInput,
   parseSemver,
 } from './release-utils';
 
-type ReleaseVersionTarget = {
-  label: string;
-  relativePath: string;
-};
-
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-
-const listManagedVersionTargets = (): ReleaseVersionTarget[] => {
-  const extensionDirectories = fs
-    .readdirSync(path.join(repoRoot, 'extensions'), { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .sort((left, right) => left.localeCompare(right));
-
-  const targets: ReleaseVersionTarget[] = [
-    {
-      label: 'devland-app package',
-      relativePath: 'devland-app/package.json',
-    },
-  ];
-
-  for (const extensionDirectory of extensionDirectories) {
-    targets.push(
-      {
-        label: `${extensionDirectory} package`,
-        relativePath: `extensions/${extensionDirectory}/package.json`,
-      },
-      {
-        label: `${extensionDirectory} manifest`,
-        relativePath: `extensions/${extensionDirectory}/devland.json`,
-      },
-    );
-  }
-
-  return targets;
-};
+const sdkPackageRelativePath = 'packages/devland-sdk/package.json';
 
 const readJsonFile = (relativePath: string): Record<string, unknown> =>
   JSON.parse(fs.readFileSync(path.join(repoRoot, relativePath), 'utf8')) as Record<string, unknown>;
@@ -80,12 +46,12 @@ const runGit = async (args: string[]): Promise<string> => {
 };
 
 const resolveLatestReleasedVersion = async (): Promise<string | null> => {
-  const localTagOutput = await runGit(['tag', '--list']);
-  const remoteTagOutput = await runGit(['ls-remote', '--tags', '--refs', 'origin']);
+  const localTagOutput = await runGit(['tag', '--list', 'sdk/v*']);
+  const remoteTagOutput = await runGit(['ls-remote', '--tags', '--refs', 'origin', 'sdk/v*']);
   const candidateVersions = new Set<string>();
 
   for (const tag of localTagOutput.split('\n').map((line) => line.trim()).filter(Boolean)) {
-    const version = extractVersionFromTag(tag);
+    const version = extractSdkVersionFromTag(tag);
 
     if (version !== null) {
       candidateVersions.add(version);
@@ -100,7 +66,7 @@ const resolveLatestReleasedVersion = async (): Promise<string | null> => {
     }
 
     const tag = ref.replace(/^refs\/tags\//, '');
-    const version = extractVersionFromTag(tag);
+    const version = extractSdkVersionFromTag(tag);
 
     if (version !== null) {
       candidateVersions.add(version);
@@ -109,8 +75,6 @@ const resolveLatestReleasedVersion = async (): Promise<string | null> => {
 
   return [...candidateVersions].sort(compareSemver).at(-1) ?? null;
 };
-
-export { compareSemver, extractVersionFromTag };
 
 const ensureCleanWorktree = async (): Promise<void> => {
   const statusOutput = await runGit(['status', '--short']);
@@ -129,11 +93,11 @@ const validateReleaseVersion = async (version: string): Promise<void> => {
 
   if (latestVersion !== null && compareSemver(version, latestVersion) <= 0) {
     throw new Error(
-      `Version ${version} must be greater than the latest released tag version ${latestVersion}.`,
+      `Version ${version} must be greater than the latest SDK tag version ${latestVersion}.`,
     );
   }
 
-  const targetTag = `v${version}`;
+  const targetTag = `sdk/v${version}`;
   const localTags = await runGit(['tag', '--list', targetTag]);
 
   if (localTags.split('\n').map((line) => line.trim()).includes(targetTag)) {
@@ -147,48 +111,43 @@ const validateReleaseVersion = async (version: string): Promise<void> => {
   }
 };
 
-const updateManagedVersions = (version: string): string[] => {
-  const updatedPaths: string[] = [];
+const updateSdkVersion = (version: string): string | null => {
+  const packageJson = readJsonFile(sdkPackageRelativePath);
 
-  for (const target of listManagedVersionTargets()) {
-    const jsonValue = readJsonFile(target.relativePath);
-
-    if (typeof jsonValue.version !== 'string') {
-      throw new Error(`${target.label} at ${target.relativePath} does not contain a string version.`);
-    }
-
-    if (jsonValue.version === version) {
-      continue;
-    }
-
-    jsonValue.version = version;
-    writeJsonFile(target.relativePath, jsonValue);
-    updatedPaths.push(target.relativePath);
+  if (typeof packageJson.version !== 'string') {
+    throw new Error(`SDK package at ${sdkPackageRelativePath} does not contain a string version.`);
   }
 
-  return updatedPaths;
+  if (packageJson.version === version) {
+    return null;
+  }
+
+  packageJson.version = version;
+  writeJsonFile(sdkPackageRelativePath, packageJson);
+
+  return sdkPackageRelativePath;
 };
 
 const main = async (): Promise<void> => {
   const rawVersion = process.argv[2];
 
   if (!rawVersion) {
-    throw new Error('Usage: bun run scripts/release.ts <version>');
+    throw new Error('Usage: bun run scripts/release-sdk.ts <version>');
   }
 
   const version = normalizeVersionInput(rawVersion);
-  const releaseTag = `v${version}`;
+  const releaseTag = `sdk/v${version}`;
 
   await ensureCleanWorktree();
   await validateReleaseVersion(version);
 
-  const updatedPaths = updateManagedVersions(version);
-  if (updatedPaths.length === 0) {
-    throw new Error(`No managed version files changed for ${releaseTag}.`);
+  const updatedPath = updateSdkVersion(version);
+  if (updatedPath === null) {
+    throw new Error(`SDK package version is already ${version}.`);
   }
 
-  await Bun.$`node ${path.join(repoRoot, 'scripts/validate-release.mjs')} ${releaseTag}`;
-  await runGit(['add', '--', ...updatedPaths]);
+  await Bun.$`node ${path.join(repoRoot, 'scripts/validate-sdk-release.mjs')} ${releaseTag}`;
+  await runGit(['add', '--', updatedPath]);
   await runGit(['commit', '-m', `chore: release ${releaseTag}`]);
   await runGit(['tag', releaseTag]);
   await runGit(['push', 'origin', 'HEAD', `refs/tags/${releaseTag}`]);

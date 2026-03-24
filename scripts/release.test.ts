@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import { compareSemver, extractVersionFromTag } from './release';
+import { compareSemver, extractSdkVersionFromTag, extractVersionFromTag } from './release-utils';
 
 describe('compareSemver', () => {
   it('orders stable versions numerically', () => {
@@ -31,5 +31,16 @@ describe('extractVersionFromTag', () => {
   it('ignores malformed semver tags', () => {
     expect(extractVersionFromTag('vnext')).toBeNull();
     expect(extractVersionFromTag('ext/gh-prs/latest')).toBeNull();
+  });
+});
+
+describe('extractSdkVersionFromTag', () => {
+  it('parses SDK release tags', () => {
+    expect(extractSdkVersionFromTag('sdk/v0.1.2')).toBe('0.1.2');
+  });
+
+  it('ignores unsupported SDK tags', () => {
+    expect(extractSdkVersionFromTag('sdk/0.1.2')).toBeNull();
+    expect(extractSdkVersionFromTag('sdk/vnext')).toBeNull();
   });
 });

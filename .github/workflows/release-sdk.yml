@@ -1,0 +1,38 @@
+name: Release SDK
+
+on:
+  push:
+    tags:
+      - 'sdk/v*'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish-sdk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Validate SDK release version
+        run: node scripts/validate-sdk-release.mjs "${GITHUB_REF_NAME}"
+
+      - name: Install SDK dependencies
+        run: bun install --cwd packages/devland-sdk --frozen-lockfile
+
+      - name: Publish SDK to npm
+        working-directory: packages/devland-sdk
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance --access public

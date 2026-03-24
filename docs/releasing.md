@@ -1,25 +1,26 @@
 # Releasing
 
-Devland uses one shared release tag for the app and all bundled extensions.
+Devland has two release lanes:
 
-## Tag format
+- shared app release tags for the app and bundled extensions
+- separate SDK release tags for `@devlandapp/sdk`
+
+## Shared app release tags
+
+Tag format:
 
 - `vX.Y.Z`
 - Example: `v0.2.0`
 
-## Before tagging
-
-Set the same version in:
+Before tagging, set the same version in:
 
 - `devland-app/package.json`
 - `extensions/*/package.json`
 - `extensions/*/devland.json`
 
-The release workflow validates those files against the pushed tag and fails fast on drift.
+The shared release workflow validates those files against the pushed tag and fails fast on drift.
 
-## What the workflow publishes
-
-For each `vX.Y.Z` tag:
+For each `vX.Y.Z` tag, the workflow publishes:
 
 - app artifacts from `devland-app/out/make`
 - extension archives from `extensions/*/*.tgz`
@@ -30,11 +31,30 @@ Each extension archive is attached to the same GitHub Release, so repository con
 - `github:rafbgarcia/devland@v0.2.0#gh-issues.tgz`
 - `github:rafbgarcia/devland@v0.2.0#channels.tgz`
 
-## Release flow
+Shared release flow:
 
 1. Run `bun run scripts/release.ts 0.2.0`.
 2. The script validates the version, updates the managed version files, commits `chore: release v0.2.0`, creates tag `v0.2.0`, and pushes the branch plus tag to `origin`.
 3. Wait for the `Release` GitHub Actions workflow to publish the assets.
+
+## SDK release tags
+
+Tag format:
+
+- `sdk/vX.Y.Z`
+- Example: `sdk/v0.1.1`
+
+The SDK release workflow validates only:
+
+- `packages/devland-sdk/package.json`
+
+SDK release flow:
+
+1. Run `bun run scripts/release-sdk.ts 0.1.1`.
+2. The script validates the version, updates `packages/devland-sdk/package.json`, commits `chore: release sdk/v0.1.1`, creates tag `sdk/v0.1.1`, and pushes the branch plus tag to `origin`.
+3. Wait for the `Release SDK` GitHub Actions workflow to publish `@devlandapp/sdk` to npm.
+
+The SDK workflow requires the `NPM_TOKEN` GitHub Actions secret with publish access to the `@devlandapp/sdk` package on npm.
 
 ## macOS signing and notarization
 
