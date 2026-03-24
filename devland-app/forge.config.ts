@@ -15,6 +15,14 @@ const isMacSigningEnabled = process.env.DEVLAND_MAC_SIGNING_ENABLED === 'true';
 const appleApiKey = process.env.APPLE_API_KEY;
 const appleApiKeyId = process.env.APPLE_API_KEY_ID;
 const appleApiIssuer = process.env.APPLE_API_ISSUER;
+const packagedAppIncludedPaths = ['/.vite', '/assets', '/node_modules', '/package.json'];
+
+const shouldIncludePackagedAppPath = (file: string): boolean =>
+  file === '' ||
+  file === '/' ||
+  packagedAppIncludedPaths.some(
+    (includedPath) => file === includedPath || file.startsWith(`${includedPath}/`),
+  );
 
 if (
   isMacSigningEnabled &&
@@ -30,6 +38,7 @@ const packagerConfig: ForgeConfig['packagerConfig'] = {
   icon: path.resolve(__dirname, 'assets/icons/devland'),
   appBundleId: macBundleId,
   appCategoryType: 'public.app-category.developer-tools',
+  ignore: (file) => !shouldIncludePackagedAppPath(file),
 };
 
 if (isMacSigningEnabled) {
