@@ -177,10 +177,9 @@ const flowDefinition: ScreenshotFlowDefinition = {
           label: "Per-repo workspaces",
           description: (
             <>
-              <p>Each repo can define a {'`devland.json`'} file with its own workspace configuration.</p>
-              <p>Extensions receive the current repo's context and can run local commands.</p>
+              <p>Devland ships only with the Code tab. Other tabs are repo-specific extensions defined in <Kbd>devland.json</Kbd>.</p>
 
-              <CodeBlock>{`// e.g. Devland's devland.json
+              <CodeBlock>{`// devland/devland.json
 
 {
   "worktreeSetupCommand": "bun install --cwd devland-app",
@@ -224,8 +223,7 @@ const flowDefinition: ScreenshotFlowDefinition = {
           label: "Extensions",
           description: (
             <>
-              <p>Extensions can be anything that compiles to browser code.</p>
-              <p>The <a className="underline" href="https://github.com/rafbgarcia/devland/blob/main/packages/devland-sdk/src/index.ts">@devlandapp/sdk</a> is a minimal .ts file.</p>
+              <p>Extensions can be anything that compiles to browser code and can use the minimal <a className="underline" href="https://github.com/rafbgarcia/devland/blob/main/packages/devland-sdk/src/index.ts">@devlandapp/sdk</a> npm package.</p>
               <p className="mt-2">Extensions also define a simple {'`devland.json`'} file.</p>
 
               <CodeBlock>{`// e.g. Pull requests devland.json
@@ -497,7 +495,7 @@ const flowDefinition: ScreenshotFlowDefinition = {
           description: (
             <>
               <p>This action offers a customizable prompt to ask Codex<br/> to perform some action passing the issue as context.</p>
-              <p className="mt-2">But we can do anything, really.</p>
+              <p className="mt-2">But we can do anything, really. Automated issue triage, contributors could submit a <br/>prompt review containing the issue investigation, so many ideas.</p>
             </>
           ),
           step: 1,
