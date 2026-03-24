@@ -119,7 +119,7 @@ function LandingPage() {
 					initial={{ opacity: 0, scale: 0.92 }}
 					animate={{ opacity: 1, scale: 1 }}
 					transition={{ duration: 2, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
-					className="text-slate-200 text-center text-sm mb-10"
+					className="text-slate-200 text-center text-sm pb-10"
 				>
 					Built with ❤️ for builders
 				</motion.div>

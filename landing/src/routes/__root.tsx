@@ -10,11 +10,10 @@ export const Route = createRootRoute({
       meta: [
         { charSet: "utf-8" },
         { name: "viewport", content: "width=device-width, initial-scale=1" },
-        { title: "Devland — Your Hackable Development Workspace" },
+        { title: "Devland" },
         {
           name: "description",
-          content:
-            "A development workspace with AI agents, project tabs, git integration, and extensible tools — all in one app.",
+          content: "Integrated per-repository development environment",
         },
       ],
       links: [
