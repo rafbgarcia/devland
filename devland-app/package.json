@@ -6,6 +6,7 @@
   "main": ".vite/build/main.js",
   "private": true,
   "scripts": {
+    "icons:mac": "bun run scripts/sync-macos-icons.ts",
     "dev": "electron-forge start",
     "start": "electron-forge start",
     "package": "electron-forge package",

@@ -9,6 +9,7 @@ import { VitePlugin } from '@electron-forge/plugin-vite';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
 import { DevAppLauncherPlugin } from './forge.dev-app';
+import { syncMacosIcons } from './scripts/sync-macos-icons';
 
 const macBundleId = 'com.rafbgarcia.devland';
 const isMacSigningEnabled = process.env.DEVLAND_MAC_SIGNING_ENABLED === 'true';
@@ -53,6 +54,11 @@ if (isMacSigningEnabled) {
 const config: ForgeConfig = {
   packagerConfig,
   rebuildConfig: {},
+  hooks: {
+    generateAssets: async () => {
+      syncMacosIcons();
+    },
+  },
   makers: [
     new MakerSquirrel({
       setupIcon: path.resolve(__dirname, 'assets/icons/devland.ico'),
