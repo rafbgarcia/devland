@@ -3,7 +3,6 @@ import {
   BrowserWindow,
   globalShortcut,
   net,
-  nativeImage,
   protocol,
   session,
   shell,
@@ -81,7 +80,6 @@ const developmentContentSecurityPolicy = [
 ].join('; ');
 
 let mainWindow: BrowserWindow | null = null;
-const appIconPath = path.join(app.getAppPath(), 'assets', 'icons', 'devland.png');
 const userDataDir = isDevelopment
   ? getDevUserDataDir(process.cwd())
   : process.env.DEVLAND_USER_DATA_DIR?.trim() || process.env.DEVLAND_TEST_USER_DATA_DIR?.trim();
@@ -203,7 +201,6 @@ const createWindow = async (): Promise<BrowserWindow> => {
     minHeight: 640,
     show: false,
     backgroundColor: '#e9e1d3',
-    ...(process.platform === 'linux' ? { icon: appIconPath } : {}),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -292,20 +289,6 @@ const focusMainWindow = (): void => {
   mainWindow.focus();
 };
 
-const configureMacDockIcon = (): void => {
-  if (process.platform !== 'darwin' || app.dock === undefined) {
-    return;
-  }
-
-  const dockIcon = nativeImage.createFromPath(appIconPath);
-
-  if (dockIcon.isEmpty()) {
-    return;
-  }
-
-  app.dock.setIcon(dockIcon);
-};
-
 if (!allowMultiInstance && !app.requestSingleInstanceLock()) {
   app.quit();
 }
@@ -318,7 +301,6 @@ if (!allowMultiInstance) {
 
 app.whenReady().then(async () => {
   app.setAppUserModelId(app.name);
-  configureMacDockIcon();
   registerExtensionProtocol();
   registerCodexAttachmentProtocol();
   configureSessionSecurity();
