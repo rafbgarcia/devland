@@ -10,7 +10,6 @@ import {
 import { access } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
-import started from 'electron-squirrel-startup';
 
 import {
   APP_SHORTCUT_COMMAND_CHANNEL,
@@ -31,6 +30,7 @@ import {
 import { registerAppIpcHandlers } from './main-process/ipc';
 import { browserViewManager } from './main-process/browser/browser-view-manager';
 import { terminalSessionManager } from './main-process/terminal-session-manager';
+import { desktopUpdater } from './main-process/desktop-updater';
 import { getDevUserDataDir } from './dev/dev-instance';
 
 protocol.registerSchemesAsPrivileged([
@@ -53,11 +53,6 @@ protocol.registerSchemesAsPrivileged([
     },
   },
 ]);
-
-// Handle creating/removing shortcuts on Windows when installing/uninstalling.
-if (started) {
-  app.quit();
-}
 
 const isDevelopment = MAIN_WINDOW_VITE_DEV_SERVER_URL !== undefined;
 const APP_DISPLAY_NAME = isDevelopment ? 'Devland:dev' : 'Devland';
@@ -306,6 +301,7 @@ app.whenReady().then(async () => {
   configureSessionSecurity();
   registerAppIpcHandlers(() => mainWindow);
   await createWindow();
+  desktopUpdater.start();
 });
 
 // Quit when all windows are closed, except on macOS. There, it's common
@@ -328,6 +324,7 @@ app.on('activate', () => {
 });
 
 app.on('before-quit', () => {
+  desktopUpdater.dispose();
   browserViewManager.dispose();
   terminalSessionManager.dispose();
 });

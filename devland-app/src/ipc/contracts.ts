@@ -91,6 +91,10 @@ export const LIST_AVAILABLE_EXTERNAL_EDITORS_CHANNEL = 'app:list-available-exter
 export const PICK_EXTERNAL_EDITOR_PATH_CHANNEL = 'app:pick-external-editor-path';
 export const VALIDATE_EXTERNAL_EDITOR_PATH_CHANNEL = 'app:validate-external-editor-path';
 export const OPEN_FILE_IN_EXTERNAL_EDITOR_CHANNEL = 'app:open-file-in-external-editor';
+export const UPDATE_STATE_CHANNEL = 'app:update-state';
+export const GET_UPDATE_STATE_CHANNEL = 'app:get-update-state';
+export const DOWNLOAD_UPDATE_CHANNEL = 'app:download-update';
+export const INSTALL_UPDATE_CHANNEL = 'app:install-update';
 
 export const PROJECT_VIEW_TABS = [
   'code',
@@ -823,14 +827,56 @@ export const GitBranchPromptRequestsSchema = z.object({
 });
 export type GitBranchPromptRequests = z.infer<typeof GitBranchPromptRequestsSchema>;
 
+export const DESKTOP_UPDATE_STATUSES = [
+  'disabled',
+  'idle',
+  'checking',
+  'up-to-date',
+  'available',
+  'downloading',
+  'downloaded',
+  'error',
+] as const;
+export const DesktopUpdateStatusSchema = z.enum(DESKTOP_UPDATE_STATUSES);
+export type DesktopUpdateStatus = z.infer<typeof DesktopUpdateStatusSchema>;
+
+export const DESKTOP_UPDATE_ERROR_CONTEXTS = ['check', 'download', 'install'] as const;
+export const DesktopUpdateErrorContextSchema = z.enum(DESKTOP_UPDATE_ERROR_CONTEXTS);
+export type DesktopUpdateErrorContext = z.infer<typeof DesktopUpdateErrorContextSchema>;
+
+export const DesktopUpdateStateSchema = z.object({
+  enabled: z.boolean(),
+  status: DesktopUpdateStatusSchema,
+  currentVersion: z.string().min(1),
+  availableVersion: z.string().min(1).nullable(),
+  downloadedVersion: z.string().min(1).nullable(),
+  checkedAt: z.string().min(1).nullable(),
+  downloadPercent: z.number().min(0).max(100).nullable(),
+  message: z.string().min(1).nullable(),
+  errorContext: DesktopUpdateErrorContextSchema.nullable(),
+  canRetry: z.boolean(),
+});
+export type DesktopUpdateState = z.infer<typeof DesktopUpdateStateSchema>;
+
+export const DesktopUpdateActionResultSchema = z.object({
+  accepted: z.boolean(),
+  completed: z.boolean(),
+  state: DesktopUpdateStateSchema,
+});
+export type DesktopUpdateActionResult = z.infer<typeof DesktopUpdateActionResultSchema>;
+
 export interface ElectronApi {
   readonly platform: NodeJS.Platform;
   readonly versions: {
     readonly chrome: string;
     readonly electron: string;
-    readonly node: string;
+  readonly node: string;
   };
   getAppBootstrap: () => Promise<AppBootstrap>;
+  getUpdateState: () => Promise<DesktopUpdateState>;
+  downloadUpdate: () => Promise<DesktopUpdateActionResult>;
+  installUpdate: () => Promise<DesktopUpdateActionResult>;
+  onUpdateState: (listener: (state: DesktopUpdateState) => void) => () => void;
   pickRepoDirectory: () => Promise<string | null>;
   closeCurrentWindow: () => Promise<void>;
   validateLocalGitRepository: (directoryPath: string) => Promise<void>;

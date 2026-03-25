@@ -10,7 +10,9 @@
     "dev": "electron-forge start",
     "start": "electron-forge start",
     "package": "electron-forge package",
-    "make": "electron-forge make",
+    "make": "bun run scripts/build-release-artifact.ts",
+    "make:release": "bun run scripts/build-release-artifact.ts",
+    "make:forge": "electron-forge make",
     "publish": "electron-forge publish",
     "test": "bun run scripts/run-unit-tests.ts",
     "test:unit": "bun run scripts/run-unit-tests.ts",
@@ -29,7 +31,6 @@
     "@electron-forge/cli": "7.11.1",
     "@electron-forge/maker-deb": "7.11.1",
     "@electron-forge/maker-rpm": "7.11.1",
-    "@electron-forge/maker-squirrel": "7.11.1",
     "@electron-forge/maker-zip": "7.11.1",
     "@electron-forge/plugin-auto-unpack-natives": "^7.11.1",
     "@electron-forge/plugin-base": "7.11.1",
@@ -57,6 +58,7 @@
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "electron": "41.0.2",
+    "electron-builder": "^26.0.12",
     "eslint": "10.0.3",
     "eslint-import-resolver-typescript": "4.4.4",
     "eslint-plugin-import": "2.32.0",
@@ -82,7 +84,7 @@
   },
   "dependencies": {
     "@devlandapp/sdk": "file:../packages/devland-sdk",
-    "electron-squirrel-startup": "1.0.1",
+    "electron-updater": "^6.6.2",
     "node-pty": "^1.1.0",
     "zod": "4.3.6"
   }

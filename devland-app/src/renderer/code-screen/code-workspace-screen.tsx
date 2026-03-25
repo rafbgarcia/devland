@@ -238,7 +238,6 @@ export function CodeWorkspaceScreen({
   const rememberedTargetId = getRememberedCodeTargetId(session, repoId);
   const activePaneId = getRememberedCodePaneId(session, repoId);
   const {
-    rootTarget,
     targets,
     activeTarget,
     activeTargetId,

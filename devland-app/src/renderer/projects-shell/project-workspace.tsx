@@ -38,7 +38,9 @@ import { ExtensionTabMenu } from '@/renderer/extensions-screen/extension-tab-men
 import { useProjectExtensions } from '@/renderer/extensions-screen/use-project-extensions';
 import { ExtensionTabIcon } from '@/renderer/shared/ui/extension-tab-icon';
 import { ShortcutHintsOverlay } from '@/renderer/shared/ui/shortcut-hints-overlay';
+import { DesktopUpdateButton } from '@/renderer/shared/ui/desktop-update-button';
 import { useAppPreferences } from '@/renderer/shared/use-app-preferences';
+import { useDesktopUpdate } from '@/renderer/shared/use-desktop-update';
 import { useRepoActions, useRepos } from './use-repos';
 import { useProjectRepo } from './use-project-repo';
 import { useWorkspaceSession } from './use-workspace-session';
@@ -247,6 +249,7 @@ export function ProjectWorkspace({
   });
   const repoViewByIdRef = useRef(session.repoViewById);
   const showShortcutHints = useShortcutHintsOpen();
+  const desktopUpdateState = useDesktopUpdate();
 
   const hasActiveRepo = activeRepoId !== null;
 
@@ -460,6 +463,10 @@ export function ProjectWorkspace({
           >
             <PlusIcon className="size-3.5" />
           </button>
+
+          <div className="ml-auto relative -top-1">
+            <DesktopUpdateButton state={desktopUpdateState} />
+          </div>
         </Reorder.Group>
       </div>
 
@@ -501,8 +508,6 @@ export function ProjectWorkspace({
                 }
 
                 if (tab.extension !== undefined && activeRepo !== null) {
-                  const hasUpdate = tab.extension.status === 'update-available';
-
                   return (
                     <div
                       key={tab.key}

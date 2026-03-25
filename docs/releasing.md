@@ -22,7 +22,7 @@ The shared release workflow validates those files against the pushed tag and fai
 
 For each `vX.Y.Z` tag, the workflow publishes:
 
-- app artifacts from `devland-app/out/make`
+- desktop release artifacts from `devland-app/out/release`
 - extension archives from `extensions/*/*.tgz`
 
 Each extension archive is attached to the same GitHub Release, so repository configs can point to assets like:
@@ -55,6 +55,24 @@ SDK release flow:
 3. Wait for the `Release SDK` GitHub Actions workflow to publish `@devlandapp/sdk` to npm.
 
 The SDK workflow requires the `NPM_TOKEN` GitHub Actions secret with publish access to the `@devlandapp/sdk` package on npm.
+
+## Desktop auto-update
+
+The desktop app now follows a manual-update architecture:
+
+- background checks on startup plus a polling interval
+- no automatic download or install
+- a subtle in-app button appears when an update is available
+- clicking once downloads the update; clicking again restarts and installs it
+
+Release artifacts must stay compatible with `electron-updater`. The release workflow builds:
+
+- macOS `dmg` and `zip`
+- Windows `nsis`
+- Linux `AppImage`
+- updater metadata such as `latest*.yml` and `*.blockmap`
+
+The updater defaults to the public GitHub release feed for `rafbgarcia/devland`. Override it at build or runtime with `DEVLAND_UPDATE_REPOSITORY=owner/repo` when needed.
 
 ## macOS signing and notarization
 

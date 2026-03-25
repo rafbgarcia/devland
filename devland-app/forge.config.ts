@@ -1,6 +1,5 @@
 import path from 'node:path';
 import type { ForgeConfig } from '@electron-forge/shared-types';
-import { MakerSquirrel } from '@electron-forge/maker-squirrel';
 import { MakerZIP } from '@electron-forge/maker-zip';
 import { MakerDeb } from '@electron-forge/maker-deb';
 import { MakerRpm } from '@electron-forge/maker-rpm';
@@ -64,9 +63,6 @@ const config: ForgeConfig = {
     },
   },
   makers: [
-    new MakerSquirrel({
-      setupIcon: path.resolve(__dirname, 'assets/icons/devland.ico'),
-    }),
     new MakerZIP({}, ['darwin']),
     new MakerRpm({
       options: {

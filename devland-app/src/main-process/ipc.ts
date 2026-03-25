@@ -10,8 +10,10 @@ import {
   BROWSER_VIEW_EVENT_CHANNEL,
   CODEX_SESSION_EVENT_CHANNEL,
   CLOSE_CURRENT_WINDOW_CHANNEL,
+  DOWNLOAD_UPDATE_CHANNEL,
   GET_CODEX_PROMPT_REQUEST_CHECKPOINT_CHANNEL,
   GET_APP_BOOTSTRAP_CHANNEL,
+  GET_UPDATE_STATE_CHANNEL,
   GET_GITHUB_REPO_DETAILS_CHANNEL,
   GET_REMOTE_REPO_README_CHANNEL,
   GET_GITHUB_REPO_OVERVIEW_CHANNEL,
@@ -52,6 +54,7 @@ import {
   PICK_EXTERNAL_EDITOR_PATH_CHANNEL,
   VALIDATE_EXTERNAL_EDITOR_PATH_CHANNEL,
   OPEN_FILE_IN_EXTERNAL_EDITOR_CHANNEL,
+  INSTALL_UPDATE_CHANNEL,
   PERSIST_CODEX_ATTACHMENTS_CHANNEL,
   START_GIT_STATE_WATCH_CHANNEL,
   STOP_GIT_STATE_WATCH_CHANNEL,
@@ -134,6 +137,7 @@ import {
   pickExternalEditorPath,
   validateExternalEditorPath,
 } from './external-editor';
+import { desktopUpdater } from './desktop-updater';
 
 const getAppBootstrap = (): AppBootstrap => {
   return { ghCliAvailable: ghExecutable !== null };
@@ -183,6 +187,7 @@ const pickCustomExternalEditorPath = async (
 export const registerAppIpcHandlers = (
   getMainWindow: () => BrowserWindow | null,
 ): void => {
+  desktopUpdater.setMainWindowProvider(getMainWindow);
   browserViewManager.setMainWindowProvider(getMainWindow);
   browserViewManager.on('event', (event) => {
     getMainWindow()?.webContents.send(BROWSER_VIEW_EVENT_CHANNEL, event);
@@ -198,6 +203,9 @@ export const registerAppIpcHandlers = (
   });
 
   ipcMain.handle(GET_APP_BOOTSTRAP_CHANNEL, () => getAppBootstrap());
+  ipcMain.handle(GET_UPDATE_STATE_CHANNEL, () => desktopUpdater.getState());
+  ipcMain.handle(DOWNLOAD_UPDATE_CHANNEL, () => desktopUpdater.downloadUpdate());
+  ipcMain.handle(INSTALL_UPDATE_CHANNEL, () => desktopUpdater.installUpdate());
   ipcMain.handle(PICK_REPO_DIRECTORY_CHANNEL, () =>
     pickRepoDirectory(getMainWindow()),
   );

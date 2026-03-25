@@ -76,10 +76,6 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Install Linux packaging tools
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install --yes rpm
-
       - name: Install app dependencies
         run: bun install --cwd devland-app --frozen-lockfile
 
@@ -120,14 +116,13 @@ jobs:
           APPLE_API_KEY: ${{ steps.mac_signing.outputs.apple_api_key_path || '' }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID || '' }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER || '' }}
-        run: bun run --cwd devland-app make
+          DEVLAND_UPDATE_REPOSITORY: ${{ github.repository }}
+        run: bun run --cwd devland-app make:release
 
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: |
-            devland-app/out/make/**/*
-            !devland-app/out/make/**/*.blockmap
+          path: devland-app/out/release/**/*
           if-no-files-found: error
 
   publish-release:

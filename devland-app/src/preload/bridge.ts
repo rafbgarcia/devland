@@ -5,7 +5,10 @@ import {
   AppShortcutCommandSchema,
   CODEX_SESSION_EVENT_CHANNEL,
   CodexSessionEventSchema,
+  DesktopUpdateStateSchema,
+  DOWNLOAD_UPDATE_CHANNEL,
   GET_APP_BOOTSTRAP_CHANNEL,
+  GET_UPDATE_STATE_CHANNEL,
   GET_GITHUB_REPO_DETAILS_CHANNEL,
   GET_REMOTE_REPO_README_CHANNEL,
   GET_GITHUB_REPO_OVERVIEW_CHANNEL,
@@ -45,6 +48,7 @@ import {
   PICK_EXTERNAL_EDITOR_PATH_CHANNEL,
   VALIDATE_EXTERNAL_EDITOR_PATH_CHANNEL,
   OPEN_FILE_IN_EXTERNAL_EDITOR_CHANNEL,
+  INSTALL_UPDATE_CHANNEL,
   PERSIST_CODEX_ATTACHMENTS_CHANNEL,
   GitStateChangedEventSchema,
   LIST_CODEX_THREADS_CHANNEL,
@@ -71,6 +75,7 @@ import {
   SHOW_BROWSER_VIEW_CHANNEL,
   HIDE_BROWSER_VIEW_CHANNEL,
   UPDATE_BROWSER_VIEW_BOUNDS_CHANNEL,
+  UPDATE_STATE_CHANNEL,
   NAVIGATE_BROWSER_VIEW_CHANNEL,
   GO_BACK_BROWSER_VIEW_CHANNEL,
   GO_FORWARD_BROWSER_VIEW_CHANNEL,
@@ -91,6 +96,26 @@ export const electronApi: ElectronApi = {
     node: process.versions.node,
   },
   getAppBootstrap: () => ipcRenderer.invoke(GET_APP_BOOTSTRAP_CHANNEL),
+  getUpdateState: () => ipcRenderer.invoke(GET_UPDATE_STATE_CHANNEL),
+  downloadUpdate: () => ipcRenderer.invoke(DOWNLOAD_UPDATE_CHANNEL),
+  installUpdate: () => ipcRenderer.invoke(INSTALL_UPDATE_CHANNEL),
+  onUpdateState: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, state: unknown) => {
+      const parsedState = DesktopUpdateStateSchema.safeParse(state);
+
+      if (!parsedState.success) {
+        return;
+      }
+
+      listener(parsedState.data);
+    };
+
+    ipcRenderer.on(UPDATE_STATE_CHANNEL, handler);
+
+    return () => {
+      ipcRenderer.removeListener(UPDATE_STATE_CHANNEL, handler);
+    };
+  },
   pickRepoDirectory: () => ipcRenderer.invoke(PICK_REPO_DIRECTORY_CHANNEL),
   closeCurrentWindow: () => ipcRenderer.invoke(CLOSE_CURRENT_WINDOW_CHANNEL),
   validateLocalGitRepository: (directoryPath) =>
