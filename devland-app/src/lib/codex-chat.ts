@@ -67,6 +67,43 @@ export const DEFAULT_CODEX_COMPOSER_SETTINGS: CodexComposerSettings = {
   interactionMode: 'default',
 };
 
+export function sanitizeCodexComposerSettings(value: unknown): CodexComposerSettings {
+  if (typeof value !== 'object' || value === null) {
+    return DEFAULT_CODEX_COMPOSER_SETTINGS;
+  }
+
+  const record = value as Record<string, unknown>;
+  const model =
+    typeof record.model === 'string' && record.model.trim() !== ''
+      ? record.model
+      : DEFAULT_CODEX_COMPOSER_SETTINGS.model;
+  const reasoningEffort = CODEX_REASONING_EFFORTS.includes(
+    record.reasoningEffort as CodexReasoningEffort,
+  )
+    ? (record.reasoningEffort as CodexReasoningEffort)
+    : DEFAULT_CODEX_COMPOSER_SETTINGS.reasoningEffort;
+  const fastMode =
+    typeof record.fastMode === 'boolean'
+      ? record.fastMode
+      : DEFAULT_CODEX_COMPOSER_SETTINGS.fastMode;
+  const runtimeMode = CODEX_RUNTIME_MODES.includes(record.runtimeMode as CodexRuntimeMode)
+    ? (record.runtimeMode as CodexRuntimeMode)
+    : DEFAULT_CODEX_COMPOSER_SETTINGS.runtimeMode;
+  const interactionMode = CODEX_INTERACTION_MODES.includes(
+    record.interactionMode as CodexInteractionMode,
+  )
+    ? (record.interactionMode as CodexInteractionMode)
+    : DEFAULT_CODEX_COMPOSER_SETTINGS.interactionMode;
+
+  return {
+    model,
+    reasoningEffort,
+    fastMode,
+    runtimeMode,
+    interactionMode,
+  };
+}
+
 export function codexReasoningEffortLabel(value: CodexReasoningEffort): string {
   switch (value) {
     case 'low':

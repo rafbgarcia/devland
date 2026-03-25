@@ -8,18 +8,25 @@ import {
   ExternalEditorPreferenceSchema,
   type ExternalEditorPreference,
 } from '@/ipc/contracts';
+import {
+  DEFAULT_CODEX_COMPOSER_SETTINGS,
+  sanitizeCodexComposerSettings,
+  type CodexComposerSettings,
+} from '@/lib/codex-chat';
 
 export type AppPreferences = {
   externalEditor: ExternalEditorPreference | null;
+  codexComposerSettings: CodexComposerSettings;
 };
 
 const STORAGE_KEY = 'devland:app-preferences';
 
-const DEFAULT_APP_PREFERENCES: AppPreferences = {
+export const DEFAULT_APP_PREFERENCES: AppPreferences = {
   externalEditor: null,
+  codexComposerSettings: DEFAULT_CODEX_COMPOSER_SETTINGS,
 };
 
-const sanitizeAppPreferences = (value: unknown): AppPreferences => {
+export const sanitizeAppPreferences = (value: unknown): AppPreferences => {
   if (typeof value !== 'object' || value === null) {
     return DEFAULT_APP_PREFERENCES;
   }
@@ -31,6 +38,7 @@ const sanitizeAppPreferences = (value: unknown): AppPreferences => {
 
   return {
     externalEditor: parsedExternalEditor.success ? parsedExternalEditor.data : null,
+    codexComposerSettings: sanitizeCodexComposerSettings(record.codexComposerSettings),
   };
 };
 
@@ -82,11 +90,17 @@ export function useAppPreferences() {
       updatePreferences({ externalEditor }),
     [updatePreferences],
   );
+  const setCodexComposerSettings = useCallback(
+    (codexComposerSettings: CodexComposerSettings) =>
+      updatePreferences({ codexComposerSettings }),
+    [updatePreferences],
+  );
 
   return {
     preferences,
     updatePreferences,
     setExternalEditorPreference,
+    setCodexComposerSettings,
   };
 }
 

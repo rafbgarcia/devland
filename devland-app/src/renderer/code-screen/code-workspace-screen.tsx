@@ -25,7 +25,6 @@ import {
 } from '@/shadcn/components/ui/tooltip';
 
 import {
-  DEFAULT_CODEX_COMPOSER_SETTINGS,
   type CodexComposerSettings,
   type CodexPromptSubmission,
 } from '@/lib/codex-chat';
@@ -203,9 +202,6 @@ export function CodeWorkspaceScreen({
   const [isRemovingWorktree, setIsRemovingWorktree] = useState(false);
   const [isExternalEditorDialogOpen, setIsExternalEditorDialogOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
-  const [composerSettingsByTargetId, setComposerSettingsByTargetId] = useState<
-    Record<string, CodexComposerSettings>
-  >({});
   const [repoSuggestedPrompts, setRepoSuggestedPrompts] = useState<
     RepoSuggestedPrompt[] | null | undefined
   >(null);
@@ -215,7 +211,11 @@ export function CodeWorkspaceScreen({
   const { session, updateSession } = useWorkspaceSession();
   const composerDrafts = useComposerDrafts();
   const { clearDraft: clearComposerDraft } = useComposerDraftActions();
-  const { preferences, setExternalEditorPreference } = useAppPreferences();
+  const {
+    preferences,
+    setExternalEditorPreference,
+    setCodexComposerSettings,
+  } = useAppPreferences();
   useEnsureExternalEditorPreference();
   const {
     getTargetState: getBrowserTabsState,
@@ -418,15 +418,11 @@ export function CodeWorkspaceScreen({
     [rootBranch, targets],
   );
 
-  const composerSettings =
-    composerSettingsByTargetId[activeTarget.id] ?? DEFAULT_CODEX_COMPOSER_SETTINGS;
+  const composerSettings = preferences.codexComposerSettings;
 
   const handleComposerSettingsChange = useCallback((settings: CodexComposerSettings) => {
-    setComposerSettingsByTargetId((current) => ({
-      ...current,
-      [activeTarget.id]: settings,
-    }));
-  }, [activeTarget.id]);
+    setCodexComposerSettings(settings);
+  }, [setCodexComposerSettings]);
 
   const bootstrapDetachedWorktreeBranch = useCallback(async (submission: CodexPromptSubmission) => {
     if (activeTarget.kind !== 'worktree') {

@@ -13,7 +13,6 @@ import {
   PuzzleIcon,
 } from 'lucide-react';
 
-import { DEFAULT_CODEX_COMPOSER_SETTINGS } from '@/lib/codex-chat';
 import { useCodeTargets } from '@/renderer/code-screen/use-code-targets';
 import { useCodexSessionActions } from '@/renderer/code-screen/use-codex-sessions';
 import { DETACHED_WORKTREE_TARGET_TITLE } from '@/renderer/code-screen/worktree-session';
@@ -24,6 +23,7 @@ import {
   getProjectTabRoute,
   isAbsoluteProjectPath,
 } from '@/renderer/shared/lib/projects';
+import { useAppPreferences } from '@/renderer/shared/use-app-preferences';
 import {
   rememberCodePane,
   rememberCodeTarget,
@@ -94,6 +94,7 @@ export function ProjectExtensionView({
   const repoDetails = useProjectRepoDetailsState();
   const { updateSession } = useWorkspaceSession();
   const { sendPrompt } = useCodexSessionActions();
+  const { preferences } = useAppPreferences();
   const extensions = useProjectExtensions(
     repoDetails.status === 'ready' ? repoDetails.data.path : null,
   );
@@ -150,7 +151,7 @@ export function ProjectExtensionView({
       target.cwd,
       {
         prompt: trimmedPrompt,
-        settings: DEFAULT_CODEX_COMPOSER_SETTINGS,
+        settings: preferences.codexComposerSettings,
         attachments: [],
       },
       {
