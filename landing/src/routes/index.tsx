@@ -4,6 +4,16 @@ import { motion } from "motion/react";
 import { useEffect } from "react";
 import { devlandScreenshotFlow } from "#/features/screenshot-flow/devland-screenshot-flow";
 import { ScreenshotFlowViewer } from "#/features/screenshot-flow/screenshot-flow-viewer";
+import { Badge } from "#/components/ui/badge";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+} from "#/components/ui/dialog";
+import { Kbd } from "#/components/ui/kbd";
 
 type LandingSearch = {
 	screen?: string;
@@ -86,16 +96,38 @@ function LandingPage() {
 					animate={{ opacity: 1, y: 0 }}
 					transition={{ duration: 2, ease: [0.16, 1, 0.3, 1] }}
 				>
-					<div className="text-slate-200 mt-10">
-						<p>
-							What if you could view everything related to a project in a single place?
+					<div className="text-slate-200 mt-10 flex flex-col items-center">
+						<p className="flex items-center gap-2">
+							<Badge>Vision</Badge> A community-driven productivity platform for devs.
 						</p>
-						<p>
-							Code review, issues, error tracking, observability, chat, ...
-						</p>
-						<p>
-							Meet Devland:
-						</p>
+						<Dialog>
+							<DialogTrigger asChild>
+								<button className="mt-3 text-sm text-slate-400 underline underline-offset-4 hover:text-slate-200 transition-colors">
+									Thoughts and ideas
+								</button>
+							</DialogTrigger>
+							<DialogContent className="bg-slate-900 border-slate-700 text-slate-200 max-w-2xl! text-sm">
+								<DialogHeader>
+									<DialogTitle className="text-white">Thoughts and ideas</DialogTitle>
+								</DialogHeader>
+								<div className="space-y-2">
+									<ul className="list-disc pl-5 space-y-1">
+										<li>Devs could interact with a project's community by simply visiting `owner/repo` and clicking a tab like "Channels" or "Community"</li>
+										<li>Devland could have extensions for services like Linear, Github, Sentry, maybe even database services, by using their CLIs that handle authnz</li>
+										<li>Dev teams could maintain their own private extensions either in their own monorepos or private Github repos since Devland uses local <Kbd>gh</Kbd> CLI</li>
+									</ul>
+								</div>
+								<div className="space-y-2">
+									<p className="font-medium">OSS scenario: dev faces an issue with an OSS tool they use.</p>
+									<ul className="list-disc pl-5 space-y-1">
+										<li>Dev visits the repo in Devland</li>
+										<li>Clicks Issues tab &gt; Clicks a "Report an issue" button</li>
+										<li>Maybe there's a "One-click setup" button for the dev to setup the repo locally, ask AI to investigate the issue, etc.</li>
+										<li>Send the AI investigation session for maintainers to review (and ask their AI to investigate and fix)</li>
+									</ul>
+								</div>
+							</DialogContent>
+						</Dialog>
 					</div>
 				</motion.div>
 			</section>

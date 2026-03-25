@@ -195,8 +195,7 @@ const flowDefinition: ScreenshotFlowDefinition = {
               <p>Devland ships only with the <Kbd>Code</Kbd> tab.</p>
               <p>Extensions are scoped per repo via the <a className="text-blue-400 underline" href="https://github.com/rafbgarcia/devland/blob/main/devland.json">devland.json</a> file.</p>
               <p>That means each repo defines its own tab-extensions.</p>
-              <p>The local machine aspect may be useful to support better OSS contributions<br/> (e.g. make it easier for users to provide good context like machine specs, dependency versions, etc.).</p>
-              <p className="mt-2">Extensions just browser assets. They can integrate with Devland via the minimal <a className="underline" href="https://github.com/rafbgarcia/devland/blob/main/packages/devland-sdk/src/index.ts">@devlandapp/sdk</a> npm package.</p>
+              <p className="mt-2">Extensions are just browser assets. They can integrate with Devland via the minimal <a className="underline" href="https://github.com/rafbgarcia/devland/blob/main/packages/devland-sdk/src/index.ts">@devlandapp/sdk</a> npm package.</p>
             </>
           ),
           step: 2,
@@ -223,7 +222,7 @@ const flowDefinition: ScreenshotFlowDefinition = {
           description: (
             <>
               <div className="max-w-2xl">
-                <p>This is an idea to try to improve OSS contributions: per-commit Codex session snapshots.</p>
+                <p>This is an idea for OSS contributions: git-backed per-commit AI session snapshots.</p>
                 <p className="mt-2">How it works:</p>
                 <p>- On commit, Devland snapshots the current Codex thread delta and writes it onto that commit with <Kbd>{'git notes --ref=devland-prompt-requests'}</Kbd> under <Kbd>{'refs/notes/devland-prompt-requests'}</Kbd>.</p>
                 <p>- The note stores thread metadata plus the checkpointed transcript slice, so the session history travels with Git history instead of a separate database.</p>
@@ -269,7 +268,7 @@ const flowDefinition: ScreenshotFlowDefinition = {
           label: "Codex input",
           description: (
             <>
-              <p>Devland uses your Codex subscription and local Codex CLI.</p>
+              <p>Devland uses your Codex subscription and local Codex CLI (copied over from the great work done in <a className="text-blue-400 underline" href="https://github.com/pingdotgg/t3code">pingdotgg/t3code</a>).</p>
               <p>You can search the active repo using <Kbd>{'@filepath'}</Kbd> or across all repos using <Kbd>{'@/filepath'}</Kbd>.</p>
             </>
           ),
