@@ -1,7 +1,7 @@
 {
   "id": "@devlandapp/gh-prs",
   "name": "GitHub Pull Requests",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "entry": "dist/index.html",
   "commands": [
     "gh",
