@@ -177,40 +177,9 @@ const flowDefinition: ScreenshotFlowDefinition = {
           label: "Per-repo workspaces",
           description: (
             <>
-              <p>Devland ships only with the Code tab. Other tabs are repo-specific extensions defined in <Kbd>devland.json</Kbd>.</p>
-
-              <CodeBlock>{`// devland/devland.json
-
-{
-  "worktreeSetupCommand": "bun install --cwd devland-app",
-  "extensions": [
-    {
-      // "github:..." uses your local gh CLI to download GH release assets
-      // i.e. supports private repos out of the box
-      "source": "github:rafbgarcia/devland@v0.2.0#gh-prs.tgz",
-      "tabName": "Pull requests",
-      "tabIcon": "git-pull-request-arrow"
-    },
-    {
-      "source": "github:rafbgarcia/devland@v0.2.0#gh-issues.tgz",
-      "tabName": "Issues",
-      "tabIcon": "bug"
-    },
-    {
-      "source": "github:rafbgarcia/devland@v0.2.0#channels.tgz",
-      "tabName": "Community",
-      "tabIcon": "heart"
-    },
-
-    // Example of local path (for local development or even sharing on a monorepo)
-    {
-      "source": "path:../extensions/your-ext",
-      "tabName": "Nice extension",
-      "tabIcon": "lucide-icon",
-      "port": 4310 // use port for development HMR
-    },
-  ]
-}`}</CodeBlock>
+              <p>Add local repos and explore Github repos.</p>
+              <p>Devland uses local your local <Kbd>git</Kbd> and <Kbd>gh</Kbd> CLI.</p>
+              <p>Hence, it supports public and private Github repos out of the box.</p>
             </>
           ),
           step: 1,
@@ -223,21 +192,11 @@ const flowDefinition: ScreenshotFlowDefinition = {
           label: "Extensions",
           description: (
             <>
-              <p>Extensions can be anything that compiles to browser code and can use the minimal <a className="underline" href="https://github.com/rafbgarcia/devland/blob/main/packages/devland-sdk/src/index.ts">@devlandapp/sdk</a> npm package.</p>
-              <p className="mt-2">Extensions also define a simple {'`devland.json`'} file.</p>
-
-              <CodeBlock>{`// e.g. Pull requests devland.json
-{
-  "id": "@devlandapp/gh-prs",
-  "name": "GitHub Pull Requests",
-  "version": "0.2.2",
-  "entry": "dist/index.html",
-  "commands": [
-    "gh",
-    "git"
-  ]
-}
-`}</CodeBlock>
+              <p>Devland ships only with the <Kbd>Code</Kbd> tab.</p>
+              <p>Extensions are scoped per repo via the <a className="text-blue-400 underline" href="https://github.com/rafbgarcia/devland/blob/main/devland.json">devland.json</a> file.</p>
+              <p>That means each repo defines its own tab-extensions.</p>
+              <p>The local machine aspect may be useful to support better OSS contributions<br/> (e.g. make it easier for users to provide good context like machine specs, dependency versions, etc.).</p>
+              <p className="mt-2">Extensions just browser assets. They can integrate with Devland via the minimal <a className="underline" href="https://github.com/rafbgarcia/devland/blob/main/packages/devland-sdk/src/index.ts">@devlandapp/sdk</a> npm package.</p>
             </>
           ),
           step: 2,
@@ -250,8 +209,7 @@ const flowDefinition: ScreenshotFlowDefinition = {
           label: "Codex sessions",
           description: (
             <>
-              <p>Create isolate sessions and worktrees using the buttons to the right {'---->'}</p>
-              <p>or <Kbd>CMD</Kbd>+<Kbd>T</Kbd> for new local session.</p>
+              <p>Here we have Codex sessions as tabs. Create local and worktrees sessions using the buttons to the right {'---->'}</p>
             </>
           ),
           step: 3,
@@ -261,11 +219,11 @@ const flowDefinition: ScreenshotFlowDefinition = {
           id: "prompt-session",
           x: 400,
           y: 1650,
-          label: "Prompt reviews idea",
+          label: "Prompt reviews",
           description: (
             <>
               <div className="max-w-2xl">
-                <p>This is just an idea I had to try to improve OSS contributions: per-commit Codex session snapshots.</p>
+                <p>This is an idea to try to improve OSS contributions: per-commit Codex session snapshots.</p>
                 <p className="mt-2">How it works:</p>
                 <p>- On commit, Devland snapshots the current Codex thread delta and writes it onto that commit with <Kbd>{'git notes --ref=devland-prompt-requests'}</Kbd> under <Kbd>{'refs/notes/devland-prompt-requests'}</Kbd>.</p>
                 <p>- The note stores thread metadata plus the checkpointed transcript slice, so the session history travels with Git history instead of a separate database.</p>
@@ -311,7 +269,8 @@ const flowDefinition: ScreenshotFlowDefinition = {
           label: "Codex input",
           description: (
             <>
-              <p>Search on active repo using <Kbd>{'@filepath'}</Kbd> or across all repos using <Kbd>{'@/filepath'}</Kbd>.</p>
+              <p>Devland uses your Codex subscription and local Codex CLI.</p>
+              <p>You can search the active repo using <Kbd>{'@filepath'}</Kbd> or across all repos using <Kbd>{'@/filepath'}</Kbd>.</p>
             </>
           ),
           step: 1,
@@ -389,7 +348,7 @@ const flowDefinition: ScreenshotFlowDefinition = {
           label: "Per-commit prompt reviews",
           description: (
             <>
-              <p>[WIP] This is the reviewer side of the Prompt review idea.</p>
+              <p>This is the reviewer side of the Prompt review idea.</p>
             </>
           ),
           step: 1,
@@ -413,11 +372,12 @@ const flowDefinition: ScreenshotFlowDefinition = {
           id: "community",
           x: 850,
           y: 150,
-          label: "Community/channels idea",
+          label: "Extensions for OSS",
           description: (
             <>
-              <p>I thought it could be handy to have Discord-like community, Q&A, etc. close to the code.</p>
-              <p>It could have cool features integrated with the codebase.</p>
+              <p>Wouldn't it be cool to checkout repos' communities on the fly?</p>
+              <p>Just add a repo e.g. "pingdotgg/t3code" and switch to a "Channels" or "Community" tab to start interacting.</p>
+              <p>The extension could integrate with Devland's features like searching files, asking Codex to perform some action, etc.</p>
             </>
           ),
           step: 1,
@@ -494,8 +454,8 @@ const flowDefinition: ScreenshotFlowDefinition = {
           label: "Investigate with Codex",
           description: (
             <>
-              <p>This action offers a customizable prompt to ask Codex<br/> to perform some action passing the issue as context.</p>
-              <p className="mt-2">But we can do anything, really. Automated issue triage, contributors could submit a <br/>prompt review containing the issue investigation, so many ideas.</p>
+              <p>This sends the issue for Codx to investigate. It's another idea to try to support OSS maintainers.</p>
+              <p className="mt-2">Infinite possibilities though, like automated issue triage, contributors could submit their<br/>Codex investigation session, etc.</p>
             </>
           ),
           step: 1,
