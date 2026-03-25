@@ -85,6 +85,7 @@ export const ProjectExtensionSchema = z.object({
   status: ProjectExtensionStatusSchema,
   name: z.string().min(1).nullable(),
   version: z.string().min(1).nullable(),
+  installedReleaseVersion: z.string().min(1).nullable(),
   requestedVersion: z.string().min(1).nullable(),
   commands: z.array(z.string().min(1)),
   entryUrl: z.string().min(1).nullable(),
@@ -109,3 +110,16 @@ export const InstallRepoExtensionInputSchema = z.object({
   extensionId: z.string().min(1),
 });
 export type InstallRepoExtensionInput = z.infer<typeof InstallRepoExtensionInputSchema>;
+
+export const InstallRepoExtensionVersionInputSchema = z.object({
+  repoPath: z.string().min(1),
+  extensionId: z.string().min(1),
+  version: z.string().min(1),
+});
+export type InstallRepoExtensionVersionInput = z.infer<typeof InstallRepoExtensionVersionInputSchema>;
+
+export const ExtensionVersionSchema = z.object({
+  tag: z.string().min(1),
+  label: z.string().min(1),
+});
+export type ExtensionVersion = z.infer<typeof ExtensionVersionSchema>;

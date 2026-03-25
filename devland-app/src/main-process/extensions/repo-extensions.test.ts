@@ -4,7 +4,11 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, it } from 'node:test';
 
-import { getRepoExtensions, parseRepoExtensionSource } from '@/main-process/extensions/repo-extensions';
+import {
+  getRepoExtensions,
+  parseRepoExtensionSource,
+  selectInstallableExtensionVersions,
+} from '@/main-process/extensions/repo-extensions';
 
 const tempDirs: string[] = [];
 const originalStorageDir = process.env.DEVLAND_EXTENSION_STORAGE_DIR;
@@ -33,6 +37,64 @@ afterEach(() => {
   for (const directoryPath of tempDirs.splice(0, tempDirs.length)) {
     rmSync(directoryPath, { recursive: true, force: true });
   }
+});
+
+describe('selectInstallableExtensionVersions', () => {
+  it('returns only published stable releases with the matching uploaded asset', () => {
+    const versions = selectInstallableExtensionVersions(
+      [
+        {
+          tagName: 'v0.4.0',
+          isDraft: false,
+          isPrerelease: false,
+          assets: [{ name: 'gh-prs.tgz', state: 'uploaded' }],
+        },
+        {
+          tagName: 'v0.4.1',
+          isDraft: true,
+          isPrerelease: false,
+          assets: [{ name: 'gh-prs.tgz', state: 'uploaded' }],
+        },
+        {
+          tagName: 'v0.5.0-rc.1',
+          isDraft: false,
+          isPrerelease: true,
+          assets: [{ name: 'gh-prs.tgz', state: 'uploaded' }],
+        },
+        {
+          tagName: 'v0.4.2',
+          isDraft: false,
+          isPrerelease: false,
+          assets: [{ name: 'gh-issues.tgz', state: 'uploaded' }],
+        },
+        {
+          tagName: 'v0.4.3',
+          isDraft: false,
+          isPrerelease: false,
+          assets: [{ name: 'gh-prs.tgz', state: 'new' }],
+        },
+      ],
+      'gh-prs.tgz',
+    );
+
+    assert.deepEqual(versions, [{ tag: 'v0.4.0', label: '0.4.0' }]);
+  });
+
+  it('accepts assets without an explicit upload state', () => {
+    const versions = selectInstallableExtensionVersions(
+      [
+        {
+          tagName: 'v0.3.5',
+          isDraft: false,
+          isPrerelease: false,
+          assets: [{ name: 'channels.tgz' }],
+        },
+      ],
+      'channels.tgz',
+    );
+
+    assert.deepEqual(versions, [{ tag: 'v0.3.5', label: '0.3.5' }]);
+  });
 });
 
 describe('getRepoExtensions', () => {
@@ -68,6 +130,7 @@ describe('getRepoExtensions', () => {
       status: 'ready',
       name: 'GitHub Pull Requests',
       version: '0.1.0',
+      installedReleaseVersion: null,
       requestedVersion: '0.1.0',
       commands: ['gh'],
       entryUrl: 'http://127.0.0.1:4310/',
@@ -102,7 +165,7 @@ describe('getRepoExtensions', () => {
     assert.deepEqual(extensions, []);
   });
 
-  it('marks a github extension as update-available when the installed copy is older than repo config', async () => {
+  it('treats a github extension as install-required when only a different release is installed', async () => {
     const repoPath = makeTempDir('devland-repo-extensions-github-');
     const storageRoot = makeTempDir('devland-repo-extensions-storage-');
     process.env.DEVLAND_EXTENSION_STORAGE_DIR = storageRoot;
@@ -143,11 +206,12 @@ describe('getRepoExtensions', () => {
     const extensions = await getRepoExtensions(repoPath);
 
     assert.equal(extensions.length, 1);
-    assert.equal(extensions[0]?.status, 'update-available');
-    assert.equal(extensions[0]?.version, '0.1.1');
+    assert.equal(extensions[0]?.status, 'install-required');
+    assert.equal(extensions[0]?.version, null);
+    assert.equal(extensions[0]?.installedReleaseVersion, null);
     assert.equal(extensions[0]?.requestedVersion, '0.1.2');
     assert.equal(extensions[0]?.repositoryUrl, 'https://github.com/acme/devland-extensions');
-    assert.ok(extensions[0]?.entryUrl?.startsWith('devland-extension://'));
+    assert.equal(extensions[0]?.entryUrl, null);
   });
 
   it('treats a tagged release like ext/gh-prs/0.1.0 as current when the installed manifest version matches', async () => {
@@ -173,7 +237,14 @@ describe('getRepoExtensions', () => {
 
     assert.equal(source.kind, 'github');
 
-    const installRoot = path.join(storageRoot, 'acme', 'devland-extensions', 'gh-prs');
+    const installRoot = path.join(
+      storageRoot,
+      'acme',
+      'devland-extensions',
+      'gh-prs',
+      'releases',
+      encodeURIComponent('ext/gh-prs/0.1.0'),
+    );
     writeJsonFile(installRoot, 'installation.json', {
       source,
       installedVersion: '0.1.0',
@@ -193,6 +264,7 @@ describe('getRepoExtensions', () => {
     assert.equal(extensions.length, 1);
     assert.equal(extensions[0]?.status, 'ready');
     assert.equal(extensions[0]?.version, '0.1.0');
+    assert.equal(extensions[0]?.installedReleaseVersion, 'ext/gh-prs/0.1.0');
     assert.equal(extensions[0]?.requestedVersion, '0.1.0');
     assert.ok(extensions[0]?.entryUrl?.startsWith('devland-extension://'));
   });
@@ -220,7 +292,14 @@ describe('getRepoExtensions', () => {
 
     assert.equal(source.kind, 'github');
 
-    const installRoot = path.join(storageRoot, 'acme', 'devland', 'gh-prs');
+    const installRoot = path.join(
+      storageRoot,
+      'acme',
+      'devland',
+      'gh-prs',
+      'releases',
+      encodeURIComponent('v0.1.0'),
+    );
     writeJsonFile(installRoot, 'installation.json', {
       source,
       installedVersion: '0.1.0',
@@ -240,6 +319,7 @@ describe('getRepoExtensions', () => {
     assert.equal(extensions.length, 1);
     assert.equal(extensions[0]?.status, 'ready');
     assert.equal(extensions[0]?.version, '0.1.0');
+    assert.equal(extensions[0]?.installedReleaseVersion, 'v0.1.0');
     assert.equal(extensions[0]?.requestedVersion, '0.1.0');
     assert.equal(extensions[0]?.repositoryUrl, 'https://github.com/acme/devland');
     assert.ok(extensions[0]?.entryUrl?.startsWith('devland-extension://'));
@@ -266,6 +346,7 @@ describe('getRepoExtensions', () => {
         status: 'clone-required',
         name: null,
         version: null,
+        installedReleaseVersion: null,
         requestedVersion: null,
         commands: [],
         entryUrl: null,
@@ -283,5 +364,96 @@ describe('getRepoExtensions', () => {
         error: null,
       },
     ]);
+  });
+
+  it('keeps different installed release roots available for different repos', async () => {
+    const repoPathA = makeTempDir('devland-repo-extensions-versioned-a-');
+    const repoPathB = makeTempDir('devland-repo-extensions-versioned-b-');
+    const storageRoot = makeTempDir('devland-repo-extensions-storage-versioned-');
+    process.env.DEVLAND_EXTENSION_STORAGE_DIR = storageRoot;
+
+    writeJsonFile(repoPathA, 'devland.json', {
+      extensions: [
+        {
+          source: 'github:acme/devland@v0.1.0#gh-prs.tgz',
+          tabName: 'Pull requests',
+          tabIcon: 'git-pull-request',
+        },
+      ],
+    });
+    writeJsonFile(repoPathB, 'devland.json', {
+      extensions: [
+        {
+          source: 'github:acme/devland@v0.1.2#gh-prs.tgz',
+          tabName: 'Pull requests',
+          tabIcon: 'git-pull-request',
+        },
+      ],
+    });
+
+    const installRootA = path.join(
+      storageRoot,
+      'acme',
+      'devland',
+      'gh-prs',
+      'releases',
+      encodeURIComponent('v0.1.0'),
+    );
+    writeJsonFile(installRootA, 'installation.json', {
+      source: parseRepoExtensionSource(repoPathA, {
+        source: 'github:acme/devland@v0.1.0#gh-prs.tgz',
+        tabName: 'Pull requests',
+        tabIcon: 'git-pull-request',
+      }),
+      installedVersion: '0.1.0',
+      installedReleaseVersion: 'v0.1.0',
+      installedAt: Date.now(),
+    });
+    writeJsonFile(installRootA, 'package/devland.json', {
+      id: 'gh-prs',
+      name: 'GitHub Pull Requests',
+      version: '0.1.0',
+      entry: 'dist/index.html',
+      commands: ['gh'],
+    });
+    writeTextFile(installRootA, 'package/dist/index.html', '<!doctype html><html></html>');
+
+    const installRootB = path.join(
+      storageRoot,
+      'acme',
+      'devland',
+      'gh-prs',
+      'releases',
+      encodeURIComponent('v0.1.2'),
+    );
+    writeJsonFile(installRootB, 'installation.json', {
+      source: parseRepoExtensionSource(repoPathB, {
+        source: 'github:acme/devland@v0.1.2#gh-prs.tgz',
+        tabName: 'Pull requests',
+        tabIcon: 'git-pull-request',
+      }),
+      installedVersion: '0.1.2',
+      installedReleaseVersion: 'v0.1.2',
+      installedAt: Date.now(),
+    });
+    writeJsonFile(installRootB, 'package/devland.json', {
+      id: 'gh-prs',
+      name: 'GitHub Pull Requests',
+      version: '0.1.2',
+      entry: 'dist/index.html',
+      commands: ['gh'],
+    });
+    writeTextFile(installRootB, 'package/dist/index.html', '<!doctype html><html></html>');
+
+    const extensionsA = await getRepoExtensions(repoPathA);
+    const extensionsB = await getRepoExtensions(repoPathB);
+
+    assert.equal(extensionsA[0]?.status, 'ready');
+    assert.equal(extensionsA[0]?.version, '0.1.0');
+    assert.equal(extensionsA[0]?.installedReleaseVersion, 'v0.1.0');
+    assert.equal(extensionsB[0]?.status, 'ready');
+    assert.equal(extensionsB[0]?.version, '0.1.2');
+    assert.equal(extensionsB[0]?.installedReleaseVersion, 'v0.1.2');
+    assert.notEqual(extensionsA[0]?.installPath, extensionsB[0]?.installPath);
   });
 });

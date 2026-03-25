@@ -1,7 +1,6 @@
 MLP
-- Prompt request extension MLP: share session activity
-
-- One-click setup repo `devland.json` "initialDevelopmentSetupCommand"
-- Notifications
-- Tab dot feedback
+- Validate Codex CLI is installed
+- Feedback on Codex pause
 - Codex settings do not persist
+- Notifications
+- One-click setup repo `devland.json` "initialDevelopmentSetupCommand"

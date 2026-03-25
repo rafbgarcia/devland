@@ -38,6 +38,8 @@ import {
   GET_COMMIT_PARENT_CHANNEL,
   GET_REPO_EXTENSIONS_CHANNEL,
   INSTALL_REPO_EXTENSION_CHANNEL,
+  INSTALL_REPO_EXTENSION_VERSION_CHANNEL,
+  LIST_EXTENSION_VERSIONS_CHANNEL,
   RUN_EXTENSION_COMMAND_CHANNEL,
   LIST_AVAILABLE_EXTERNAL_EDITORS_CHANNEL,
   PICK_EXTERNAL_EDITOR_PATH_CHANNEL,
@@ -182,6 +184,10 @@ export const electronApi: ElectronApi = {
     ipcRenderer.invoke(GET_REPO_EXTENSIONS_CHANNEL, repoPath),
   installRepoExtension: (input) =>
     ipcRenderer.invoke(INSTALL_REPO_EXTENSION_CHANNEL, input),
+  installRepoExtensionVersion: (input) =>
+    ipcRenderer.invoke(INSTALL_REPO_EXTENSION_VERSION_CHANNEL, input),
+  listExtensionVersions: (repoPath, extensionId) =>
+    ipcRenderer.invoke(LIST_EXTENSION_VERSIONS_CHANNEL, repoPath, extensionId),
   runExtensionCommand: (input) =>
     ipcRenderer.invoke(RUN_EXTENSION_COMMAND_CHANNEL, input),
   listAvailableExternalEditors: () =>

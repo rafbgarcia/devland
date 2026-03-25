@@ -9,8 +9,10 @@ import type {
 } from '@/lib/codex-chat';
 import {
   ProjectExtensionSchema,
+  type ExtensionVersion,
   type ProjectExtension,
   type InstallRepoExtensionInput,
+  type InstallRepoExtensionVersionInput,
   type RepoConfig,
   type RunExtensionCommandInput,
 } from '@/extensions/contracts';
@@ -82,6 +84,8 @@ export const GET_COMMIT_PARENT_CHANNEL = 'app:get-commit-parent';
 export const GET_GIT_PROMPT_REQUEST_ASSET_DATA_URL_CHANNEL = 'app:get-git-prompt-request-asset-data-url';
 export const GET_REPO_EXTENSIONS_CHANNEL = 'app:get-repo-extensions';
 export const INSTALL_REPO_EXTENSION_CHANNEL = 'app:install-repo-extension';
+export const INSTALL_REPO_EXTENSION_VERSION_CHANNEL = 'app:install-repo-extension-version';
+export const LIST_EXTENSION_VERSIONS_CHANNEL = 'app:list-extension-versions';
 export const RUN_EXTENSION_COMMAND_CHANNEL = 'app:run-extension-command';
 export const LIST_AVAILABLE_EXTERNAL_EDITORS_CHANNEL = 'app:list-available-external-editors';
 export const PICK_EXTERNAL_EDITOR_PATH_CHANNEL = 'app:pick-external-editor-path';
@@ -911,6 +915,8 @@ export interface ElectronApi {
   getCommitParent: (repoPath: string, commitSha: string) => Promise<string | null>;
   getRepoExtensions: (repoPath: string) => Promise<ProjectExtension[]>;
   installRepoExtension: (input: InstallRepoExtensionInput) => Promise<void>;
+  installRepoExtensionVersion: (input: InstallRepoExtensionVersionInput) => Promise<void>;
+  listExtensionVersions: (repoPath: string, extensionId: string) => Promise<ExtensionVersion[]>;
   runExtensionCommand: (
     input: RunExtensionCommandInput,
   ) => Promise<DevlandRunCommandResult>;

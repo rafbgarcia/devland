@@ -45,6 +45,8 @@ import {
   GET_COMMIT_PARENT_CHANNEL,
   GET_REPO_EXTENSIONS_CHANNEL,
   INSTALL_REPO_EXTENSION_CHANNEL,
+  INSTALL_REPO_EXTENSION_VERSION_CHANNEL,
+  LIST_EXTENSION_VERSIONS_CHANNEL,
   RUN_EXTENSION_COMMAND_CHANNEL,
   LIST_AVAILABLE_EXTERNAL_EDITORS_CHANNEL,
   PICK_EXTERNAL_EDITOR_PATH_CHANNEL,
@@ -94,7 +96,7 @@ import { codexExecutable } from './codex-cli';
 import { suggestGitWorktreeBranchName } from './codex-use-cases/worktree-branch-name';
 import { ghExecutable } from './gh-cli';
 import { readRemoteGitHubRepoReadme, readGithubRepoOverview } from './github-repo-files';
-import { getRepoExtensions, installRepoExtension } from './extensions/repo-extensions';
+import { getRepoExtensions, installRepoExtension, installRepoExtensionVersion, listExtensionVersions } from './extensions/repo-extensions';
 import { runExtensionCommand } from './extensions/runtime';
 import {
   checkoutGitBranch,
@@ -394,6 +396,15 @@ export const registerAppIpcHandlers = (
   ipcMain.handle(
     INSTALL_REPO_EXTENSION_CHANNEL,
     (_event, input) => installRepoExtension(input),
+  );
+  ipcMain.handle(
+    INSTALL_REPO_EXTENSION_VERSION_CHANNEL,
+    (_event, input) => installRepoExtensionVersion(input),
+  );
+  ipcMain.handle(
+    LIST_EXTENSION_VERSIONS_CHANNEL,
+    (_event, repoPath: string, extensionId: string) =>
+      listExtensionVersions(repoPath, extensionId),
   );
   ipcMain.handle(
     RUN_EXTENSION_COMMAND_CHANNEL,

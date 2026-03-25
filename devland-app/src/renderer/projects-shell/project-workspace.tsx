@@ -7,6 +7,7 @@ import { CodeTabMenu } from '@/renderer/code-screen/code-tab-menu';
 import { ExternalEditorDialog } from '@/renderer/code-screen/external-editor-dialog';
 import { MissingGhCli } from '@/renderer/shared/ui/missing-gh-cli';
 
+import type { ProjectExtension } from '@/extensions/contracts';
 import type { AppShortcutCommand, ProjectViewTab, Repo } from '@/ipc/contracts';
 import {
   getAdjacentProjectTabRepoId,
@@ -33,6 +34,7 @@ import {
   PROJECT_SHORTCUT_GROUP,
 } from '@/renderer/shared/lib/shortcut-hints';
 import { isRootCodeTargetId } from '@/renderer/shared/lib/workspace-shortcuts';
+import { ExtensionTabMenu } from '@/renderer/extensions-screen/extension-tab-menu';
 import { useProjectExtensions } from '@/renderer/extensions-screen/use-project-extensions';
 import { ExtensionTabIcon } from '@/renderer/shared/ui/extension-tab-icon';
 import { ShortcutHintsOverlay } from '@/renderer/shared/ui/shortcut-hints-overlay';
@@ -76,6 +78,7 @@ type ProjectWorkspaceTab = {
   tabId: ProjectTabId;
   disabled?: boolean;
   disabledReason?: string | null;
+  extension?: ProjectExtension;
 };
 
 export function AddProjectDialog({
@@ -265,6 +268,7 @@ export function ProjectWorkspace({
             extension.status === 'clone-required'
               ? 'Clone repository to use this tab.'
               : null,
+          extension,
         })),
       ]
     : [];
@@ -491,6 +495,37 @@ export function ProjectWorkspace({
                         preference={preferences.externalEditor}
                         onSelectEditor={setExternalEditorPreference}
                         onConfigureCustomEditor={() => setIsExternalEditorDialogOpen(true)}
+                      />
+                    </div>
+                  );
+                }
+
+                if (tab.extension !== undefined && activeRepo !== null) {
+                  const hasUpdate = tab.extension.status === 'update-available';
+
+                  return (
+                    <div
+                      key={tab.key}
+                      className={cn(
+                        'relative flex cursor-default items-center gap-1.5 border-b-2 px-3 py-2.5 text-xs font-medium transition-colors',
+                        isActive
+                          ? 'border-foreground text-foreground'
+                          : 'border-transparent text-muted-foreground hover:text-foreground',
+                        tab.disabled && 'cursor-not-allowed opacity-50 hover:text-muted-foreground',
+                      )}
+                      onClick={() => {
+                        if (!tab.disabled) {
+                          navigateToTab(activeRepoId!, tab.tabId);
+                        }
+                      }}
+                      title={tab.disabledReason ?? undefined}
+                    >
+                      {tab.icon}
+                      {tab.label}
+                      <ExtensionTabMenu
+                        repoPath={activeRepo.path}
+                        extension={tab.extension}
+                        onVersionInstalled={() => void projectExtensions.refresh()}
                       />
                     </div>
                   );

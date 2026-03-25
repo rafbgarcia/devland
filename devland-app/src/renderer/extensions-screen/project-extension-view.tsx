@@ -11,7 +11,6 @@ import {
   DownloadIcon,
   ExternalLinkIcon,
   PuzzleIcon,
-  RefreshCwIcon,
 } from 'lucide-react';
 
 import { DEFAULT_CODEX_COMPOSER_SETTINGS } from '@/lib/codex-chat';
@@ -436,8 +435,6 @@ export function ProjectExtensionView({
     (extension.status === 'ready' || extension.status === 'update-available');
   const showCloneRequired = extension.status === 'clone-required';
   const showInstallPrompt = extension.status === 'install-required';
-  const showUpdateAlert = extension.status === 'update-available';
-  const canInstallFromGithub = extension.source.kind === 'github';
 
   return (
     <section className="flex h-full flex-col">
@@ -448,45 +445,6 @@ export function ProjectExtensionView({
             <AlertTitle>Extension action failed</AlertTitle>
             <AlertDescription>{actionError}</AlertDescription>
           </Alert>
-        </div>
-      ) : null}
-
-      {showUpdateAlert ? (
-        <div className="mb-3">
-          <Alert>
-            <RefreshCwIcon />
-            <AlertTitle>Update available</AlertTitle>
-            <AlertDescription>
-              Repo config requests v{extension.requestedVersion ?? '?'} while the installed
-              copy is v{extension.version ?? '?'}. Update when you are ready.
-            </AlertDescription>
-          </Alert>
-          {canInstallFromGithub ? (
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button disabled={isInstalling} onClick={() => void handleInstall()} type="button">
-                {isInstalling ? (
-                  <Spinner data-icon="inline-start" />
-                ) : (
-                  <RefreshCwIcon data-icon="inline-start" />
-                )}
-                Update extension
-              </Button>
-              <Button
-                nativeButton={false}
-                render={
-                  <a
-                    href={extension.repositoryUrl ?? undefined}
-                    rel="noreferrer"
-                    target="_blank"
-                  />
-                }
-                variant="outline"
-              >
-                <ExternalLinkIcon data-icon="inline-start" />
-                View repository
-              </Button>
-            </div>
-          ) : null}
         </div>
       ) : null}
 
