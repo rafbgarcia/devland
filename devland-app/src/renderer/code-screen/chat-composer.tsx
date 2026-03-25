@@ -728,6 +728,7 @@ export const ChatComposer = memo(forwardRef<ChatComposerHandle, ChatComposerProp
             </DropdownMenu>
 
             <textarea
+              aria-label="Message Codex"
               ref={textareaRef}
               className="field-sizing-content max-h-40 min-h-[2.5rem] min-w-0 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-2 py-2.5 text-sm leading-normal text-foreground outline-none placeholder:text-muted-foreground/40"
               placeholder={placeholder}

@@ -72,6 +72,8 @@ import {
   RESIZE_TERMINAL_SESSION_CHANNEL,
   CLOSE_TERMINAL_SESSION_CHANNEL,
   TERMINAL_SESSION_EVENT_CHANNEL,
+  GET_BROWSER_VIEW_SNAPSHOT_CHANNEL,
+  SET_ACTIVE_BROWSER_VIEW_CHANNEL,
   SHOW_BROWSER_VIEW_CHANNEL,
   HIDE_BROWSER_VIEW_CHANNEL,
   UPDATE_BROWSER_VIEW_BOUNDS_CHANNEL,
@@ -448,6 +450,7 @@ export const registerAppIpcHandlers = (
         cwd: string;
         prompt: string;
         settings: CodexComposerSettings;
+        browserControlEnabled?: boolean;
         attachments: CodexPromptAttachment[];
         persistedAttachments?: CodexChatImageAttachment[];
         resumeThreadId?: string | null;
@@ -463,6 +466,7 @@ export const registerAppIpcHandlers = (
         input.persistedAttachments ?? [],
         input.resumeThreadId ?? null,
         input.transcriptBootstrap ?? null,
+        input.browserControlEnabled ?? false,
       ),
   );
   ipcMain.handle(
@@ -477,12 +481,14 @@ export const registerAppIpcHandlers = (
       cwd: string;
       threadId: string;
       settings: CodexComposerSettings;
+      browserControlEnabled?: boolean;
     }) =>
       codexAppServerManager.resumeThread(
         input.sessionId,
         input.cwd,
         input.settings,
         input.threadId,
+        input.browserControlEnabled ?? false,
       ),
   );
   ipcMain.handle(
@@ -540,6 +546,15 @@ export const registerAppIpcHandlers = (
   ipcMain.handle(
     CLOSE_TERMINAL_SESSION_CHANNEL,
     (_event, sessionId: string) => terminalSessionManager.close(sessionId),
+  );
+  ipcMain.handle(
+    GET_BROWSER_VIEW_SNAPSHOT_CHANNEL,
+    (_event, input) => browserViewManager.getSnapshot(input),
+  );
+  ipcMain.handle(
+    SET_ACTIVE_BROWSER_VIEW_CHANNEL,
+    (_event, input: { browserViewId: string; codeTargetId: string }) =>
+      browserViewManager.setActiveBrowserView(input),
   );
   ipcMain.handle(
     SHOW_BROWSER_VIEW_CHANNEL,

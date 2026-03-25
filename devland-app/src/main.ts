@@ -28,9 +28,11 @@ import {
   resolveCodexAttachmentPath,
 } from './main-process/codex-attachments';
 import { registerAppIpcHandlers } from './main-process/ipc';
+import { BrowserControlBridge } from './main-process/browser/browser-control-bridge';
 import { browserViewManager } from './main-process/browser/browser-view-manager';
 import { terminalSessionManager } from './main-process/terminal-session-manager';
 import { desktopUpdater } from './main-process/desktop-updater';
+import { codexAppServerManager } from './main-process/codex-app-server';
 import { getDevUserDataDir } from './dev/dev-instance';
 
 protocol.registerSchemesAsPrivileged([
@@ -75,6 +77,7 @@ const developmentContentSecurityPolicy = [
 ].join('; ');
 
 let mainWindow: BrowserWindow | null = null;
+const browserControlBridge = new BrowserControlBridge(browserViewManager);
 const userDataDir = isDevelopment
   ? getDevUserDataDir(process.cwd())
   : process.env.DEVLAND_USER_DATA_DIR?.trim() || process.env.DEVLAND_TEST_USER_DATA_DIR?.trim();
@@ -299,6 +302,8 @@ app.whenReady().then(async () => {
   registerExtensionProtocol();
   registerCodexAttachmentProtocol();
   configureSessionSecurity();
+  await browserControlBridge.start(app.getPath('userData'));
+  codexAppServerManager.setBrowserControlAccessProvider(browserControlBridge);
   registerAppIpcHandlers(() => mainWindow);
   await createWindow();
   desktopUpdater.start();
@@ -325,6 +330,8 @@ app.on('activate', () => {
 
 app.on('before-quit', () => {
   desktopUpdater.dispose();
+  browserControlBridge.dispose();
+  codexAppServerManager.setBrowserControlAccessProvider(null);
   browserViewManager.dispose();
   terminalSessionManager.dispose();
 });

@@ -67,6 +67,8 @@ export const RESIZE_TERMINAL_SESSION_CHANNEL = 'app:resize-terminal-session';
 export const CLOSE_TERMINAL_SESSION_CHANNEL = 'app:close-terminal-session';
 export const TERMINAL_SESSION_EVENT_CHANNEL = 'app:terminal-session-event';
 export const SHOW_BROWSER_VIEW_CHANNEL = 'app:show-browser-view';
+export const GET_BROWSER_VIEW_SNAPSHOT_CHANNEL = 'app:get-browser-view-snapshot';
+export const SET_ACTIVE_BROWSER_VIEW_CHANNEL = 'app:set-active-browser-view';
 export const HIDE_BROWSER_VIEW_CHANNEL = 'app:hide-browser-view';
 export const UPDATE_BROWSER_VIEW_BOUNDS_CHANNEL = 'app:update-browser-view-bounds';
 export const NAVIGATE_BROWSER_VIEW_CHANNEL = 'app:navigate-browser-view';
@@ -985,6 +987,7 @@ export interface ElectronApi {
     cwd: string;
     prompt: string;
     settings: CodexComposerSettings;
+    browserControlEnabled?: boolean;
     attachments: CodexPromptAttachment[];
     persistedAttachments?: CodexChatImageAttachment[];
     resumeThreadId?: string | null;
@@ -996,6 +999,7 @@ export interface ElectronApi {
     cwd: string;
     threadId: string;
     settings: CodexComposerSettings;
+    browserControlEnabled?: boolean;
   }) => Promise<CodexResumedThread>;
   searchCodexPaths: (input: CodexPathSearchInput) => Promise<CodexPathSearchResult>;
   interruptCodexSession: (sessionId: string) => Promise<void>;
@@ -1020,6 +1024,14 @@ export interface ElectronApi {
     codeTargetId: string;
     bounds: BrowserViewBounds;
   }) => Promise<BrowserViewSnapshot>;
+  getBrowserViewSnapshot: (input: {
+    browserViewId: string;
+    codeTargetId: string;
+  }) => Promise<BrowserViewSnapshot>;
+  setActiveBrowserView: (input: {
+    browserViewId: string;
+    codeTargetId: string;
+  }) => Promise<void>;
   hideBrowserView: (browserViewId: string) => Promise<void>;
   updateBrowserViewBounds: (input: {
     browserViewId: string;

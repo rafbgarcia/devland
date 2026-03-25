@@ -220,6 +220,48 @@ export function useBrowserViewsState(
   }, [browserViewIdsKey, codeTargetId, stableBrowserViewIds]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    void Promise.all(
+      stableBrowserViewIds.map((browserViewId) =>
+        window.electronAPI.getBrowserViewSnapshot({
+          browserViewId,
+          codeTargetId,
+        }),
+      ),
+    )
+      .then((snapshots) => {
+        if (cancelled) {
+          return;
+        }
+
+        setSnapshotsById((current) => ({
+          ...current,
+          ...Object.fromEntries(
+            snapshots.map((snapshot) => [snapshot.browserViewId, snapshot]),
+          ),
+        }));
+        setStoredState((current) => {
+          const next = snapshots.reduce(
+            (state, snapshot) => syncBrowserViewSnapshot(state, snapshot),
+            current,
+          );
+
+          if (next !== current) {
+            writeStoredBrowserViewState(next);
+          }
+
+          return next;
+        });
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [codeTargetId, stableBrowserViewIds]);
+
+  useEffect(() => {
     const browserViewIdSet = new Set(stableBrowserViewIds);
 
     return window.electronAPI.onBrowserViewEvent((event) => {

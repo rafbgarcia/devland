@@ -165,6 +165,7 @@ export function AddProjectDialog({
             <Field data-invalid={Boolean(formError)}>
               <div className="flex gap-2">
                 <Input
+                  aria-label="Project path"
                   aria-invalid={Boolean(formError)}
                   autoComplete="off"
                   className="flex-1"
@@ -457,6 +458,7 @@ export function ProjectWorkspace({
           </AnimatePresence>
 
           <button
+            aria-label="Add project"
             onClick={() => setIsAddDialogOpen(true)}
             className="mb-0.5 ml-0.5 flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
             type="button"

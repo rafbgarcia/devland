@@ -116,6 +116,26 @@ describe('buildCodexThreadOpenParams', () => {
   });
 });
 
+describe('buildCodexCollaborationMode', () => {
+  it('adds browser control instructions when the session capability is enabled', () => {
+    const collaborationMode = buildCodexCollaborationMode({
+      interactionMode: 'default',
+      model: 'gpt-5.4',
+      reasoningEffort: 'high',
+      browserControlEnabled: true,
+    });
+
+    assert.match(
+      collaborationMode.settings.developer_instructions,
+      /DEVLAND_BROWSER_CLI/,
+    );
+    assert.match(
+      collaborationMode.settings.developer_instructions,
+      /navigate <url>/,
+    );
+  });
+});
+
 describe('buildCodexTurnStartParams', () => {
   it('passes prompt text, reasoning, fast mode, and image attachments to turn/start', () => {
     assert.deepEqual(
@@ -218,6 +238,27 @@ describe('buildCodexTurnStartParams', () => {
           reasoningEffort: 'high',
         }),
       },
+    );
+  });
+
+  it('includes browser control guidance on turn/start when enabled for the repo', () => {
+    const params = buildCodexTurnStartParams({
+      threadId: 'thread-4',
+      prompt: 'Open the app',
+      settings: {
+        model: 'gpt-5.4',
+        reasoningEffort: 'high',
+        fastMode: false,
+        runtimeMode: 'approval-required',
+        interactionMode: 'default',
+      },
+      attachments: [],
+      browserControlEnabled: true,
+    });
+
+    assert.match(
+      params.collaborationMode.settings.developer_instructions,
+      /DEVLAND_BROWSER_CLI/,
     );
   });
 });

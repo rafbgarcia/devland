@@ -280,6 +280,7 @@ export function useCodexSessionActions() {
     options?: {
       beforeSend?: () => Promise<void>;
       background?: boolean;
+      browserControlEnabled?: boolean;
     },
   ) => {
     const previous = appJotaiStore.get(getSessionStateAtom(sessionId));
@@ -321,6 +322,7 @@ export function useCodexSessionActions() {
             cwd,
             prompt: submission.prompt,
             settings: submission.settings,
+            browserControlEnabled: options?.browserControlEnabled ?? false,
             attachments: submission.attachments,
             persistedAttachments,
             resumeThreadId: previous.threadId,
@@ -372,12 +374,14 @@ export function useCodexSessionActions() {
     cwd: string,
     settings: CodexComposerSettings,
     threadId: string,
+    browserControlEnabled = false,
   ) => {
     const resumedThread = await window.electronAPI.resumeCodexThread({
       sessionId,
       cwd,
       settings,
       threadId,
+      browserControlEnabled,
     });
 
     restoreResumedThread({

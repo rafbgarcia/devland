@@ -71,6 +71,8 @@ import {
   BROWSER_VIEW_EVENT_CHANNEL,
   BrowserViewEventSchema,
   CLOSE_CURRENT_WINDOW_CHANNEL,
+  GET_BROWSER_VIEW_SNAPSHOT_CHANNEL,
+  SET_ACTIVE_BROWSER_VIEW_CHANNEL,
   GET_CODEX_PROMPT_REQUEST_CHECKPOINT_CHANNEL,
   SHOW_BROWSER_VIEW_CHANNEL,
   HIDE_BROWSER_VIEW_CHANNEL,
@@ -253,6 +255,10 @@ export const electronApi: ElectronApi = {
     ipcRenderer.invoke(CLOSE_TERMINAL_SESSION_CHANNEL, sessionId),
   showBrowserView: (input) =>
     ipcRenderer.invoke(SHOW_BROWSER_VIEW_CHANNEL, input),
+  getBrowserViewSnapshot: (input) =>
+    ipcRenderer.invoke(GET_BROWSER_VIEW_SNAPSHOT_CHANNEL, input),
+  setActiveBrowserView: (input) =>
+    ipcRenderer.invoke(SET_ACTIVE_BROWSER_VIEW_CHANNEL, input),
   hideBrowserView: (browserViewId) =>
     ipcRenderer.invoke(HIDE_BROWSER_VIEW_CHANNEL, browserViewId),
   updateBrowserViewBounds: (input) =>

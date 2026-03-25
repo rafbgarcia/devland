@@ -3,6 +3,10 @@ import { useCallback } from 'react';
 import { atom, useAtomValue, useSetAtom } from 'jotai';
 import { atomWithStorage } from 'jotai/utils';
 
+import { getDefaultBrowserTabId } from '@/lib/browser-tabs';
+
+export { getDefaultBrowserTabId };
+
 export type BrowserTab = {
   id: string;
 };
@@ -39,9 +43,6 @@ type StoredBrowserTabsAction =
   | PruneTargetsInput;
 
 const STORAGE_KEY = 'devland:browser-tabs';
-
-export const getDefaultBrowserTabId = (targetId: string): string =>
-  `${targetId}:browser:1`;
 
 export const createDefaultTargetBrowserTabsState = (
   targetId: string,

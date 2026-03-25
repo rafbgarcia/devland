@@ -1,18 +1,29 @@
 import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { app } from 'electron';
 
 import type {
   CodexChatImageAttachment,
   CodexImageAttachmentInput,
   CodexPromptAttachment,
 } from '@/lib/codex-chat';
+import type { App } from 'electron';
 
 export const DEVLAND_CODEX_ATTACHMENT_PROTOCOL = 'devland-codex-attachment';
 
 const ATTACHMENTS_ROOT_DIRNAME = 'codex-attachments';
 const ATTACHMENT_PROTOCOL_HOST = 'asset';
+const require = createRequire(__filename);
+
+function getElectronApp(): App | null {
+  try {
+    const electronModule = require('electron') as { app?: App };
+    return electronModule.app ?? null;
+  } catch {
+    return null;
+  }
+}
 
 const MIME_EXTENSION_BY_TYPE: Record<string, string> = {
   'image/avif': '.avif',
@@ -42,7 +53,13 @@ const decodeRelativePath = (pathname: string): string =>
     .join(path.sep);
 
 const getAttachmentsRoot = (): string =>
-  path.join(app.getPath('userData'), ATTACHMENTS_ROOT_DIRNAME);
+  path.join(
+    process.env.DEVLAND_USER_DATA_DIR?.trim() ||
+      process.env.DEVLAND_TEST_USER_DATA_DIR?.trim() ||
+      getElectronApp()?.getPath('userData') ||
+      path.join(process.cwd(), '.devland-user-data'),
+    ATTACHMENTS_ROOT_DIRNAME,
+  );
 
 const buildStoredFileExtension = (name: string, mimeType: string): string => {
   const trimmedName = name.trim();

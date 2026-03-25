@@ -95,6 +95,8 @@ export class BrowserViewManager extends EventEmitter<{
 
   private readonly targetSessions = new Map<string, TargetBrowserSession>();
 
+  private readonly activeBrowserViewIdByTarget = new Map<string, string>();
+
   private getMainWindow: () => BrowserWindow | null = () => null;
 
   private dispatchAppShortcutCommand: (command: AppShortcutCommand) => void = () => undefined;
@@ -220,6 +222,29 @@ export class BrowserViewManager extends EventEmitter<{
     return browserView.snapshot;
   }
 
+  async getSnapshot(input: {
+    browserViewId: string;
+    codeTargetId: string;
+  }): Promise<BrowserViewSnapshot> {
+    const browserView = this.ensureBrowserView(input.browserViewId, input.codeTargetId);
+
+    browserView.snapshot = readSnapshot(browserView);
+    this.emitSnapshot(browserView);
+
+    return browserView.snapshot;
+  }
+
+  setActiveBrowserView(input: {
+    codeTargetId: string;
+    browserViewId: string;
+  }): void {
+    this.activeBrowserViewIdByTarget.set(input.codeTargetId, input.browserViewId);
+  }
+
+  getActiveBrowserViewId(codeTargetId: string): string | null {
+    return this.activeBrowserViewIdByTarget.get(codeTargetId) ?? null;
+  }
+
   async openDevTools(browserViewId: string): Promise<void> {
     const browserView = this.requireBrowserView(browserViewId);
 
@@ -246,6 +271,10 @@ export class BrowserViewManager extends EventEmitter<{
     const targetSession = this.targetSessions.get(browserView.codeTargetId);
 
     targetSession?.browserViewIds.delete(browserViewId);
+
+    if (this.activeBrowserViewIdByTarget.get(browserView.codeTargetId) === browserViewId) {
+      this.activeBrowserViewIdByTarget.delete(browserView.codeTargetId);
+    }
   }
 
   async disposeTarget(codeTargetId: string): Promise<void> {
@@ -263,9 +292,12 @@ export class BrowserViewManager extends EventEmitter<{
       targetSession.session.clearCache(),
     ]);
     this.targetSessions.delete(codeTargetId);
+    this.activeBrowserViewIdByTarget.delete(codeTargetId);
   }
 
   dispose(): void {
+    this.activeBrowserViewIdByTarget.clear();
+
     for (const codeTargetId of [...this.targetSessions.keys()]) {
       void this.disposeTarget(codeTargetId);
     }

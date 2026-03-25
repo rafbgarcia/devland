@@ -69,10 +69,25 @@ type PendingUserInputRequest = {
   jsonRpcId: JsonRpcId;
 };
 
+export type CodexBrowserControlAccess = {
+  baseUrl: string;
+  token: string;
+  helperPath: string;
+};
+
+export type CodexBrowserControlAccessProvider = {
+  issueSessionAccess: (input: {
+    sessionId: string;
+    codeTargetId: string;
+  }) => CodexBrowserControlAccess;
+  revokeSessionAccess: (sessionId: string) => void;
+};
+
 type SessionContext = {
   sessionId: string;
   cwd: string;
   runtimeMode: CodexRuntimeMode;
+  browserControlEnabled: boolean;
   child: RequestContext['child'];
   output: readline.Interface;
   nextRequestId: RequestContext['nextRequestId'];
@@ -136,6 +151,14 @@ const CODEX_DEFAULT_MODE_DEVELOPER_INSTRUCTIONS = `<collaboration_mode># Default
 You are in Default mode. Any previous plan-mode instructions are no longer active.
 
 Execute the user's request directly when it is safe to do so. Use \`request_user_input\` only when a high-impact decision cannot be resolved from local context and making an assumption would be risky.</collaboration_mode>`;
+
+const CODEX_BROWSER_CONTROL_DEVELOPER_INSTRUCTIONS = `If \`DEVLAND_BROWSER_CLI\` is available, you can control this session's isolated Devland browser tab.
+
+Use only:
+- \`"$DEVLAND_BROWSER_CLI" status\`
+- \`"$DEVLAND_BROWSER_CLI" navigate <url>\`
+
+This browser access is scoped to the current session only. For now it supports navigation and status only, not DOM inspection or clicks.`;
 
 export const buildCodexInitializeParams = () => ({
   clientInfo: {
@@ -211,6 +234,7 @@ export function buildCodexCollaborationMode(input: {
   interactionMode: CodexInteractionMode;
   model: string;
   reasoningEffort: string;
+  browserControlEnabled?: boolean;
 }): {
   mode: CodexInteractionMode;
   settings: {
@@ -224,10 +248,12 @@ export function buildCodexCollaborationMode(input: {
     settings: {
       model: input.model,
       reasoning_effort: input.reasoningEffort,
-      developer_instructions:
+      developer_instructions: [
         input.interactionMode === 'plan'
           ? CODEX_PLAN_MODE_DEVELOPER_INSTRUCTIONS
           : CODEX_DEFAULT_MODE_DEVELOPER_INSTRUCTIONS,
+        input.browserControlEnabled ? CODEX_BROWSER_CONTROL_DEVELOPER_INSTRUCTIONS : null,
+      ].filter(Boolean).join('\n\n'),
     },
   };
 }
@@ -252,11 +278,13 @@ export const buildCodexTurnStartParams = ({
   prompt,
   settings,
   attachments,
+  browserControlEnabled = false,
 }: {
   threadId: string;
   prompt: string;
   settings: CodexComposerSettings;
   attachments: readonly CodexImageAttachmentInput[];
+  browserControlEnabled?: boolean;
 }) => {
   const input: Array<
     | { type: 'text'; text: string; text_elements: [] }
@@ -292,6 +320,7 @@ export const buildCodexTurnStartParams = ({
       interactionMode: settings.interactionMode,
       model: settings.model,
       reasoningEffort: settings.reasoningEffort,
+      browserControlEnabled,
     }),
     ...(settings.fastMode ? { serviceTier: 'fast' as const } : {}),
   };
@@ -758,6 +787,14 @@ export class CodexAppServerManager extends EventEmitter<{
 }> {
   private readonly sessions = new Map<string, SessionContext>();
 
+  private browserControlAccessProvider: CodexBrowserControlAccessProvider | null = null;
+
+  setBrowserControlAccessProvider(
+    provider: CodexBrowserControlAccessProvider | null,
+  ): void {
+    this.browserControlAccessProvider = provider;
+  }
+
   async listThreads(cwd: string, limit = 20): Promise<CodexThreadSummary[]> {
     return this.withStandaloneClient(cwd, async (context) => {
       const response = await this.sendRequest(
@@ -779,6 +816,7 @@ export class CodexAppServerManager extends EventEmitter<{
     cwd: string,
     settings: CodexComposerSettings,
     threadId: string,
+    browserControlEnabled = false,
   ): Promise<CodexResumedThread> {
     if (this.sessions.has(sessionId)) {
       this.stopSession(sessionId);
@@ -789,6 +827,7 @@ export class CodexAppServerManager extends EventEmitter<{
       cwd,
       settings,
       threadId,
+      browserControlEnabled,
     );
 
     if (didResumeFallback) {
@@ -808,6 +847,7 @@ export class CodexAppServerManager extends EventEmitter<{
     persistedAttachments: readonly CodexChatImageAttachment[] = [],
     resumeThreadId: string | null = null,
     transcriptBootstrap: string | null = null,
+    browserControlEnabled = false,
   ): Promise<void> {
     try {
       const { context, didResumeFallback } = await this.ensureSession(
@@ -815,6 +855,7 @@ export class CodexAppServerManager extends EventEmitter<{
         cwd,
         settings,
         resumeThreadId,
+        browserControlEnabled,
       );
       const turnStartPrompt =
         didResumeFallback && transcriptBootstrap && transcriptBootstrap.trim().length > 0
@@ -853,6 +894,7 @@ export class CodexAppServerManager extends EventEmitter<{
           prompt: turnStartPrompt,
           settings,
           attachments: hydratedAttachments,
+          browserControlEnabled,
         }),
       );
       const turnId = asString(asObject(asObject(response)?.turn)?.id);
@@ -960,6 +1002,7 @@ export class CodexAppServerManager extends EventEmitter<{
     context.pending.clear();
     context.pendingApprovals.clear();
     context.pendingUserInputs.clear();
+    this.browserControlAccessProvider?.revokeSessionAccess(sessionId);
     context.output.close();
     if (!context.child.killed) {
       context.child.kill();
@@ -976,6 +1019,7 @@ export class CodexAppServerManager extends EventEmitter<{
     cwd: string,
     settings: CodexComposerSettings,
     resumeThreadId: string | null = null,
+    browserControlEnabled = false,
   ): Promise<EnsureSessionResult> {
     const existing = this.sessions.get(sessionId);
 
@@ -983,7 +1027,8 @@ export class CodexAppServerManager extends EventEmitter<{
       existing &&
       existing.status !== 'closed' &&
       existing.cwd === cwd &&
-      existing.runtimeMode === settings.runtimeMode
+      existing.runtimeMode === settings.runtimeMode &&
+      existing.browserControlEnabled === browserControlEnabled
     ) {
       return {
         context: existing,
@@ -1000,8 +1045,26 @@ export class CodexAppServerManager extends EventEmitter<{
       throw new Error('Codex CLI is not installed. Install it from https://codex.openai.com');
     }
 
+    const browserControlAccess =
+      browserControlEnabled
+        ? this.browserControlAccessProvider?.issueSessionAccess({
+            sessionId,
+            codeTargetId: sessionId,
+          }) ?? null
+        : null;
+
     const child = spawn(codexExecutable, ['app-server'], {
       cwd,
+      env: {
+        ...process.env,
+        ...(browserControlAccess
+          ? {
+              DEVLAND_BROWSER_CONTROL_URL: browserControlAccess.baseUrl,
+              DEVLAND_BROWSER_CONTROL_TOKEN: browserControlAccess.token,
+              DEVLAND_BROWSER_CLI: browserControlAccess.helperPath,
+            }
+          : {}),
+      },
       windowsHide: true,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -1010,6 +1073,7 @@ export class CodexAppServerManager extends EventEmitter<{
       sessionId,
       cwd,
       runtimeMode: settings.runtimeMode,
+      browserControlEnabled,
       child,
       output,
       nextRequestId: 1,
@@ -1208,6 +1272,7 @@ export class CodexAppServerManager extends EventEmitter<{
         return;
       }
 
+      this.browserControlAccessProvider?.revokeSessionAccess(context.sessionId);
       context.status = 'closed';
       context.activeTurnId = null;
       this.emitState(

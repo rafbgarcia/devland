@@ -53,6 +53,7 @@ import { SessionAlerts } from '@/renderer/code-screen/session-alerts';
 import { SessionTranscript } from '@/renderer/code-screen/session-transcript';
 import { TargetBrowserPanel } from '@/renderer/code-screen/target-browser-panel';
 import { TargetTerminalPanel } from '@/renderer/code-screen/target-terminal-panel';
+import { useRepoCodexSettings } from '@/renderer/code-screen/use-repo-codex-settings';
 import { ExternalEditorDialog } from '@/renderer/code-screen/external-editor-dialog';
 import {
   isComposerDraftDirty,
@@ -214,9 +215,13 @@ export function CodeWorkspaceScreen({
   const {
     preferences,
     setExternalEditorPreference,
-    setCodexComposerSettings,
   } = useAppPreferences();
   useEnsureExternalEditorPreference();
+  const {
+    settings: repoCodexSettings,
+    setComposerSettings: setRepoCodexComposerSettings,
+    setBrowserControlEnabled,
+  } = useRepoCodexSettings(repoId);
   const {
     getTargetState: getBrowserTabsState,
     addTab: addBrowserTab,
@@ -379,6 +384,17 @@ export function CodeWorkspaceScreen({
   }, [pruneBrowserTabs, targets]);
 
   useEffect(() => {
+    void Promise.allSettled(
+      targets.map((target) =>
+        window.electronAPI.setActiveBrowserView({
+          codeTargetId: target.id,
+          browserViewId: getBrowserTabsState(target.id).activeTabId,
+        }),
+      ),
+    );
+  }, [getBrowserTabsState, targets]);
+
+  useEffect(() => {
     pruneTerminalTabs(targets.map((target) => target.id));
   }, [pruneTerminalTabs, targets]);
 
@@ -418,11 +434,11 @@ export function CodeWorkspaceScreen({
     [rootBranch, targets],
   );
 
-  const composerSettings = preferences.codexComposerSettings;
+  const composerSettings = repoCodexSettings.composerSettings;
 
   const handleComposerSettingsChange = useCallback((settings: CodexComposerSettings) => {
-    setCodexComposerSettings(settings);
-  }, [setCodexComposerSettings]);
+    setRepoCodexComposerSettings(settings);
+  }, [setRepoCodexComposerSettings]);
 
   const bootstrapDetachedWorktreeBranch = useCallback(async (submission: CodexPromptSubmission) => {
     if (activeTarget.kind !== 'worktree') {
@@ -460,16 +476,20 @@ export function CodeWorkspaceScreen({
       activeTarget.id,
       activeTarget.cwd,
       submission,
-      shouldBootstrapBranch
-        ? {
-            background: true,
-            beforeSend: () => bootstrapDetachedWorktreeBranch(submission),
-          }
-        : undefined,
+      {
+        browserControlEnabled: repoCodexSettings.browserControlEnabled,
+        ...(shouldBootstrapBranch
+          ? {
+              background: true,
+              beforeSend: () => bootstrapDetachedWorktreeBranch(submission),
+            }
+          : {}),
+      },
     );
   }, [
     activeTarget,
     bootstrapDetachedWorktreeBranch,
+    repoCodexSettings.browserControlEnabled,
     sendPrompt,
     sessionState.messages.length,
   ]);
@@ -863,12 +883,20 @@ export function CodeWorkspaceScreen({
                 cwd={activeTarget.cwd}
                 currentThreadId={sessionState.threadId}
                 settings={composerSettings}
+                browserControlEnabled={repoCodexSettings.browserControlEnabled}
                 onSettingsChange={handleComposerSettingsChange}
+                onBrowserControlEnabledChange={setBrowserControlEnabled}
                 onNewSession={() => {
                   void handleResetSession(activeTarget.id);
                 }}
                 onSelectThread={(threadId) =>
-                  resumeThread(activeTarget.id, activeTarget.cwd, composerSettings, threadId)
+                  resumeThread(
+                    activeTarget.id,
+                    activeTarget.cwd,
+                    composerSettings,
+                    threadId,
+                    repoCodexSettings.browserControlEnabled,
+                  )
                 }
               />
             )}
@@ -987,10 +1015,12 @@ export function CodeWorkspaceScreen({
     handleSidebarResize,
     interruptSession,
     isRunning,
+    repoCodexSettings.browserControlEnabled,
     rememberActivePane,
     respondToApproval,
     respondToUserInput,
     resumeThread,
+    setBrowserControlEnabled,
     sessionState.activePlan,
     sessionState.error,
     sessionState.pendingApprovals,

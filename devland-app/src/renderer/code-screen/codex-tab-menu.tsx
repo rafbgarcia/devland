@@ -206,14 +206,18 @@ export function CodexTabMenu({
   cwd,
   currentThreadId,
   settings,
+  browserControlEnabled,
   onSettingsChange,
+  onBrowserControlEnabledChange,
   onNewSession,
   onSelectThread,
 }: {
   cwd: string;
   currentThreadId: string | null;
   settings: CodexComposerSettings;
+  browserControlEnabled: boolean;
   onSettingsChange: (settings: CodexComposerSettings) => void;
+  onBrowserControlEnabledChange: (enabled: boolean) => void;
   onNewSession: () => void;
   onSelectThread: (threadId: string) => Promise<void>;
 }) {
@@ -414,6 +418,33 @@ export function CodexTabMenu({
                     <CheckIcon className="size-3.5" />
                   </DropdownMenuRadioItemIndicator>
                 </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenuSubmenu>
+
+          <DropdownMenuSubmenu>
+            <DropdownMenuSubmenuTrigger>
+              Browser control
+              <span className="ml-auto text-xs text-muted-foreground">
+                {browserControlEnabled ? 'On' : 'Off'}
+              </span>
+              <ChevronRightIcon className="size-3.5 text-muted-foreground" />
+            </DropdownMenuSubmenuTrigger>
+            <DropdownMenuContent side="right" sideOffset={2} align="start" className="w-36">
+              <DropdownMenuRadioGroup
+                value={browserControlEnabled ? 'on' : 'off'}
+                onValueChange={(value) => {
+                  onBrowserControlEnabledChange(value === 'on');
+                }}
+              >
+                {['off', 'on'].map((value) => (
+                  <DropdownMenuRadioItem key={value} value={value} closeOnClick={false}>
+                    {value === 'on' ? 'On' : 'Off'}
+                    <DropdownMenuRadioItemIndicator className="ml-auto">
+                      <CheckIcon className="size-3.5" />
+                    </DropdownMenuRadioItemIndicator>
+                  </DropdownMenuRadioItem>
+                ))}
               </DropdownMenuRadioGroup>
             </DropdownMenuContent>
           </DropdownMenuSubmenu>
