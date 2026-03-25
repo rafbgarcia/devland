@@ -4,12 +4,16 @@ import { resolveDetectedExternalEditorPreference } from '@/renderer/shared/use-a
 export async function openRepoFileInExternalEditor({
   repoPath,
   relativeFilePath,
+  lineNumber,
+  columnNumber,
   externalEditorPreference,
   onExternalEditorPreferenceChange,
   onRequestConfigureExternalEditor,
 }: {
   repoPath: string;
   relativeFilePath: string;
+  lineNumber?: number | null;
+  columnNumber?: number | null;
   externalEditorPreference: ExternalEditorPreference | null;
   onExternalEditorPreferenceChange?: ((preference: ExternalEditorPreference) => void) | undefined;
   onRequestConfigureExternalEditor?: (() => void) | undefined;
@@ -29,6 +33,8 @@ export async function openRepoFileInExternalEditor({
   await window.electronAPI.openFileInExternalEditor({
     repoPath,
     relativeFilePath,
+    ...(lineNumber !== null && lineNumber !== undefined ? { lineNumber } : {}),
+    ...(columnNumber !== null && columnNumber !== undefined ? { columnNumber } : {}),
     preference: resolvedPreference,
   });
 }

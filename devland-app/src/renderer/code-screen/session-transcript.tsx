@@ -39,6 +39,7 @@ import {
   type SessionTimelineRow,
   type SessionTimelineToolEntry,
 } from '@/renderer/code-screen/session-timeline';
+import { parseMarkdownFileLink } from '@/renderer/shared/lib/markdown-file-links';
 import { openRepoFileInExternalEditor } from '@/renderer/shared/lib/open-file-in-external-editor';
 import { ProposedPlanCard } from '@/renderer/code-screen/proposed-plan-card';
 import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';
@@ -53,6 +54,12 @@ import { cn } from '@/shadcn/lib/utils';
 const MAX_COLLAPSED_TOOL_ENTRIES = 3;
 const AUTO_SCROLL_THRESHOLD_PX = 48;
 const ALWAYS_UNVIRTUALIZED_TAIL_ROWS = 6;
+
+type OpenFileRequest = {
+  relativeFilePath: string;
+  lineNumber?: number | null;
+  columnNumber?: number | null;
+};
 
 function toolEntryIcon(entry: SessionTimelineToolEntry) {
   if (entry.tone === 'error') {
@@ -92,8 +99,12 @@ function toolEntryIcon(entry: SessionTimelineToolEntry) {
 
 const AssistantMarkdown = memo(function AssistantMarkdown({
   text,
+  repoPath,
+  onOpenFile,
 }: {
   text: string;
+  repoPath: string;
+  onOpenFile?: ((request: OpenFileRequest) => void) | undefined;
 }) {
   return (
     <div className="min-w-0">
@@ -118,6 +129,36 @@ const AssistantMarkdown = memo(function AssistantMarkdown({
                 {children}
               </blockquote>
             ),
+            a: ({ children, href, ...props }) => {
+              const parsedFileLink = href ? parseMarkdownFileLink(href, repoPath) : null;
+
+              return (
+                <a
+                  {...props}
+                  href={href}
+                  onClick={(event) => {
+                    props.onClick?.(event);
+
+                    if (
+                      event.defaultPrevented ||
+                      parsedFileLink === null ||
+                      onOpenFile === undefined
+                    ) {
+                      return;
+                    }
+
+                    event.preventDefault();
+                    onOpenFile({
+                      relativeFilePath: parsedFileLink.relativeFilePath,
+                      lineNumber: parsedFileLink.lineNumber,
+                      columnNumber: parsedFileLink.columnNumber,
+                    });
+                  }}
+                >
+                  {children}
+                </a>
+              );
+            },
           }}
         >
           {text}
@@ -132,7 +173,7 @@ const ToolEntryInline = memo(function ToolEntryInline({
   onOpenFile,
 }: {
   entry: SessionTimelineToolEntry;
-  onOpenFile?: ((path: string) => void) | undefined;
+  onOpenFile?: ((request: OpenFileRequest) => void) | undefined;
 }) {
   const EntryIcon = toolEntryIcon(entry);
   const isRunning = entry.status === 'running';
@@ -166,7 +207,7 @@ const ToolEntryInline = memo(function ToolEntryInline({
         <button
           type="button"
           className="rounded-sm font-mono text-xs text-primary transition-colors hover:text-foreground"
-          onClick={() => onOpenFile?.(primaryFilePath)}
+          onClick={() => onOpenFile?.({ relativeFilePath: primaryFilePath })}
           title={primaryFilePath ?? undefined}
         >
           {primaryFilePath}
@@ -189,7 +230,7 @@ function ToolGroupRow({
   onOpenFile,
 }: {
   entries: SessionTimelineToolEntry[];
-  onOpenFile?: ((path: string) => void) | undefined;
+  onOpenFile?: ((request: OpenFileRequest) => void) | undefined;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const hasOverflow = entries.length > MAX_COLLAPSED_TOOL_ENTRIES;
@@ -322,8 +363,12 @@ const UserMessageRow = memo(function UserMessageRow({
 
 const AssistantMessageRow = memo(function AssistantMessageRow({
   text,
+  repoPath,
+  onOpenFile,
 }: {
   text: string;
+  repoPath: string;
+  onOpenFile?: ((request: OpenFileRequest) => void) | undefined;
 }) {
   return (
     <div className="flex gap-2.5 py-1.5">
@@ -333,6 +378,8 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
       <div className="min-w-0 flex-1 pt-0.5">
         <AssistantMarkdown
           text={text.trim().length > 0 ? text : '(empty response)'}
+          repoPath={repoPath}
+          onOpenFile={onOpenFile}
         />
       </div>
     </div>
@@ -354,10 +401,12 @@ function TimelineRowView({
   row,
   onImplementPlan,
   onOpenFile,
+  repoPath,
 }: {
   row: SessionTimelineRow;
   onImplementPlan?: ((planMarkdown: string) => void) | undefined;
-  onOpenFile?: ((path: string) => void) | undefined;
+  onOpenFile?: ((request: OpenFileRequest) => void) | undefined;
+  repoPath: string;
 }) {
   if (row.kind === 'work') {
     return <ToolGroupRow entries={row.entries} onOpenFile={onOpenFile} />;
@@ -368,7 +417,14 @@ function TimelineRowView({
   }
 
   if (row.kind === 'proposed-plan') {
-    return <ProposedPlanRow row={row} onImplementPlan={onImplementPlan} />;
+    return (
+      <ProposedPlanRow
+        row={row}
+        onImplementPlan={onImplementPlan}
+        onOpenFile={onOpenFile}
+        repoPath={repoPath}
+      />
+    );
   }
 
   if (row.message.role === 'user') {
@@ -376,16 +432,20 @@ function TimelineRowView({
   }
 
   return (
-    <AssistantMessageRow text={row.message.text} />
+    <AssistantMessageRow text={row.message.text} repoPath={repoPath} onOpenFile={onOpenFile} />
   );
 }
 
 const ProposedPlanRow = memo(function ProposedPlanRow({
   row,
   onImplementPlan,
+  onOpenFile,
+  repoPath,
 }: {
   row: Extract<SessionTimelineRow, { kind: 'proposed-plan' }>;
   onImplementPlan?: ((planMarkdown: string) => void) | undefined;
+  onOpenFile?: ((request: OpenFileRequest) => void) | undefined;
+  repoPath: string;
 }) {
   return (
     <div className="flex gap-2.5 py-2">
@@ -395,16 +455,22 @@ const ProposedPlanRow = memo(function ProposedPlanRow({
 
       <div className="min-w-0 flex-1 pt-0.5">
         <div className="flex flex-col gap-3">
-          {row.before ? <AssistantMarkdown text={row.before} /> : null}
+          {row.before ? (
+            <AssistantMarkdown text={row.before} repoPath={repoPath} onOpenFile={onOpenFile} />
+          ) : null}
 
           <ProposedPlanCard
             planMarkdown={row.planMarkdown}
             {...(row.isLatest ? {} : { title: null })}
             canImplement={row.isLatest && onImplementPlan !== undefined}
             onImplement={row.isLatest ? () => onImplementPlan?.(row.planMarkdown) : undefined}
+            repoPath={repoPath}
+            onOpenFile={onOpenFile}
           />
 
-          {row.after ? <AssistantMarkdown text={row.after} /> : null}
+          {row.after ? (
+            <AssistantMarkdown text={row.after} repoPath={repoPath} onOpenFile={onOpenFile} />
+          ) : null}
         </div>
       </div>
     </div>
@@ -562,11 +628,17 @@ export const SessionTranscript = memo(function SessionTranscript({
     shouldAutoScrollRef.current = distanceFromBottom <= AUTO_SCROLL_THRESHOLD_PX;
   }, []);
 
-  const handleOpenFile = useCallback(async (path: string) => {
+  const handleOpenFile = useCallback(async ({
+    relativeFilePath,
+    lineNumber,
+    columnNumber,
+  }: OpenFileRequest) => {
     try {
       await openRepoFileInExternalEditor({
         repoPath,
-        relativeFilePath: path,
+        relativeFilePath,
+        ...(lineNumber !== undefined ? { lineNumber } : {}),
+        ...(columnNumber !== undefined ? { columnNumber } : {}),
         externalEditorPreference,
         onExternalEditorPreferenceChange,
         onRequestConfigureExternalEditor,
@@ -693,6 +765,7 @@ export const SessionTranscript = memo(function SessionTranscript({
                 row={row}
                 onImplementPlan={onImplementPlan}
                 onOpenFile={handleOpenFile}
+                repoPath={repoPath}
               />
             </div>
           );
@@ -706,6 +779,7 @@ export const SessionTranscript = memo(function SessionTranscript({
               row={row}
               onImplementPlan={onImplementPlan}
               onOpenFile={handleOpenFile}
+              repoPath={repoPath}
             />
           </div>
         ))}

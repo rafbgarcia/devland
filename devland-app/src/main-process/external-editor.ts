@@ -6,6 +6,8 @@ import { promisify } from 'node:util';
 
 import {
   AvailableExternalEditorSchema,
+  EXTERNAL_EDITOR_TARGET_COLUMN_ARGUMENT,
+  EXTERNAL_EDITOR_TARGET_LINE_ARGUMENT,
   EXTERNAL_EDITOR_TARGET_PATH_ARGUMENT,
   OpenFileInExternalEditorInputSchema,
   PickedExternalEditorPathSchema,
@@ -28,6 +30,18 @@ type DarwinExternalEditor = {
 type ResolvedDetectedExternalEditor = {
   editor: AvailableExternalEditor;
   path: string;
+};
+
+type ExternalEditorLaunchSpec = {
+  executablePath: string;
+  args: string[];
+  spawnMode: 'direct' | 'darwin-open-files' | 'darwin-open-args';
+};
+
+type ExternalEditorLaunchTarget = {
+  targetPath: string;
+  lineNumber?: number | null;
+  columnNumber?: number | null;
 };
 
 const DARWIN_EXTERNAL_EDITORS: readonly DarwinExternalEditor[] = [
@@ -249,10 +263,205 @@ const parseArgumentString = (value: string): string[] => {
   return args;
 };
 
-const expandTargetPathArgument = (
+const CODE_LIKE_EDITOR_IDS = new Set([
+  'com.microsoft.VSCode',
+  'com.microsoft.VSCodeInsiders',
+  'com.visualstudio.code.oss',
+  'com.vscodium',
+  'com.todesktop.230313mzl4w4u92',
+  'com.exafunction.windsurf',
+]);
+
+const JETBRAINS_EDITOR_IDS = new Set([
+  'com.google.android.studio',
+  'com.jetbrains.WebStorm',
+  'com.jetbrains.intellij',
+  'com.jetbrains.intellij.ce',
+  'com.jetbrains.PyCharm',
+  'com.jetbrains.pycharm.ce',
+  'com.jetbrains.RubyMine',
+  'com.jetbrains.CLion',
+  'com.jetbrains.goland',
+  'com.jetbrains.RustRover',
+]);
+
+const normalizeEditorPosition = ({
+  lineNumber,
+  columnNumber,
+}: {
+  lineNumber: number | null | undefined;
+  columnNumber: number | null | undefined;
+}): {
+  lineNumber: number | null;
+  columnNumber: number | null;
+} => ({
+  lineNumber: lineNumber ?? null,
+  columnNumber: columnNumber ?? null,
+});
+
+const buildCodeLikeGotoTarget = ({
+  targetPath,
+  lineNumber,
+  columnNumber,
+}: ExternalEditorLaunchTarget): string => {
+  if (lineNumber === null || lineNumber === undefined) {
+    return targetPath;
+  }
+
+  return columnNumber === null || columnNumber === undefined
+    ? `${targetPath}:${lineNumber}`
+    : `${targetPath}:${lineNumber}:${columnNumber}`;
+};
+
+const buildZedTarget = ({
+  targetPath,
+  lineNumber,
+  columnNumber,
+}: ExternalEditorLaunchTarget): string => {
+  if (lineNumber === null || lineNumber === undefined) {
+    return targetPath;
+  }
+
+  return `${targetPath}:${lineNumber}:${columnNumber ?? 1}`;
+};
+
+export const expandTargetPathArgument = (
   args: readonly string[],
-  targetPath: string,
-): string[] => args.map((arg) => arg.replaceAll(EXTERNAL_EDITOR_TARGET_PATH_ARGUMENT, targetPath));
+  { targetPath, lineNumber, columnNumber }: ExternalEditorLaunchTarget,
+): string[] => args.map((arg) => arg
+  .replaceAll(EXTERNAL_EDITOR_TARGET_PATH_ARGUMENT, targetPath)
+  .replaceAll(EXTERNAL_EDITOR_TARGET_LINE_ARGUMENT, String(lineNumber ?? 1))
+  .replaceAll(EXTERNAL_EDITOR_TARGET_COLUMN_ARGUMENT, String(columnNumber ?? 1)));
+
+const getCodeLikeCliPath = (editorId: string, editorPath: string): string | null => {
+  if (editorId === 'com.microsoft.VSCodeInsiders') {
+    return path.join(editorPath, 'Contents', 'Resources', 'app', 'bin', 'code-insiders');
+  }
+
+  if (editorId === 'com.visualstudio.code.oss' || editorId === 'com.vscodium') {
+    return path.join(editorPath, 'Contents', 'Resources', 'app', 'bin', 'codium');
+  }
+
+  if (editorId === 'com.todesktop.230313mzl4w4u92') {
+    return path.join(editorPath, 'Contents', 'Resources', 'app', 'bin', 'cursor');
+  }
+
+  if (editorId === 'com.exafunction.windsurf') {
+    return path.join(editorPath, 'Contents', 'Resources', 'app', 'bin', 'windsurf');
+  }
+
+  if (CODE_LIKE_EDITOR_IDS.has(editorId)) {
+    return path.join(editorPath, 'Contents', 'Resources', 'app', 'bin', 'code');
+  }
+
+  return null;
+};
+
+const getJetBrainsCliPath = async (editorPath: string): Promise<string | null> => {
+  try {
+    const infoPlistPath = path.join(editorPath, 'Contents', 'Info.plist');
+    const { stdout } = await execFileAsync(
+      '/usr/libexec/PlistBuddy',
+      ['-c', 'Print :CFBundleExecutable', infoPlistPath],
+      { windowsHide: true },
+    );
+    const executableName = stdout.trim();
+
+    if (executableName === '') {
+      return null;
+    }
+
+    return path.join(editorPath, 'Contents', 'MacOS', executableName);
+  } catch {
+    return null;
+  }
+};
+
+export const buildDetectedExternalEditorLaunchSpec = async ({
+  editorId,
+  editorPath,
+  targetPath,
+  lineNumber,
+  columnNumber,
+}: {
+  editorId: string;
+  editorPath: string;
+} & ExternalEditorLaunchTarget): Promise<ExternalEditorLaunchSpec> => {
+  const position = normalizeEditorPosition({ lineNumber, columnNumber });
+
+  if (CODE_LIKE_EDITOR_IDS.has(editorId)) {
+    const cliPath = getCodeLikeCliPath(editorId, editorPath);
+
+    if (cliPath !== null && await isPathAccessible(cliPath)) {
+      return {
+        executablePath: cliPath,
+        args: position.lineNumber === null
+          ? [targetPath]
+          : ['--goto', buildCodeLikeGotoTarget({
+              targetPath,
+              lineNumber: position.lineNumber,
+              columnNumber: position.columnNumber,
+            })],
+        spawnMode: 'direct',
+      };
+    }
+  }
+
+  if (editorId === 'dev.zed.Zed' || editorId === 'dev.zed.Zed-Preview') {
+    const cliPath = path.join(editorPath, 'Contents', 'MacOS', 'cli');
+
+    if (await isPathAccessible(cliPath)) {
+      return {
+        executablePath: cliPath,
+        args: [buildZedTarget({
+          targetPath,
+          lineNumber: position.lineNumber,
+          columnNumber: position.columnNumber,
+        })],
+        spawnMode: 'direct',
+      };
+    }
+  }
+
+  if (editorId === 'com.apple.dt.Xcode') {
+    const cliPath = path.join(editorPath, 'Contents', 'Developer', 'usr', 'bin', 'xed');
+
+    if (await isPathAccessible(cliPath)) {
+      return {
+        executablePath: cliPath,
+        args: position.lineNumber === null
+          ? [targetPath]
+          : ['--line', String(position.lineNumber), targetPath],
+        spawnMode: 'direct',
+      };
+    }
+  }
+
+  if (JETBRAINS_EDITOR_IDS.has(editorId)) {
+    const cliPath = await getJetBrainsCliPath(editorPath);
+
+    if (cliPath !== null && await isPathAccessible(cliPath)) {
+      return {
+        executablePath: cliPath,
+        args: position.lineNumber === null
+          ? [targetPath]
+          : [
+              '--line',
+              String(position.lineNumber),
+              ...(position.columnNumber === null ? [] : ['--column', String(position.columnNumber)]),
+              targetPath,
+            ],
+        spawnMode: 'direct',
+      };
+    }
+  }
+
+  return {
+    executablePath: editorPath,
+    args: [targetPath],
+    spawnMode: 'darwin-open-files',
+  };
+};
 
 const launchEditorProcess = async (
   editorPath: string,
@@ -384,7 +593,7 @@ const ensureFileExists = async (repoPath: string, relativeFilePath: string) => {
 };
 
 const launchDetectedExternalEditor = async (
-  targetPath: string,
+  target: ExternalEditorLaunchTarget,
   preference: Extract<ExternalEditorPreference, { kind: 'detected' }>,
 ) => {
   const editors = await getDetectedExternalEditors();
@@ -398,15 +607,27 @@ const launchDetectedExternalEditor = async (
     );
   }
 
+  const launchSpec = process.platform === 'darwin'
+    ? await buildDetectedExternalEditorLaunchSpec({
+        editorId: matchingEditor.editor.id,
+        editorPath: matchingEditor.path,
+        ...target,
+      })
+    : {
+        executablePath: matchingEditor.path,
+        args: [target.targetPath],
+        spawnMode: 'direct' as const,
+      };
+
   await launchEditorProcess(
-    matchingEditor.path,
-    [targetPath],
-    process.platform === 'darwin' ? 'darwin-open-files' : 'direct',
+    launchSpec.executablePath,
+    launchSpec.args,
+    launchSpec.spawnMode,
   );
 };
 
 const launchCustomExternalEditor = async (
-  targetPath: string,
+  target: ExternalEditorLaunchTarget,
   preference: Extract<ExternalEditorPreference, { kind: 'custom' }>,
 ) => {
   const validation = await validateExternalEditorPath(preference.path);
@@ -425,7 +646,7 @@ const launchCustomExternalEditor = async (
 
   await launchEditorProcess(
     preference.path,
-    expandTargetPathArgument(parsedArgs, targetPath),
+    expandTargetPathArgument(parsedArgs, target),
     process.platform === 'darwin' && validation.bundleId !== undefined
       ? 'darwin-open-args'
       : 'direct',
@@ -442,9 +663,21 @@ export const openFileInExternalEditor = async (
   );
 
   if (parsedInput.preference.kind === 'detected') {
-    await launchDetectedExternalEditor(targetPath, parsedInput.preference);
+    await launchDetectedExternalEditor({
+      targetPath,
+      ...(parsedInput.lineNumber !== undefined ? { lineNumber: parsedInput.lineNumber } : {}),
+      ...(parsedInput.columnNumber !== undefined
+        ? { columnNumber: parsedInput.columnNumber }
+        : {}),
+    }, parsedInput.preference);
     return;
   }
 
-  await launchCustomExternalEditor(targetPath, parsedInput.preference);
+  await launchCustomExternalEditor({
+    targetPath,
+    ...(parsedInput.lineNumber !== undefined ? { lineNumber: parsedInput.lineNumber } : {}),
+    ...(parsedInput.columnNumber !== undefined
+      ? { columnNumber: parsedInput.columnNumber }
+      : {}),
+  }, parsedInput.preference);
 };

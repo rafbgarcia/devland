@@ -8,6 +8,7 @@ import {
   proposedPlanTitle,
   stripDisplayedPlanMarkdown,
 } from '@/renderer/code-screen/proposed-plan';
+import { parseMarkdownFileLink } from '@/renderer/shared/lib/markdown-file-links';
 import { Badge } from '@/shadcn/components/ui/badge';
 import { Button } from '@/shadcn/components/ui/button';
 import {
@@ -28,11 +29,19 @@ export const ProposedPlanCard = memo(function ProposedPlanCard({
   title,
   canImplement,
   onImplement,
+  repoPath,
+  onOpenFile,
 }: {
   planMarkdown: string;
   title?: string | null;
   canImplement?: boolean;
   onImplement?: (() => void) | undefined;
+  repoPath: string;
+  onOpenFile?: ((request: {
+    relativeFilePath: string;
+    lineNumber?: number | null;
+    columnNumber?: number | null;
+  }) => void) | undefined;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const resolvedTitle = title ?? proposedPlanTitle(planMarkdown) ?? 'Proposed plan';
@@ -101,6 +110,36 @@ export const ProposedPlanCard = memo(function ProposedPlanCard({
                   {children}
                 </blockquote>
               ),
+              a: ({ children, href, ...props }) => {
+                const parsedFileLink = href ? parseMarkdownFileLink(href, repoPath) : null;
+
+                return (
+                  <a
+                    {...props}
+                    href={href}
+                    onClick={(event) => {
+                      props.onClick?.(event);
+
+                      if (
+                        event.defaultPrevented ||
+                        parsedFileLink === null ||
+                        onOpenFile === undefined
+                      ) {
+                        return;
+                      }
+
+                      event.preventDefault();
+                      onOpenFile({
+                        relativeFilePath: parsedFileLink.relativeFilePath,
+                        lineNumber: parsedFileLink.lineNumber,
+                        columnNumber: parsedFileLink.columnNumber,
+                      });
+                    }}
+                  >
+                    {children}
+                  </a>
+                );
+              },
             }}
           >
             {displayMarkdown}

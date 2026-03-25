@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 
 import {
+  EXTERNAL_EDITOR_TARGET_COLUMN_ARGUMENT,
+  EXTERNAL_EDITOR_TARGET_LINE_ARGUMENT,
   EXTERNAL_EDITOR_TARGET_PATH_ARGUMENT,
   type AvailableExternalEditor,
   type ExternalEditorPreference,
@@ -362,7 +364,9 @@ export function ExternalEditorDialog({
                 />
                 <FieldDescription>
                   Include {EXTERNAL_EDITOR_TARGET_PATH_ARGUMENT} where Devland
-                  should insert the file path.
+                  should insert the file path. Optional line-aware links can use{' '}
+                  {EXTERNAL_EDITOR_TARGET_LINE_ARGUMENT} and{' '}
+                  {EXTERNAL_EDITOR_TARGET_COLUMN_ARGUMENT}.
                 </FieldDescription>
                 <FieldError>
                   {error?.includes(EXTERNAL_EDITOR_TARGET_PATH_ARGUMENT)

@@ -246,6 +246,8 @@ export const WorkspaceSessionSchema = z.object({
 export type WorkspaceSession = z.infer<typeof WorkspaceSessionSchema>;
 
 export const EXTERNAL_EDITOR_TARGET_PATH_ARGUMENT = '%TARGET_PATH%';
+export const EXTERNAL_EDITOR_TARGET_LINE_ARGUMENT = '%LINE%';
+export const EXTERNAL_EDITOR_TARGET_COLUMN_ARGUMENT = '%COLUMN%';
 
 export const AvailableExternalEditorSchema = z.object({
   id: z.string().min(1),
@@ -292,6 +294,8 @@ export type ValidateExternalEditorPathResult = z.infer<
 export const OpenFileInExternalEditorInputSchema = z.object({
   repoPath: z.string().min(1),
   relativeFilePath: z.string().min(1),
+  lineNumber: z.number().int().positive().optional(),
+  columnNumber: z.number().int().positive().optional(),
   preference: ExternalEditorPreferenceSchema,
 });
 export type OpenFileInExternalEditorInput = z.infer<
