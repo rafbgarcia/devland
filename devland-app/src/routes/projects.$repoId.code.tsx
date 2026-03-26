@@ -17,8 +17,8 @@ function ProjectCodeRoute() {
   }
 
   return isAbsoluteProjectPath(repo.path) ? (
-    <CodeWorkspaceScreen repoId={repo.id} repoPath={repo.path} />
+    <CodeWorkspaceScreen key={repo.id} repoId={repo.id} repoPath={repo.path} />
   ) : (
-    <CodeCloneView repoId={repo.id} slug={repo.path} />
+    <CodeCloneView key={repo.id} repoId={repo.id} slug={repo.path} />
   );
 }

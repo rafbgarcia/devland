@@ -79,6 +79,10 @@ export const DevlandHostResponseSchema = z.discriminatedUnion('type', [
     context: DevlandHostContextSchema,
   }),
   z.object({
+    type: z.literal('devland:context-changed'),
+    context: DevlandHostContextSchema,
+  }),
+  z.object({
     type: z.literal('devland:command-result'),
     requestId: z.string().min(1),
     result: DevlandRunCommandResultSchema,
@@ -108,7 +112,9 @@ type PendingRequest = {
 
 export function createDevlandClient() {
   const pendingRequests = new Map<string, PendingRequest>();
+  const contextListeners = new Set<(context: DevlandHostContext) => void>();
   let requestCount = 0;
+  let latestContext: DevlandHostContext | null = null;
 
   const postToHost = (message: DevlandHostRequest): void => {
     window.parent.postMessage(message, '*');
@@ -122,6 +128,17 @@ export function createDevlandClient() {
     }
 
     const message = parsedMessage.data;
+
+    if (message.type === 'devland:context-changed') {
+      latestContext = message.context;
+
+      for (const listener of contextListeners) {
+        listener(message.context);
+      }
+
+      return;
+    }
+
     const pending = pendingRequests.get(message.requestId);
 
     if (pending === undefined) {
@@ -132,6 +149,7 @@ export function createDevlandClient() {
 
     switch (message.type) {
       case 'devland:context':
+        latestContext = message.context;
         pending.resolve(message.context);
         break;
       case 'devland:command-result':
@@ -191,6 +209,17 @@ export function createDevlandClient() {
       await requestFromHost<DevlandHostContext>({
         type: 'devland:get-context',
       }),
+    subscribeToContext: (listener: (context: DevlandHostContext) => void): (() => void) => {
+      contextListeners.add(listener);
+
+      if (latestContext !== null) {
+        listener(latestContext);
+      }
+
+      return () => {
+        contextListeners.delete(listener);
+      };
+    },
     runCommand: async (input: {
       command: string;
       args: string[];

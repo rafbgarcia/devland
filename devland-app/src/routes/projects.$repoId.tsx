@@ -17,7 +17,7 @@ function ProjectRouteLayout() {
 
   return (
     <ProjectWorkspace activeRepoId={repoId}>
-      <Outlet key={repoId} />
+      <Outlet />
     </ProjectWorkspace>
   );
 }

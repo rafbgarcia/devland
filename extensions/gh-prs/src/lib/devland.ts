@@ -11,6 +11,10 @@ const devland = createDevlandClient();
 export const getExtensionContext = async (): Promise<DevlandHostContext> =>
   await devland.getContext();
 
+export const subscribeToExtensionContext = (
+  listener: (context: DevlandHostContext) => void,
+): (() => void) => devland.subscribeToContext(listener);
+
 export const getPromptRequestAsset = async (input: {
   ref: string;
   path: string;

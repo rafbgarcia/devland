@@ -1,24 +1,21 @@
-import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react';
 import { getRouteApi, useRouter, useRouterState } from '@tanstack/react-router';
-import { AnimatePresence, Reorder } from 'motion/react';
-import { CodeIcon, FolderOpenIcon, GithubIcon, PlusIcon, XIcon } from 'lucide-react';
+import { CodeIcon, FolderOpenIcon, PlusIcon } from 'lucide-react';
 
 import { CodeTabMenu } from '@/renderer/code-screen/code-tab-menu';
 import { ExternalEditorDialog } from '@/renderer/code-screen/external-editor-dialog';
+import { ExtensionTabMenu } from '@/renderer/extensions-screen/extension-tab-menu';
 import { MissingGhCli } from '@/renderer/shared/ui/missing-gh-cli';
 
-import type { ProjectExtension } from '@/extensions/contracts';
 import type { AppShortcutCommand, ProjectViewTab, Repo } from '@/ipc/contracts';
 import {
   getAdjacentProjectTabRepoId,
-  getProjectLabel,
   getProjectTabIdFromRouteMatch,
   getProjectTabRoute,
   getProjectTabRepoIdByShortcutSlot,
   isProjectViewTab,
   toProjectExtensionTabId,
   type ProjectTabId,
-  isAbsoluteProjectPath,
 } from '@/renderer/shared/lib/projects';
 import {
   getRememberedCodeTargetId,
@@ -34,8 +31,7 @@ import {
   PROJECT_SHORTCUT_GROUP,
 } from '@/renderer/shared/lib/shortcut-hints';
 import { isRootCodeTargetId } from '@/renderer/shared/lib/workspace-shortcuts';
-import { ExtensionTabMenu } from '@/renderer/extensions-screen/extension-tab-menu';
-import { useProjectExtensions } from '@/renderer/extensions-screen/use-project-extensions';
+import { useAllProjectExtensions } from '@/renderer/extensions-screen/use-all-project-extensions';
 import { ExtensionTabIcon } from '@/renderer/shared/ui/extension-tab-icon';
 import { ShortcutHintsOverlay } from '@/renderer/shared/ui/shortcut-hints-overlay';
 import { DesktopUpdateButton } from '@/renderer/shared/ui/desktop-update-button';
@@ -44,6 +40,7 @@ import { useDesktopUpdate } from '@/renderer/shared/use-desktop-update';
 import { useRepoActions, useRepos } from './use-repos';
 import { useProjectRepo } from './use-project-repo';
 import { useWorkspaceSession } from './use-workspace-session';
+import { ProjectDrawer } from './project-drawer';
 import { Button } from '@/shadcn/components/ui/button';
 import {
   Dialog,
@@ -66,22 +63,8 @@ import { cn } from '@/shadcn/lib/utils';
 const rootRouteApi = getRouteApi('__root__');
 
 const VIEW_TABS = [
-  { value: 'code', label: 'Code', icon: CodeIcon },
-] as const satisfies ReadonlyArray<{
-  value: ProjectViewTab;
-  label: string;
-  icon: typeof CodeIcon;
-}>;
-
-type ProjectWorkspaceTab = {
-  key: string;
-  label: string;
-  icon: ReactNode;
-  tabId: ProjectTabId;
-  disabled?: boolean;
-  disabledReason?: string | null;
-  extension?: ProjectExtension;
-};
+  { value: 'code' as const, label: 'Code', icon: CodeIcon },
+];
 
 export function AddProjectDialog({
   open,
@@ -229,11 +212,9 @@ export function ProjectWorkspace({
   const router = useRouter();
   const repos = useRepos();
   const activeRepo = useProjectRepo();
-  const { addRepo, removeRepo, reorderRepos } = useRepoActions();
+  const { addRepo, removeRepo } = useRepoActions();
   const { session, updateSession } = useWorkspaceSession();
-  const projectExtensions = useProjectExtensions(
-    activeRepo?.path ?? null,
-  );
+  const { getExtensions, refresh: refreshProjectExtensions } = useAllProjectExtensions(repos);
   const activeRouteMatch = useRouterState({
     select: (state) => state.matches.at(-1) ?? null,
   });
@@ -252,17 +233,27 @@ export function ProjectWorkspace({
   const showShortcutHints = useShortcutHintsOpen();
   const desktopUpdateState = useDesktopUpdate();
 
-  const hasActiveRepo = activeRepoId !== null;
+  const getTabsForRepo = useCallback(
+    (repoId: string) => {
+      const repo = repos.find((r) => r.id === repoId);
+      const repoPath = repo?.path ?? null;
+      const extensions = repoPath !== null ? getExtensions(repoPath) : [];
 
-  const tabs: ProjectWorkspaceTab[] = hasActiveRepo
-    ? [
+      return [
         ...VIEW_TABS.map((tab) => ({
           key: tab.value,
           label: tab.label,
           icon: <tab.icon className="size-3.5" />,
-          tabId: tab.value,
+          tabId: tab.value as ProjectTabId,
+          menu: tab.value === 'code' ? (
+            <CodeTabMenu
+              preference={preferences.externalEditor}
+              onSelectEditor={setExternalEditorPreference}
+              onConfigureCustomEditor={() => setIsExternalEditorDialogOpen(true)}
+            />
+          ) : undefined,
         })),
-        ...projectExtensions.data.map((extension) => ({
+        ...extensions.map((extension) => ({
           key: `extension:${extension.id}`,
           label: extension.tabName,
           icon: <ExtensionTabIcon iconName={extension.tabIcon} className="size-3.5" />,
@@ -272,10 +263,18 @@ export function ProjectWorkspace({
             extension.status === 'clone-required'
               ? 'Clone repository to use this tab.'
               : null,
-          extension,
+          menu: repoPath !== null ? (
+            <ExtensionTabMenu
+              repoPath={repoPath}
+              extension={extension}
+              onVersionInstalled={() => void refreshProjectExtensions(repoPath)}
+            />
+          ) : undefined,
         })),
-      ]
-    : [];
+      ];
+    },
+    [repos, getExtensions, preferences.externalEditor, refreshProjectExtensions, setExternalEditorPreference],
+  );
 
   useEffect(() => {
     repoViewByIdRef.current = session.repoViewById;
@@ -375,10 +374,6 @@ export function ProjectWorkspace({
     void removeRepo(repoId);
   };
 
-  const handleReorder = (reordered: Repo[]) => {
-    void reorderRepos(reordered);
-  };
-
   const handleProjectAdded = (repo: Repo) => {
     navigateToTab(repo.id, activeTabId);
   };
@@ -389,179 +384,17 @@ export function ProjectWorkspace({
 
   return (
     <section className="flex h-screen w-full flex-col">
-      <div>
-        <Reorder.Group
-          axis="x"
-          values={repos}
-          onReorder={handleReorder}
-          className="flex shrink-0 items-end gap-px bg-muted px-2 pt-1.5"
-          as="div"
-        >
-          <AnimatePresence initial={false}>
-            {repos.map((repo) => {
-              const isActive = repo.id === activeRepoId;
-              const showGithubIcon = !isAbsoluteProjectPath(repo.path);
+      <ProjectDrawer
+        repos={repos}
+        activeRepoId={activeRepoId}
+        activeTabId={activeTabId}
+        getTabsForRepo={getTabsForRepo}
+        onNavigate={(repoId, tabId) => navigateToTab(repoId, tabId)}
+        onRemoveRepo={handleRemoveRepo}
+        onAddProject={() => setIsAddDialogOpen(true)}
+      />
 
-              return (
-                <Reorder.Item
-                  key={repo.id}
-                  value={repo}
-                  onClick={() => {
-                    navigateToTab(repo.id, getRepoSwitchTabId(repo.id));
-                  }}
-                  initial={{ opacity: 0, width: 0 }}
-                  animate={{
-                    opacity: 1,
-                    width: 'auto',
-                    transition: { type: 'spring', bounce: 0, duration: 0.2 },
-                  }}
-                  exit={{
-                    opacity: 0,
-                    width: 0,
-                    transition: { type: 'tween', ease: 'easeOut', duration: 0.2 },
-                  }}
-                  layout
-                  className={cn(
-                    'group relative flex max-w-50 cursor-default items-center gap-1 overflow-hidden rounded-t-lg px-3 py-1.5 text-xs',
-                    isActive
-                      ? 'bg-card text-foreground shadow-[0_-1px_3px_-1px_rgba(0,0,0,0.08)]'
-                      : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground',
-                  )}
-                  as="div"
-                  whileDrag={{ scale: 1.03, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
-                >
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    {showGithubIcon ? <GithubIcon className="size-3.5 shrink-0" /> : null}
-                    <span className="truncate select-none whitespace-nowrap">
-                      {getProjectLabel(repo.path)}
-                    </span>
-                  </span>
-                  <button
-                    className={cn(
-                      'ml-0.5 flex size-4 shrink-0 items-center justify-center rounded-sm transition-colors',
-                      isActive
-                        ? 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                        : 'opacity-0 group-hover:opacity-100 hover:bg-muted hover:text-foreground',
-                    )}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      handleRemoveRepo(repo.id);
-                    }}
-                    onPointerDown={(event) => event.stopPropagation()}
-                    type="button"
-                  >
-                    <XIcon className="size-3" />
-                  </button>
-                </Reorder.Item>
-              );
-            })}
-          </AnimatePresence>
-
-          <button
-            aria-label="Add project"
-            onClick={() => setIsAddDialogOpen(true)}
-            className="mb-0.5 ml-0.5 flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
-            type="button"
-          >
-            <PlusIcon className="size-3.5" />
-          </button>
-
-          <div className="ml-auto relative -top-1">
-            <DesktopUpdateButton state={desktopUpdateState} />
-          </div>
-        </Reorder.Group>
-      </div>
-
-      <div className="flex min-h-0 flex-1 flex-col border border-border bg-card shadow-sm">
-        {tabs.length > 0 && (
-          <div className="flex shrink-0 items-center justify-between border-b border-border px-5">
-            <nav className="-mb-px flex gap-1">
-              {tabs.map((tab) => {
-                const isActive = tab.tabId === activeTabId;
-                const tabClassName = cn(
-                  'relative flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-xs font-medium transition-colors',
-                  isActive
-                    ? 'border-foreground text-foreground'
-                    : 'border-transparent text-muted-foreground hover:text-foreground',
-                  tab.disabled && 'cursor-not-allowed opacity-50 hover:text-muted-foreground',
-                );
-
-                if (tab.tabId === 'code') {
-                  return (
-                    <div
-                      key={tab.key}
-                      className={cn(
-                        'relative flex cursor-default items-center gap-1.5 border-b-2 px-3 py-2.5 text-xs font-medium transition-colors',
-                        isActive
-                          ? 'border-foreground text-foreground'
-                          : 'border-transparent text-muted-foreground hover:text-foreground',
-                      )}
-                      onClick={() => navigateToTab(activeRepoId!, tab.tabId)}
-                    >
-                      {tab.icon}
-                      {tab.label}
-                      <CodeTabMenu
-                        preference={preferences.externalEditor}
-                        onSelectEditor={setExternalEditorPreference}
-                        onConfigureCustomEditor={() => setIsExternalEditorDialogOpen(true)}
-                      />
-                    </div>
-                  );
-                }
-
-                if (tab.extension !== undefined && activeRepo !== null) {
-                  return (
-                    <div
-                      key={tab.key}
-                      className={cn(
-                        'relative flex cursor-default items-center gap-1.5 border-b-2 px-3 py-2.5 text-xs font-medium transition-colors',
-                        isActive
-                          ? 'border-foreground text-foreground'
-                          : 'border-transparent text-muted-foreground hover:text-foreground',
-                        tab.disabled && 'cursor-not-allowed opacity-50 hover:text-muted-foreground',
-                      )}
-                      onClick={() => {
-                        if (!tab.disabled) {
-                          navigateToTab(activeRepoId!, tab.tabId);
-                        }
-                      }}
-                      title={tab.disabledReason ?? undefined}
-                    >
-                      {tab.icon}
-                      {tab.label}
-                      <ExtensionTabMenu
-                        repoPath={activeRepo.path}
-                        extension={tab.extension}
-                        onVersionInstalled={() => void projectExtensions.refresh()}
-                      />
-                    </div>
-                  );
-                }
-
-                return (
-                  <button
-                    key={tab.key}
-                    className={tabClassName}
-                    disabled={tab.disabled}
-                    onClick={() => {
-                      if (tab.disabled) {
-                        return;
-                      }
-
-                      navigateToTab(activeRepoId!, tab.tabId);
-                    }}
-                    title={tab.disabledReason ?? undefined}
-                    type="button"
-                  >
-                    {tab.icon}
-                    {tab.label}
-                  </button>
-                );
-              })}
-            </nav>
-          </div>
-        )}
-
+      <div className="flex min-h-0 flex-1 flex-col bg-card">
         <div
           className={cn(
             'flex-1',
@@ -570,6 +403,10 @@ export function ProjectWorkspace({
         >
           {children}
         </div>
+      </div>
+
+      <div className="fixed top-2 right-3 z-30">
+        <DesktopUpdateButton state={desktopUpdateState} />
       </div>
 
       <AddProjectDialog

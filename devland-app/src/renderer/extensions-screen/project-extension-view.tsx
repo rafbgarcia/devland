@@ -338,6 +338,22 @@ export function ProjectExtensionView({
     extensionMessaging,
   ]);
 
+  useEffect(() => {
+    if (
+      extension === null
+      || extensionContext === null
+      || extensionMessaging === null
+      || (extension.status !== 'ready' && extension.status !== 'update-available')
+    ) {
+      return;
+    }
+
+    postToFrame(iframeRef.current, extensionMessaging.targetOrigin, {
+      type: 'devland:context-changed',
+      context: extensionContext,
+    });
+  }, [extension, extensionContext, extensionMessaging]);
+
   const handleInstall = async () => {
     if (repoDetails.status !== 'ready' || extension === null) {
       return;

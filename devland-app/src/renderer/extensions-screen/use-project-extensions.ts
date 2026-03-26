@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import type { ProjectExtension } from '@/extensions/contracts';
 
-type ProjectExtensionsState =
+export type ProjectExtensionsState =
   | { status: 'loading'; data: ProjectExtension[]; error: null }
   | { status: 'ready'; data: ProjectExtension[]; error: null }
   | { status: 'error'; data: ProjectExtension[]; error: string };
@@ -10,12 +10,16 @@ type ProjectExtensionsState =
 const extensionsCache = new Map<string, ProjectExtension[]>();
 const pendingExtensionLoads = new Map<string, Promise<ProjectExtension[]>>();
 
-const clearProjectExtensionsCache = (repoPath: string) => {
+export const getCachedProjectExtensions = (
+  repoPath: string,
+): ProjectExtension[] | undefined => extensionsCache.get(repoPath);
+
+export const clearProjectExtensionsCache = (repoPath: string) => {
   extensionsCache.delete(repoPath);
   pendingExtensionLoads.delete(repoPath);
 };
 
-const loadProjectExtensions = async (repoPath: string): Promise<ProjectExtension[]> => {
+export const loadProjectExtensions = async (repoPath: string): Promise<ProjectExtension[]> => {
   const cachedExtensions = extensionsCache.get(repoPath);
 
   if (cachedExtensions !== undefined) {

@@ -14,6 +14,10 @@ export const newCodesSession = async (prompt: string): Promise<DevlandNewCodesSe
 export const getExtensionContext = async (): Promise<DevlandHostContext> =>
   await devland.getContext();
 
+export const subscribeToExtensionContext = (
+  listener: (context: DevlandHostContext) => void,
+): (() => void) => devland.subscribeToContext(listener);
+
 const getCommandErrorMessage = (
   command: string,
   result: DevlandRunCommandResult,

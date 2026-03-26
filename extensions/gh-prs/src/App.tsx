@@ -6,7 +6,7 @@ import type { DevlandRepoContext } from '@devlandapp/sdk';
 import { ProjectPullRequestsView } from '@/components/project-pull-requests-view';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Spinner } from '@/components/ui/spinner';
-import { getExtensionContext } from '@/lib/devland';
+import { getExtensionContext, subscribeToExtensionContext } from '@/lib/devland';
 
 type AppState =
   | { status: 'loading'; repo: null; error: null }
@@ -48,7 +48,17 @@ export function App() {
   };
 
   useEffect(() => {
+    const unsubscribe = subscribeToExtensionContext((context) => {
+      setState({
+        status: 'ready',
+        repo: context.repo,
+        error: null,
+      });
+    });
+
     void loadContext();
+
+    return unsubscribe;
   }, []);
 
   if (state.status === 'loading') {

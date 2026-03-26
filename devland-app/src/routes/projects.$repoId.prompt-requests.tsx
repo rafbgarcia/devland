@@ -17,8 +17,8 @@ function ProjectPromptRequestsRoute() {
   }
 
   return isAbsoluteProjectPath(repo.path) ? (
-    <PromptRequestsScreen repoPath={repo.path} />
+    <PromptRequestsScreen key={repo.id} repoPath={repo.path} />
   ) : (
-    <CodeCloneView repoId={repo.id} slug={repo.path} />
+    <CodeCloneView key={repo.id} repoId={repo.id} slug={repo.path} />
   );
 }
