@@ -39,6 +39,7 @@ import {
   type SessionTimelineRow,
   type SessionTimelineToolEntry,
 } from '@/renderer/code-screen/session-timeline';
+import { devlandMarkdownUrlTransform } from '@/renderer/shared/lib/markdown-url-transform';
 import { parseMarkdownFileLink } from '@/renderer/shared/lib/markdown-file-links';
 import { openRepoFileInExternalEditor } from '@/renderer/shared/lib/open-file-in-external-editor';
 import { ProposedPlanCard } from '@/renderer/code-screen/proposed-plan-card';
@@ -97,6 +98,61 @@ function toolEntryIcon(entry: SessionTimelineToolEntry) {
   return entry.status === 'completed' ? CheckIcon : ZapIcon;
 }
 
+const AssistantInlineImage = memo(function AssistantInlineImage({
+  src,
+  alt,
+}: {
+  src: string;
+  alt: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const label = alt.trim() || 'Screenshot';
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setIsOpen(true)}
+        className="not-prose my-4 block cursor-zoom-in overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm"
+        aria-label={`Open ${label}`}
+      >
+        <img
+          src={src}
+          alt={label}
+          className="max-h-[18rem] w-auto max-w-full object-contain"
+        />
+      </button>
+
+      <Dialog
+        open={isOpen}
+        onOpenChange={(nextOpen) => {
+          setIsOpen(nextOpen);
+        }}
+      >
+        <DialogContent
+          backdropClassName="cursor-zoom-out bg-black/72"
+          className="max-w-none w-auto border-0 bg-transparent p-0 shadow-none"
+        >
+          <DialogTitle className="sr-only">{`Preview ${label}`}</DialogTitle>
+          <div className="relative">
+            <img
+              src={src}
+              alt={label}
+              className="max-h-[92vh] max-w-[92vw] rounded-xl object-contain"
+            />
+            <DialogClose
+              className="absolute right-3 top-3 flex size-9 items-center justify-center rounded-full bg-background/88 text-foreground shadow-sm backdrop-blur-sm transition-colors hover:bg-background"
+              aria-label={`Close ${label}`}
+            >
+              <XIcon className="size-4" />
+            </DialogClose>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+});
+
 const AssistantMarkdown = memo(function AssistantMarkdown({
   text,
   repoPath,
@@ -110,6 +166,7 @@ const AssistantMarkdown = memo(function AssistantMarkdown({
     <div className="min-w-0">
       <div className="prose prose-sm max-w-none text-foreground prose-headings:font-medium prose-headings:text-foreground prose-p:text-foreground prose-p:leading-7 prose-a:text-primary prose-strong:text-foreground prose-code:rounded-md prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:font-medium prose-code:text-foreground prose-code:before:content-none prose-code:after:content-none prose-pre:overflow-x-auto prose-pre:rounded-xl prose-pre:border prose-pre:border-border/50 prose-pre:bg-card prose-pre:px-4 prose-pre:py-3 prose-pre:text-foreground dark:prose-invert">
         <ReactMarkdown
+          urlTransform={devlandMarkdownUrlTransform}
           components={{
             ul: ({ children, ...props }) => (
               <ul className="my-4 flex list-disc flex-col gap-1 pl-5" {...props}>
@@ -158,6 +215,13 @@ const AssistantMarkdown = memo(function AssistantMarkdown({
                   {children}
                 </a>
               );
+            },
+            img: ({ src, alt }) => {
+              if (!src) {
+                return null;
+              }
+
+              return <AssistantInlineImage src={src} alt={alt ?? ''} />;
             },
           }}
         >

@@ -221,8 +221,11 @@ const USER_ATTACHMENT_TILE_SIZE_PX = 64;
 const USER_ATTACHMENT_ROW_GAP_PX = 8;
 const ASSISTANT_BASE_HEIGHT_PX = 18;
 const ASSISTANT_LINE_HEIGHT_PX = 28;
+const ASSISTANT_IMAGE_HEIGHT_PX = 264;
+const ASSISTANT_IMAGE_GAP_PX = 16;
 const WORK_ENTRY_HEIGHT_PX = 18;
 const WORK_GROUP_BASE_HEIGHT_PX = 12;
+const MARKDOWN_IMAGE_PATTERN = /!\[[^\]]*]\([^)]+\)/g;
 
 function estimateWrappedLineCount(text: string, charsPerLine: number): number {
   if (text.length === 0) {
@@ -260,6 +263,14 @@ function estimateCharsPerLineForAssistant(viewportWidthPx: number | null): numbe
   }
 
   return Math.max(28, Math.floor((viewportWidthPx - 24) / 7.2));
+}
+
+function countMarkdownImages(text: string): number {
+  return [...text.matchAll(MARKDOWN_IMAGE_PATTERN)].length;
+}
+
+function stripMarkdownImages(text: string): string {
+  return text.replace(MARKDOWN_IMAGE_PATTERN, '').trim();
 }
 
 function estimateAttachmentHeight(attachmentCount: number, viewportWidthPx: number | null): number {
@@ -324,6 +335,23 @@ export function estimateSessionTimelineRowHeight(
   }
 
   const charsPerLine = estimateCharsPerLineForAssistant(viewportWidthPx);
-  const estimatedLines = estimateWrappedLineCount(row.message.text, charsPerLine);
-  return ASSISTANT_BASE_HEIGHT_PX + estimatedLines * ASSISTANT_LINE_HEIGHT_PX;
+  const imageCount = countMarkdownImages(row.message.text);
+  const textWithoutImages = stripMarkdownImages(row.message.text);
+  const estimatedLines =
+    textWithoutImages.length > 0
+      ? estimateWrappedLineCount(textWithoutImages, charsPerLine)
+      : 0;
+  const imageHeight =
+    imageCount > 0
+      ? imageCount * ASSISTANT_IMAGE_HEIGHT_PX +
+        (imageCount - 1) * ASSISTANT_IMAGE_GAP_PX
+      : 0;
+  const imageGap = estimatedLines > 0 && imageHeight > 0 ? 12 : 0;
+
+  return (
+    ASSISTANT_BASE_HEIGHT_PX +
+    estimatedLines * ASSISTANT_LINE_HEIGHT_PX +
+    imageHeight +
+    imageGap
+  );
 }

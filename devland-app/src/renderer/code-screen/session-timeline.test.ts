@@ -450,4 +450,29 @@ describe('estimateSessionTimelineRowHeight', () => {
     assert.equal(assistantHeight, 46);
     assert.equal(workHeight, 30);
   });
+
+  it('adds space for assistant inline markdown screenshots', () => {
+    const assistantHeight = estimateSessionTimelineRowHeight(
+      {
+        id: 'assistant-row',
+        kind: 'message',
+        isStreaming: false,
+        message: {
+          id: 'assistant-2',
+          role: 'assistant',
+          text: 'Current state:\n\n![Browser smoke screenshot](devland-codex-attachment://asset/example.png)',
+          attachments: [],
+          createdAt: '2026-03-16T12:00:00.000Z',
+          completedAt: '2026-03-16T12:00:01.000Z',
+          turnId: 'turn-1',
+          itemId: 'assistant-item-2',
+          diff: null,
+          activities: [],
+        },
+      },
+      1200,
+    );
+
+    assert.equal(assistantHeight, 322);
+  });
 });

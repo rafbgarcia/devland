@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import EventEmitter from 'node:events';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { describe, it } from 'node:test';
 
+import type { CodexSessionEvent } from '@/ipc/contracts';
 import {
   buildCodexCollaborationMode,
   buildCodexThreadOpenParams,
@@ -133,6 +137,164 @@ describe('buildCodexCollaborationMode', () => {
       collaborationMode.settings.developer_instructions,
       /navigate <url>/,
     );
+    assert.match(
+      collaborationMode.settings.developer_instructions,
+      /inspect \[selector\]/,
+    );
+    assert.match(
+      collaborationMode.settings.developer_instructions,
+      /screenshot \[label\]/,
+    );
+    assert.match(
+      collaborationMode.settings.developer_instructions,
+      /ready-to-paste Markdown/,
+    );
+  });
+});
+
+describe('CodexAppServerManager browser screenshots', () => {
+  it('appends browser screenshot markdown when the assistant did not include it', async () => {
+    const screenshotDir = await mkdtemp(path.join(tmpdir(), 'devland-browser-log-'));
+    const screenshotLogPath = path.join(screenshotDir, 'session-1.jsonl');
+    const screenshotMarkdown = '![Browser shot](devland-codex-attachment://asset/shot.png)';
+
+    await writeFile(
+      screenshotLogPath,
+      `${JSON.stringify({
+        previewUrl: 'devland-codex-attachment://asset/shot.png',
+        markdown: screenshotMarkdown,
+      })}\n`,
+      'utf8',
+    );
+
+    try {
+      const manager = new CodexAppServerManager();
+      const events: CodexSessionEvent[] = [];
+
+      manager.on('event', (event) => {
+        events.push(event);
+      });
+
+      await (manager as never as {
+        handleNotification: (
+          context: Record<string, unknown>,
+          notification: Record<string, unknown>,
+        ) => Promise<void>;
+      }).handleNotification(
+        {
+          sessionId: 'session-1',
+          cwd: '/repo',
+          runtimeMode: 'approval-required',
+          browserControlEnabled: true,
+          child: new EventEmitter(),
+          output: new EventEmitter(),
+          nextRequestId: 1,
+          pending: new Map(),
+          pendingApprovals: new Map(),
+          pendingUserInputs: new Map(),
+          status: 'running',
+          threadId: 'thread-1',
+          activeTurnId: 'turn-1',
+          activeTurnStartSnapshot: null,
+          browserScreenshotLogPath: screenshotLogPath,
+          browserScreenshotEntryCursor: 0,
+          activeTurnBrowserScreenshotCursor: 0,
+          currentTurnAssistantText: 'Clicked the button.',
+          currentTurnAssistantItemId: 'assistant-1',
+          stopped: false,
+        },
+        {
+          method: 'turn/completed',
+          params: {
+            turn: {
+              id: 'turn-1',
+              status: 'completed',
+            },
+          },
+        },
+      );
+
+      assert.ok(
+        events.some(
+          (event) =>
+            event.type === 'assistant-delta' &&
+            event.itemId === 'assistant-1' &&
+            event.text.includes(screenshotMarkdown),
+        ),
+      );
+    } finally {
+      await rm(screenshotDir, { recursive: true, force: true });
+    }
+  });
+
+  it('does not append duplicate screenshot markdown when the assistant already included it', async () => {
+    const screenshotDir = await mkdtemp(path.join(tmpdir(), 'devland-browser-log-'));
+    const screenshotLogPath = path.join(screenshotDir, 'session-1.jsonl');
+    const screenshotMarkdown = '![Browser shot](devland-codex-attachment://asset/shot.png)';
+
+    await writeFile(
+      screenshotLogPath,
+      `${JSON.stringify({
+        previewUrl: 'devland-codex-attachment://asset/shot.png',
+        markdown: screenshotMarkdown,
+      })}\n`,
+      'utf8',
+    );
+
+    try {
+      const manager = new CodexAppServerManager();
+      const events: CodexSessionEvent[] = [];
+
+      manager.on('event', (event) => {
+        events.push(event);
+      });
+
+      await (manager as never as {
+        handleNotification: (
+          context: Record<string, unknown>,
+          notification: Record<string, unknown>,
+        ) => Promise<void>;
+      }).handleNotification(
+        {
+          sessionId: 'session-1',
+          cwd: '/repo',
+          runtimeMode: 'approval-required',
+          browserControlEnabled: true,
+          child: new EventEmitter(),
+          output: new EventEmitter(),
+          nextRequestId: 1,
+          pending: new Map(),
+          pendingApprovals: new Map(),
+          pendingUserInputs: new Map(),
+          status: 'running',
+          threadId: 'thread-1',
+          activeTurnId: 'turn-1',
+          activeTurnStartSnapshot: null,
+          browserScreenshotLogPath: screenshotLogPath,
+          browserScreenshotEntryCursor: 0,
+          activeTurnBrowserScreenshotCursor: 0,
+          currentTurnAssistantText: `Clicked it.\n\n${screenshotMarkdown}`,
+          currentTurnAssistantItemId: 'assistant-1',
+          stopped: false,
+        },
+        {
+          method: 'turn/completed',
+          params: {
+            turn: {
+              id: 'turn-1',
+              status: 'completed',
+            },
+          },
+        },
+      );
+
+      assert.equal(
+        events.some((event) => event.type === 'assistant-delta' && event.text.includes(screenshotMarkdown)),
+        false,
+      );
+    } finally {
+      await rm(screenshotDir, { recursive: true, force: true });
+    }
   });
 });
 

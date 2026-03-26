@@ -141,9 +141,16 @@ const buildAttachmentStoragePath = (
   return path.join(digest.slice(0, 2), `${digest}${extension}`);
 };
 
-export const persistCodexAttachments = async (
-  _sessionId: string,
-  attachments: readonly CodexImageAttachmentInput[],
+export type CodexImageBufferAttachmentInput = {
+  type: 'image';
+  name: string;
+  mimeType: string;
+  sizeBytes: number;
+  bytes: Buffer;
+};
+
+export const persistCodexImageBufferAttachments = async (
+  attachments: readonly CodexImageBufferAttachmentInput[],
 ): Promise<CodexChatImageAttachment[]> => {
   if (attachments.length === 0) {
     return [];
@@ -154,15 +161,17 @@ export const persistCodexAttachments = async (
 
   return Promise.all(
     attachments.map(async (attachment) => {
-      const { mimeType: parsedMimeType, bytes } = parseImageDataUrl(attachment.dataUrl);
-      const mimeType = attachment.mimeType.trim() || parsedMimeType;
-      const relativeFilePath = buildAttachmentStoragePath(bytes, attachment.name, mimeType);
+      const relativeFilePath = buildAttachmentStoragePath(
+        attachment.bytes,
+        attachment.name,
+        attachment.mimeType,
+      );
       const absolutePath = path.join(attachmentsRoot, relativeFilePath);
 
       await mkdir(path.dirname(absolutePath), { recursive: true });
 
       try {
-        await writeFile(absolutePath, bytes, { flag: 'wx' });
+        await writeFile(absolutePath, attachment.bytes, { flag: 'wx' });
       } catch (error) {
         if (!(error instanceof Error) || !('code' in error) || error.code !== 'EEXIST') {
           throw error;
@@ -172,10 +181,33 @@ export const persistCodexAttachments = async (
       return {
         type: 'image',
         name: attachment.name,
-        mimeType,
+        mimeType: attachment.mimeType,
         sizeBytes: attachment.sizeBytes,
         previewUrl: getCodexAttachmentEntryUrl(relativeFilePath),
       };
+    }),
+  );
+};
+
+export const persistCodexAttachments = async (
+  _sessionId: string,
+  attachments: readonly CodexImageAttachmentInput[],
+): Promise<CodexChatImageAttachment[]> => {
+  if (attachments.length === 0) {
+    return [];
+  }
+
+  return persistCodexImageBufferAttachments(
+    attachments.map((attachment) => {
+      const { mimeType: parsedMimeType, bytes } = parseImageDataUrl(attachment.dataUrl);
+
+      return {
+        type: 'image',
+        name: attachment.name,
+        mimeType: attachment.mimeType.trim() || parsedMimeType,
+        sizeBytes: attachment.sizeBytes,
+        bytes,
+      } satisfies CodexImageBufferAttachmentInput;
     }),
   );
 };

@@ -8,6 +8,7 @@ import {
   proposedPlanTitle,
   stripDisplayedPlanMarkdown,
 } from '@/renderer/code-screen/proposed-plan';
+import { devlandMarkdownUrlTransform } from '@/renderer/shared/lib/markdown-url-transform';
 import { parseMarkdownFileLink } from '@/renderer/shared/lib/markdown-file-links';
 import { Badge } from '@/shadcn/components/ui/badge';
 import { Button } from '@/shadcn/components/ui/button';
@@ -91,6 +92,7 @@ export const ProposedPlanCard = memo(function ProposedPlanCard({
       <CardContent className="pt-1">
         <div className={MARKDOWN_PROSE_CLASS_NAME}>
           <ReactMarkdown
+            urlTransform={devlandMarkdownUrlTransform}
             components={{
               ul: ({ children, ...props }) => (
                 <ul className="my-4 flex list-disc flex-col gap-1 pl-5" {...props}>

@@ -7,6 +7,7 @@ import {
   shell,
   type Rectangle,
   type Session,
+  type WebContents,
 } from 'electron';
 
 import {
@@ -36,8 +37,226 @@ type TargetBrowserSession = {
   browserViewIds: Set<string>;
 };
 
+export type BrowserPageElement = {
+  selector: string;
+  tagName: string;
+  role: string | null;
+  text: string;
+  value: string | null;
+  placeholder: string | null;
+  name: string | null;
+  type: string | null;
+  ariaLabel: string | null;
+  title: string | null;
+  href: string | null;
+  disabled: boolean;
+  visible: boolean;
+  checked: boolean | null;
+  rect: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+};
+
+export type BrowserPageInspection = {
+  snapshot: BrowserViewSnapshot;
+  readyState: string;
+  activeSelector: string | null;
+  element: BrowserPageElement | null;
+  elements: BrowserPageElement[];
+};
+
+export type BrowserPageInteractionResult = {
+  snapshot: BrowserViewSnapshot;
+  element: BrowserPageElement;
+};
+
+export type BrowserPageScreenshot = {
+  snapshot: BrowserViewSnapshot;
+  pngBytes: Buffer;
+};
+
 const BLANK_PAGE_URL = 'about:blank';
 const ERR_ABORTED = -3;
+const INTERACTION_SETTLE_DELAY_MS = 75;
+const INTERACTION_LOAD_TIMEOUT_MS = 4_000;
+const PAGE_SCRIPT_UTILITIES = String.raw`
+const MAX_TEXT_LENGTH = 200;
+const MAX_VALUE_LENGTH = 160;
+const MAX_INSPECTABLE_ELEMENTS = 48;
+const trimText = (value, maxLength = MAX_TEXT_LENGTH) => {
+  const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
+  return normalized.length <= maxLength
+    ? normalized
+    : normalized.slice(0, Math.max(0, maxLength - 1)).trimEnd() + '…';
+};
+const rectToJson = (rect) => ({
+  x: Math.round(rect.left),
+  y: Math.round(rect.top),
+  width: Math.round(rect.width),
+  height: Math.round(rect.height),
+});
+const isVisible = (element) => {
+  const rect = element.getBoundingClientRect();
+  if (rect.width < 1 || rect.height < 1) {
+    return false;
+  }
+  const style = window.getComputedStyle(element);
+  return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+};
+const isUniqueSelector = (selector) => {
+  if (!selector) {
+    return false;
+  }
+  try {
+    return document.querySelectorAll(selector).length === 1;
+  } catch {
+    return false;
+  }
+};
+const buildPathSelector = (element) => {
+  const segments = [];
+  let current = element;
+  while (current && current.nodeType === Node.ELEMENT_NODE && current !== document.documentElement) {
+    const tagName = current.tagName.toLowerCase();
+    if (current.id && isUniqueSelector('#' + CSS.escape(current.id))) {
+      segments.unshift('#' + CSS.escape(current.id));
+      return segments.join(' > ');
+    }
+    const parent = current.parentElement;
+    if (!parent) {
+      segments.unshift(tagName);
+      break;
+    }
+    const siblings = [...parent.children].filter((candidate) => candidate.tagName === current.tagName);
+    const index = siblings.indexOf(current);
+    segments.unshift(
+      siblings.length > 1 ? tagName + ':nth-of-type(' + String(index + 1) + ')' : tagName,
+    );
+    current = parent;
+  }
+  return segments.join(' > ');
+};
+const buildUniqueSelector = (element) => {
+  const tagName = element.tagName.toLowerCase();
+  const id = element.getAttribute('id');
+  if (id) {
+    const selector = '#' + CSS.escape(id);
+    if (isUniqueSelector(selector)) {
+      return selector;
+    }
+  }
+  const dataTestId = element.getAttribute('data-testid');
+  if (dataTestId) {
+    const selector = '[data-testid="' + CSS.escape(dataTestId) + '"]';
+    if (isUniqueSelector(selector)) {
+      return selector;
+    }
+  }
+  const name = element.getAttribute('name');
+  if (name) {
+    const selector = tagName + '[name="' + CSS.escape(name) + '"]';
+    if (isUniqueSelector(selector)) {
+      return selector;
+    }
+  }
+  const ariaLabel = element.getAttribute('aria-label');
+  if (ariaLabel) {
+    const selector = tagName + '[aria-label="' + CSS.escape(ariaLabel) + '"]';
+    if (isUniqueSelector(selector)) {
+      return selector;
+    }
+  }
+  const placeholder = element.getAttribute('placeholder');
+  if (placeholder) {
+    const selector = tagName + '[placeholder="' + CSS.escape(placeholder) + '"]';
+    if (isUniqueSelector(selector)) {
+      return selector;
+    }
+  }
+  return buildPathSelector(element);
+};
+const queryElement = (selector) => {
+  try {
+    return document.querySelector(selector);
+  } catch {
+    throw new Error('Invalid selector: ' + selector);
+  }
+};
+const requireElement = (selector) => {
+  const element = queryElement(selector);
+  if (!element) {
+    throw new Error('No element matched selector: ' + selector);
+  }
+  return element;
+};
+const serializeElement = (element) => {
+  if (!element) {
+    return null;
+  }
+  const value =
+    element instanceof HTMLInputElement ||
+    element instanceof HTMLTextAreaElement ||
+    element instanceof HTMLSelectElement
+      ? element.value
+      : element instanceof HTMLElement && element.isContentEditable
+        ? element.innerText
+        : null;
+  const href = element instanceof HTMLAnchorElement ? element.href : element.getAttribute('href');
+  return {
+    selector: buildUniqueSelector(element),
+    tagName: element.tagName.toLowerCase(),
+    role: element.getAttribute('role'),
+    text: trimText('innerText' in element ? element.innerText : element.textContent ?? ''),
+    value: value === null ? null : trimText(value, MAX_VALUE_LENGTH),
+    placeholder: element.getAttribute('placeholder'),
+    name: element.getAttribute('name'),
+    type: element instanceof HTMLInputElement ? element.type : null,
+    ariaLabel: element.getAttribute('aria-label'),
+    title: element.getAttribute('title'),
+    href: href || null,
+    disabled:
+      'disabled' in element
+        ? Boolean(element.disabled)
+        : element.getAttribute('aria-disabled') === 'true',
+    visible: isVisible(element),
+    checked: element instanceof HTMLInputElement ? element.checked : null,
+    rect: rectToJson(element.getBoundingClientRect()),
+  };
+};
+const collectInspectableElements = () => {
+  const selector = [
+    'button',
+    'a[href]',
+    'input',
+    'textarea',
+    'select',
+    '[role="button"]',
+    '[role="link"]',
+    '[role="textbox"]',
+    '[data-testid]',
+  ].join(',');
+  const elements = [];
+  const seenSelectors = new Set();
+  for (const candidate of document.querySelectorAll(selector)) {
+    if (!isVisible(candidate)) {
+      continue;
+    }
+    const serialized = serializeElement(candidate);
+    if (!serialized || seenSelectors.has(serialized.selector)) {
+      continue;
+    }
+    seenSelectors.add(serialized.selector);
+    elements.push(serialized);
+    if (elements.length >= MAX_INSPECTABLE_ELEMENTS) {
+      break;
+    }
+  }
+  return elements;
+};
+`;
 
 const toRectangle = (bounds: BrowserViewBounds): Rectangle => ({
   x: Math.round(bounds.x),
@@ -232,6 +451,196 @@ export class BrowserViewManager extends EventEmitter<{
     this.emitSnapshot(browserView);
 
     return browserView.snapshot;
+  }
+
+  async inspect(input: {
+    browserViewId: string;
+    codeTargetId: string;
+    selector?: string | null;
+  }): Promise<BrowserPageInspection> {
+    const browserView = this.ensureBrowserView(input.browserViewId, input.codeTargetId);
+    const selector = input.selector?.trim() || null;
+    const inspection = await this.executePageScript<{
+      readyState: string;
+      activeSelector: string | null;
+      element: BrowserPageElement | null;
+      elements: BrowserPageElement[];
+    }>(
+      browserView,
+      `(() => {
+        ${PAGE_SCRIPT_UTILITIES}
+        const selector = ${JSON.stringify(selector)};
+        const activeElement =
+          document.activeElement && document.activeElement !== document.body
+            ? serializeElement(document.activeElement)
+            : null;
+        const targetElement = selector ? serializeElement(requireElement(selector)) : null;
+        return {
+          readyState: document.readyState,
+          activeSelector: activeElement?.selector ?? null,
+          element: targetElement,
+          elements: selector ? [] : collectInspectableElements(),
+        };
+      })()`,
+    );
+
+    browserView.snapshot = readSnapshot(browserView);
+    this.emitSnapshot(browserView);
+
+    return {
+      snapshot: browserView.snapshot,
+      readyState: inspection.readyState,
+      activeSelector: inspection.activeSelector,
+      element: inspection.element,
+      elements: inspection.elements,
+    };
+  }
+
+  async click(input: {
+    browserViewId: string;
+    codeTargetId: string;
+    selector: string;
+  }): Promise<BrowserPageInteractionResult> {
+    const browserView = this.ensureBrowserView(input.browserViewId, input.codeTargetId);
+    const result = await this.executePageScript<{
+      clickPoint: { x: number; y: number };
+      element: BrowserPageElement;
+    }>(
+      browserView,
+      `(() => {
+        ${PAGE_SCRIPT_UTILITIES}
+        const selector = ${JSON.stringify(input.selector.trim())};
+        const element = requireElement(selector);
+        if (!isVisible(element)) {
+          throw new Error('Element is not visible: ' + selector);
+        }
+        element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
+        if (element instanceof HTMLElement) {
+          element.focus({ preventScroll: true });
+        }
+        const rect = element.getBoundingClientRect();
+        return {
+          clickPoint: {
+            x: Math.round(rect.left + rect.width / 2),
+            y: Math.round(rect.top + rect.height / 2),
+          },
+          element: serializeElement(element),
+        };
+      })()`,
+    );
+
+    browserView.view.webContents.sendInputEvent({
+      type: 'mouseMove',
+      x: result.clickPoint.x,
+      y: result.clickPoint.y,
+      button: 'left',
+    });
+    browserView.view.webContents.sendInputEvent({
+      type: 'mouseDown',
+      x: result.clickPoint.x,
+      y: result.clickPoint.y,
+      button: 'left',
+      clickCount: 1,
+    });
+    browserView.view.webContents.sendInputEvent({
+      type: 'mouseUp',
+      x: result.clickPoint.x,
+      y: result.clickPoint.y,
+      button: 'left',
+      clickCount: 1,
+    });
+    await this.waitForInteractionToSettle(browserView.view.webContents);
+
+    browserView.snapshot = readSnapshot(browserView);
+    this.emitSnapshot(browserView);
+
+    return {
+      snapshot: browserView.snapshot,
+      element: result.element,
+    };
+  }
+
+  async typeIntoElement(input: {
+    browserViewId: string;
+    codeTargetId: string;
+    selector: string;
+    text: string;
+  }): Promise<BrowserPageInteractionResult> {
+    const browserView = this.ensureBrowserView(input.browserViewId, input.codeTargetId);
+    const result = await this.executePageScript<{ element: BrowserPageElement }>(
+      browserView,
+      `(() => {
+        ${PAGE_SCRIPT_UTILITIES}
+        const selector = ${JSON.stringify(input.selector.trim())};
+        const nextValue = ${JSON.stringify(input.text)};
+        const element = requireElement(selector);
+        if (!isVisible(element)) {
+          throw new Error('Element is not visible: ' + selector);
+        }
+        const setElementValue = (target, value) => {
+          if (target instanceof HTMLInputElement) {
+            const descriptor = Object.getOwnPropertyDescriptor(
+              HTMLInputElement.prototype,
+              'value',
+            );
+            descriptor?.set?.call(target, value);
+            return;
+          }
+          if (target instanceof HTMLTextAreaElement) {
+            const descriptor = Object.getOwnPropertyDescriptor(
+              HTMLTextAreaElement.prototype,
+              'value',
+            );
+            descriptor?.set?.call(target, value);
+            return;
+          }
+          if (target instanceof HTMLSelectElement) {
+            target.value = value;
+            return;
+          }
+          if (target instanceof HTMLElement && target.isContentEditable) {
+            target.textContent = value;
+            return;
+          }
+          throw new Error('Element does not accept text input: ' + selector);
+        };
+        element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
+        if (element instanceof HTMLElement) {
+          element.focus({ preventScroll: true });
+        }
+        setElementValue(element, nextValue);
+        element.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+        element.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+        return {
+          element: serializeElement(element),
+        };
+      })()`,
+    );
+    await this.waitForInteractionToSettle(browserView.view.webContents);
+
+    browserView.snapshot = readSnapshot(browserView);
+    this.emitSnapshot(browserView);
+
+    return {
+      snapshot: browserView.snapshot,
+      element: result.element,
+    };
+  }
+
+  async captureScreenshot(input: {
+    browserViewId: string;
+    codeTargetId: string;
+  }): Promise<BrowserPageScreenshot> {
+    const browserView = this.ensureBrowserView(input.browserViewId, input.codeTargetId);
+    const image = await browserView.view.webContents.capturePage();
+
+    browserView.snapshot = readSnapshot(browserView);
+    this.emitSnapshot(browserView);
+
+    return {
+      snapshot: browserView.snapshot,
+      pngBytes: image.toPNG(),
+    };
   }
 
   setActiveBrowserView(input: {
@@ -472,6 +881,36 @@ export class BrowserViewManager extends EventEmitter<{
     }
 
     return mainWindow;
+  }
+
+  private async executePageScript<T>(
+    browserView: ManagedBrowserView,
+    script: string,
+  ): Promise<T> {
+    return browserView.view.webContents.mainFrame.executeJavaScript(script, true) as Promise<T>;
+  }
+
+  private async waitForInteractionToSettle(webContents: WebContents): Promise<void> {
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, INTERACTION_SETTLE_DELAY_MS);
+    });
+
+    if (!webContents.isLoadingMainFrame()) {
+      return;
+    }
+
+    await new Promise<void>((resolve) => {
+      const finish = () => {
+        clearTimeout(timeoutId);
+        webContents.off('did-stop-loading', finish);
+        webContents.off('did-fail-load', finish);
+        resolve();
+      };
+      const timeoutId = setTimeout(finish, INTERACTION_LOAD_TIMEOUT_MS);
+
+      webContents.on('did-stop-loading', finish);
+      webContents.on('did-fail-load', finish);
+    });
   }
 }
 

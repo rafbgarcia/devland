@@ -102,7 +102,78 @@ async function createSmokeServer(): Promise<{
   const server = createServer((request, response) => {
     hits.push(request.url ?? '/');
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-    response.end('<html><head><title>Browser Smoke</title></head><body>ok</body></html>');
+    response.end(`<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Browser Smoke</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #f5efe5;
+        color: #1d1d1d;
+      }
+      main {
+        width: min(28rem, calc(100vw - 2rem));
+        padding: 1.5rem;
+        border-radius: 1rem;
+        background: white;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.08);
+      }
+      label,
+      input,
+      button {
+        display: block;
+        width: 100%;
+      }
+      input,
+      button {
+        margin-top: 0.75rem;
+        font-size: 1rem;
+        padding: 0.75rem 0.875rem;
+        border-radius: 0.75rem;
+      }
+      input {
+        border: 1px solid #d7d0c5;
+      }
+      button {
+        border: 0;
+        background: #1f6feb;
+        color: white;
+        font-weight: 600;
+      }
+      #status {
+        margin-top: 1rem;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Browser Smoke</h1>
+      <label for="email">Email</label>
+      <input
+        id="email"
+        name="email"
+        type="email"
+        placeholder="Email address"
+        autocomplete="off"
+      />
+      <button
+        id="continue"
+        type="button"
+        onclick="document.getElementById('status').textContent = 'Submitted ' + document.getElementById('email').value"
+      >
+        Continue
+      </button>
+      <p id="status">Idle</p>
+    </main>
+  </body>
+</html>`);
   });
 
   await new Promise<void>((resolve, reject) => {
@@ -153,6 +224,28 @@ function notify(method, params) {
   process.stdout.write(JSON.stringify({ method, params }) + '\\n');
 }
 
+function parseJson(value) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+function runBrowserCommand(browserCli, args) {
+  const result = spawnSync(browserCli, args, {
+    env: process.env,
+    encoding: 'utf8',
+  });
+
+  return {
+    status: result.status,
+    stdout: result.stdout,
+    stderr: result.stderr,
+    json: parseJson(result.stdout),
+  };
+}
+
 const rl = readline.createInterface({ input: process.stdin });
 
 rl.on('line', (line) => {
@@ -191,28 +284,49 @@ rl.on('line', (line) => {
       type: 'turn-start',
       browserCliPresent: browserCli.length > 0,
       instructionMentionsBrowser: instructions.includes('DEVLAND_BROWSER_CLI'),
+      instructionMentionsInspect: instructions.includes('inspect [selector]'),
       browserUrl,
     });
 
+    let assistantDelta = browserCli ? 'Browser control active.' : 'Browser control disabled.';
+
     if (browserCli && browserUrl) {
-      const navigation = spawnSync(browserCli, ['navigate', browserUrl], {
-        env: process.env,
-        encoding: 'utf8',
-      });
+      const navigation = runBrowserCommand(browserCli, ['navigate', browserUrl]);
+      const inspect = runBrowserCommand(browserCli, ['inspect']);
+      const type = runBrowserCommand(browserCli, [
+        'type',
+        'input[name="email"]',
+        'qa@example.com',
+      ]);
+      const click = runBrowserCommand(browserCli, ['click', 'button#continue']);
+      const status = runBrowserCommand(browserCli, ['inspect', '#status']);
+      const screenshot = runBrowserCommand(browserCli, [
+        'screenshot',
+        'Browser smoke screenshot',
+      ]);
 
       appendLog({
-        type: 'navigate-result',
-        status: navigation.status,
-        stdout: navigation.stdout,
-        stderr: navigation.stderr,
+        type: 'browser-run',
+        navigationStatus: navigation.status,
+        currentUrl: navigation.json?.currentUrl ?? null,
+        inspectedElementCount: inspect.json?.elements?.length ?? 0,
+        typedValue: type.json?.element?.value ?? null,
+        clickedSelector: click.json?.element?.selector ?? null,
+        statusText: status.json?.element?.text ?? null,
+        screenshotMarkdown: screenshot.json?.markdown ?? null,
+        screenshotPath: screenshot.json?.path ?? null,
       });
+
+      if (typeof screenshot.json?.markdown === 'string' && screenshot.json.markdown.length > 0) {
+        assistantDelta = 'Browser control active.\\n\\n' + screenshot.json.markdown;
+      }
     }
 
     respond(message.id, { turn: { id: 'fake-turn-1' } });
     notify('turn/started', { turn: { id: 'fake-turn-1' } });
     notify('item/agentMessage/delta', {
       itemId: 'fake-assistant-1',
-      delta: browserCli ? 'Browser control active.' : 'Browser control disabled.',
+      delta: assistantDelta,
     });
     notify('turn/completed', {
       turn: {
@@ -308,7 +422,24 @@ test.describe('Codex browser control smoke', () => {
       expect(logEntries.length).toBeGreaterThanOrEqual(2);
       expect(logEntries[1]?.browserCliPresent).toBe(true);
       expect(logEntries[1]?.instructionMentionsBrowser).toBe(true);
+      expect(logEntries[1]?.instructionMentionsInspect).toBe(true);
       expect(smokeServer.getHits()).toContain('/smoke');
+
+      const interactionLog = readFakeCodexLog(fakeCodexLogPath).find(
+        (entry) => entry.type === 'browser-run',
+      );
+      expect(interactionLog?.navigationStatus).toBe(0);
+      expect(interactionLog?.currentUrl).toBe(smokeServer.url);
+      expect(interactionLog?.typedValue).toBe('qa@example.com');
+      expect(interactionLog?.clickedSelector).toBe('button#continue');
+      expect(interactionLog?.statusText).toBe('Submitted qa@example.com');
+      expect(interactionLog?.inspectedElementCount).toBeGreaterThan(0);
+      expect(interactionLog?.screenshotMarkdown).toMatch(
+        /^!\[Browser smoke screenshot\]\(devland-codex-attachment:\/\/asset\//,
+      );
+      await expect(page.getByAltText('Browser smoke screenshot')).toBeVisible({
+        timeout: 20_000,
+      });
     } finally {
       await electronApp.close();
       await new Promise<void>((resolve, reject) => {

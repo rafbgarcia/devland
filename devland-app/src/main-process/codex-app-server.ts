@@ -1,5 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { EventEmitter } from 'node:events';
+import { readFile } from 'node:fs/promises';
 import readline from 'node:readline';
 
 import type {
@@ -73,6 +74,7 @@ export type CodexBrowserControlAccess = {
   baseUrl: string;
   token: string;
   helperPath: string;
+  screenshotLogPath: string;
 };
 
 export type CodexBrowserControlAccessProvider = {
@@ -98,6 +100,11 @@ type SessionContext = {
   threadId: string | null;
   activeTurnId: string | null;
   activeTurnStartSnapshot: string | null;
+  browserScreenshotLogPath: string | null;
+  browserScreenshotEntryCursor: number;
+  activeTurnBrowserScreenshotCursor: number;
+  currentTurnAssistantText: string;
+  currentTurnAssistantItemId: string | null;
   stopped: boolean;
 };
 
@@ -124,6 +131,11 @@ type JsonRpcResponse = {
 type JsonRpcNotification = {
   method: string;
   params?: unknown;
+};
+
+type BrowserScreenshotRecord = {
+  markdown: string;
+  previewUrl: string;
 };
 
 const REQUEST_TIMEOUT_MS = 20_000;
@@ -157,8 +169,14 @@ const CODEX_BROWSER_CONTROL_DEVELOPER_INSTRUCTIONS = `If \`DEVLAND_BROWSER_CLI\`
 Use only:
 - \`"$DEVLAND_BROWSER_CLI" status\`
 - \`"$DEVLAND_BROWSER_CLI" navigate <url>\`
+- \`"$DEVLAND_BROWSER_CLI" inspect [selector]\`
+- \`"$DEVLAND_BROWSER_CLI" click <selector>\`
+- \`"$DEVLAND_BROWSER_CLI" type <selector> <text>\`
+- \`"$DEVLAND_BROWSER_CLI" screenshot [label]\`
 
-This browser access is scoped to the current session only. For now it supports navigation and status only, not DOM inspection or clicks.`;
+This browser access is scoped to the current session only.
+Prefer \`inspect\` before \`click\` or \`type\` so you can work with stable selectors.
+\`screenshot\` returns JSON with a local \`path\`, a \`previewUrl\`, and a ready-to-paste Markdown \`markdown\` image snippet. Include that Markdown in your reply when you want the user to see the screenshot inline.`;
 
 export const buildCodexInitializeParams = () => ({
   clientInfo: {
@@ -394,6 +412,36 @@ function parseThreadTokenUsage(value: unknown) {
     modelContextWindow:
       modelContextWindow !== undefined && modelContextWindow > 0 ? modelContextWindow : null,
   };
+}
+
+async function readBrowserScreenshotRecords(
+  logPath: string | null,
+): Promise<BrowserScreenshotRecord[]> {
+  if (!logPath) {
+    return [];
+  }
+
+  try {
+    const raw = await readFile(logPath, 'utf8');
+
+    return raw
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .flatMap((line) => {
+        try {
+          const parsed = JSON.parse(line) as Record<string, unknown>;
+          const markdown = asString(parsed.markdown)?.trim();
+          const previewUrl = asString(parsed.previewUrl)?.trim();
+
+          return markdown && previewUrl ? [{ markdown, previewUrl }] : [];
+        } catch {
+          return [];
+        }
+      });
+  } catch {
+    return [];
+  }
 }
 
 const extractActivityDetail = (item: Record<string, unknown> | undefined): string | null =>
@@ -886,6 +934,13 @@ export class CodexAppServerManager extends EventEmitter<{
       }
 
       const hydratedAttachments = await hydrateCodexAttachments(attachments);
+      const screenshotRecords = await readBrowserScreenshotRecords(
+        context.browserScreenshotLogPath,
+      );
+      context.browserScreenshotEntryCursor = screenshotRecords.length;
+      context.activeTurnBrowserScreenshotCursor = screenshotRecords.length;
+      context.currentTurnAssistantText = '';
+      context.currentTurnAssistantItemId = null;
       const response = await this.sendRequest(
         context,
         'turn/start',
@@ -1062,6 +1117,7 @@ export class CodexAppServerManager extends EventEmitter<{
               DEVLAND_BROWSER_CONTROL_URL: browserControlAccess.baseUrl,
               DEVLAND_BROWSER_CONTROL_TOKEN: browserControlAccess.token,
               DEVLAND_BROWSER_CLI: browserControlAccess.helperPath,
+              DEVLAND_BROWSER_SCREENSHOT_LOG: browserControlAccess.screenshotLogPath,
             }
           : {}),
       },
@@ -1084,6 +1140,11 @@ export class CodexAppServerManager extends EventEmitter<{
       threadId: null,
       activeTurnId: null,
       activeTurnStartSnapshot: null,
+      browserScreenshotLogPath: browserControlAccess?.screenshotLogPath ?? null,
+      browserScreenshotEntryCursor: 0,
+      activeTurnBrowserScreenshotCursor: 0,
+      currentTurnAssistantText: '',
+      currentTurnAssistantItemId: null,
       stopped: false,
     };
 
@@ -1428,6 +1489,8 @@ export class CodexAppServerManager extends EventEmitter<{
         const turnId = asString(asObject(params?.turn)?.id);
         context.status = 'running';
         context.activeTurnId = turnId ?? null;
+        context.currentTurnAssistantText = '';
+        context.currentTurnAssistantItemId = null;
         this.emitState(context, 'running', turnId ?? null, null);
         return;
       }
@@ -1436,8 +1499,24 @@ export class CodexAppServerManager extends EventEmitter<{
         const status = asString(turn?.status);
         const errorMessage = asString(asObject(turn?.error)?.message) ?? null;
         const diff = await this.captureTurnDiff(context);
+        const pendingScreenshotMarkdown = await this.readPendingBrowserScreenshotMarkdown(
+          context,
+        );
+
+        if (pendingScreenshotMarkdown) {
+          this.emit('event', {
+            type: 'assistant-delta',
+            sessionId: context.sessionId,
+            itemId: context.currentTurnAssistantItemId,
+            text: pendingScreenshotMarkdown,
+          });
+          context.currentTurnAssistantText = `${context.currentTurnAssistantText}${pendingScreenshotMarkdown}`;
+        }
+
         context.status = status === 'failed' ? 'error' : 'ready';
         context.activeTurnId = null;
+        context.currentTurnAssistantText = '';
+        context.currentTurnAssistantItemId = null;
         this.emit('event', {
           type: 'turn-completed',
           sessionId: context.sessionId,
@@ -1465,6 +1544,8 @@ export class CodexAppServerManager extends EventEmitter<{
       case 'item/agentMessage/delta': {
         const text = asString(params?.delta) ?? '';
         if (text) {
+          context.currentTurnAssistantItemId = asString(params?.itemId) ?? context.currentTurnAssistantItemId;
+          context.currentTurnAssistantText = `${context.currentTurnAssistantText}${text}`;
           this.emit('event', {
             type: 'assistant-delta',
             sessionId: context.sessionId,
@@ -1604,6 +1685,37 @@ export class CodexAppServerManager extends EventEmitter<{
     } catch {
       return null;
     }
+  }
+
+  private async readPendingBrowserScreenshotMarkdown(
+    context: SessionContext,
+  ): Promise<string | null> {
+    const screenshotRecords = await readBrowserScreenshotRecords(
+      context.browserScreenshotLogPath,
+    );
+    const pendingRecords = screenshotRecords.slice(context.activeTurnBrowserScreenshotCursor);
+
+    context.browserScreenshotEntryCursor = screenshotRecords.length;
+    context.activeTurnBrowserScreenshotCursor = screenshotRecords.length;
+
+    if (pendingRecords.length === 0) {
+      return null;
+    }
+
+    const existingAssistantText = context.currentTurnAssistantText;
+    const unseenMarkdown = pendingRecords
+      .filter(
+        (record) =>
+          !existingAssistantText.includes(record.previewUrl) &&
+          !existingAssistantText.includes(record.markdown),
+      )
+      .map((record) => record.markdown);
+
+    if (unseenMarkdown.length === 0) {
+      return null;
+    }
+
+    return `\n\n${unseenMarkdown.join('\n\n')}`;
   }
 
   private handleResponse(context: RequestContext, response: JsonRpcResponse): void {

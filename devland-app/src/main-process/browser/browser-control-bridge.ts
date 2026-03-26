@@ -4,6 +4,10 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import path from 'node:path';
 
 import { getDefaultBrowserTabId } from '@/lib/browser-tabs';
+import {
+  persistCodexImageBufferAttachments,
+  resolveCodexAttachmentPath,
+} from '@/main-process/codex-attachments';
 import type { BrowserViewManager } from '@/main-process/browser/browser-view-manager';
 
 type SessionBrowserAccess = {
@@ -11,16 +15,19 @@ type SessionBrowserAccess = {
   codeTargetId: string;
   browserViewId: string;
   token: string;
+  screenshotLogPath: string;
 };
 
 export type BrowserControlSessionAccess = {
   baseUrl: string;
   token: string;
   helperPath: string;
+  screenshotLogPath: string;
 };
 
 const AUTHORIZATION_PREFIX = 'Bearer ';
-const MAX_NAVIGATION_URL_LENGTH = 4096;
+const MAX_REQUEST_BODY_LENGTH = 64 * 1024;
+const SCREENSHOT_MIME_TYPE = 'image/png';
 
 export class BrowserControlAuthorizationError extends Error {}
 
@@ -32,7 +39,7 @@ const readRequestBody = async (request: IncomingMessage): Promise<string> =>
     request.on('data', (chunk: string) => {
       body += chunk;
 
-      if (body.length > MAX_NAVIGATION_URL_LENGTH) {
+      if (body.length > MAX_REQUEST_BODY_LENGTH) {
         reject(new Error('Request body is too large.'));
       }
     });
@@ -49,6 +56,9 @@ const writeJson = (
   response.end(JSON.stringify(payload));
 };
 
+const readFormBody = async (request: IncomingMessage): Promise<URLSearchParams> =>
+  new URLSearchParams(await readRequestBody(request));
+
 const buildHelperScript = (): string => `#!/bin/sh
 set -eu
 
@@ -58,18 +68,28 @@ if [ -z "\${DEVLAND_BROWSER_CONTROL_URL:-}" ] || [ -z "\${DEVLAND_BROWSER_CONTRO
 fi
 
 if [ $# -lt 1 ]; then
-  echo "Usage: devland-browser <status|navigate> [url]" >&2
+  echo "Usage: devland-browser <status|navigate|inspect|click|type|screenshot> [...]" >&2
   exit 64
 fi
 
 command="$1"
 shift
 
+request_json() {
+  method="$1"
+  endpoint="$2"
+  shift 2
+
+  curl -fsS \\
+    -X "$method" \\
+    -H "Authorization: Bearer $DEVLAND_BROWSER_CONTROL_TOKEN" \\
+    "$@" \\
+    "$DEVLAND_BROWSER_CONTROL_URL$endpoint"
+}
+
 case "$command" in
   status)
-    exec curl -fsS \\
-      -H "Authorization: Bearer $DEVLAND_BROWSER_CONTROL_TOKEN" \\
-      "$DEVLAND_BROWSER_CONTROL_URL/status"
+    request_json GET /status
     ;;
   navigate)
     if [ $# -lt 1 ]; then
@@ -77,12 +97,55 @@ case "$command" in
       exit 64
     fi
 
-    exec curl -fsS \\
-      -X POST \\
-      -H "Authorization: Bearer $DEVLAND_BROWSER_CONTROL_TOKEN" \\
+    request_json POST /navigate \\
       -H "Content-Type: text/plain; charset=utf-8" \\
-      --data-binary "$1" \\
-      "$DEVLAND_BROWSER_CONTROL_URL/navigate"
+      --data-binary "$1"
+    ;;
+  inspect)
+    if [ $# -gt 0 ]; then
+      request_json POST /inspect \\
+        -H "Content-Type: application/x-www-form-urlencoded; charset=utf-8" \\
+        --data-urlencode "selector=$1"
+    else
+      request_json POST /inspect
+    fi
+    ;;
+  click)
+    if [ $# -lt 1 ]; then
+      echo "Usage: devland-browser click <selector>" >&2
+      exit 64
+    fi
+
+    request_json POST /click \\
+      -H "Content-Type: application/x-www-form-urlencoded; charset=utf-8" \\
+      --data-urlencode "selector=$1"
+    ;;
+  type)
+    if [ $# -lt 2 ]; then
+      echo "Usage: devland-browser type <selector> <text>" >&2
+      exit 64
+    fi
+
+    request_json POST /type \\
+      -H "Content-Type: application/x-www-form-urlencoded; charset=utf-8" \\
+      --data-urlencode "selector=$1" \\
+      --data-urlencode "text=$2"
+    ;;
+  screenshot)
+    if [ $# -gt 0 ]; then
+      response="$(request_json POST /screenshot \\
+        -H "Content-Type: application/x-www-form-urlencoded; charset=utf-8" \\
+        --data-urlencode "name=$1")"
+    else
+      response="$(request_json POST /screenshot)"
+    fi
+
+    if [ -n "\${DEVLAND_BROWSER_SCREENSHOT_LOG:-}" ]; then
+      mkdir -p "$(dirname "$DEVLAND_BROWSER_SCREENSHOT_LOG")"
+      printf '%s\n' "$response" >> "$DEVLAND_BROWSER_SCREENSHOT_LOG"
+    fi
+
+    printf '%s\n' "$response"
     ;;
   *)
     echo "Unsupported command: $command" >&2
@@ -108,6 +171,8 @@ export class BrowserControlBridge {
   private baseUrl: string | null = null;
 
   private helperPath: string | null = null;
+
+  private helperRootDir: string | null = null;
 
   private readonly accessByToken = new Map<string, SessionBrowserAccess>();
 
@@ -141,17 +206,24 @@ export class BrowserControlBridge {
 
     this.baseUrl = `http://127.0.0.1:${address.port}`;
     this.helperPath = helperPath;
+    this.helperRootDir = helperRootDir;
   }
 
   issueSessionAccess(input: {
     sessionId: string;
     codeTargetId: string;
   }): BrowserControlSessionAccess {
-    if (this.baseUrl === null || this.helperPath === null) {
+    if (this.baseUrl === null || this.helperPath === null || this.helperRootDir === null) {
       throw new Error('Browser control bridge has not been started.');
     }
 
     this.revokeSessionAccess(input.sessionId);
+
+    const screenshotLogPath = path.join(
+      this.helperRootDir,
+      'screenshots',
+      `${input.sessionId}.jsonl`,
+    );
 
     const access: SessionBrowserAccess = {
       sessionId: input.sessionId,
@@ -160,14 +232,20 @@ export class BrowserControlBridge {
         this.browserViewManager.getActiveBrowserViewId(input.codeTargetId) ??
         getDefaultBrowserTabId(input.codeTargetId),
       token: randomBytes(24).toString('base64url'),
+      screenshotLogPath,
     };
 
     this.accessByToken.set(access.token, access);
+
+    void mkdir(path.dirname(screenshotLogPath), { recursive: true }).then(() =>
+      writeFile(screenshotLogPath, '', 'utf8'),
+    );
 
     return {
       baseUrl: this.baseUrl,
       token: access.token,
       helperPath: this.helperPath,
+      screenshotLogPath,
     };
   }
 
@@ -188,6 +266,7 @@ export class BrowserControlBridge {
 
     this.baseUrl = null;
     this.helperPath = null;
+    this.helperRootDir = null;
   }
 
   private async handleRequest(
@@ -225,6 +304,98 @@ export class BrowserControlBridge {
       });
 
       writeJson(response, 200, snapshot);
+      return;
+    }
+
+    if (request.method === 'POST' && request.url === '/inspect') {
+      const formData = await readFormBody(request);
+      const snapshot = await this.browserViewManager.inspect({
+        browserViewId,
+        codeTargetId: access.codeTargetId,
+        selector: formData.get('selector'),
+      });
+
+      writeJson(response, 200, snapshot);
+      return;
+    }
+
+    if (request.method === 'POST' && request.url === '/click') {
+      const formData = await readFormBody(request);
+      const selector = formData.get('selector')?.trim() ?? '';
+
+      if (selector.length === 0) {
+        writeJson(response, 400, { error: 'A selector is required.' });
+        return;
+      }
+
+      const snapshot = await this.browserViewManager.click({
+        browserViewId,
+        codeTargetId: access.codeTargetId,
+        selector,
+      });
+
+      writeJson(response, 200, snapshot);
+      return;
+    }
+
+    if (request.method === 'POST' && request.url === '/type') {
+      const formData = await readFormBody(request);
+      const selector = formData.get('selector')?.trim() ?? '';
+      const text = formData.get('text') ?? '';
+
+      if (selector.length === 0) {
+        writeJson(response, 400, { error: 'A selector is required.' });
+        return;
+      }
+
+      const snapshot = await this.browserViewManager.typeIntoElement({
+        browserViewId,
+        codeTargetId: access.codeTargetId,
+        selector,
+        text,
+      });
+
+      writeJson(response, 200, snapshot);
+      return;
+    }
+
+    if (request.method === 'POST' && request.url === '/screenshot') {
+      const formData = await readFormBody(request);
+      const requestedName = formData.get('name')?.trim() || null;
+      const screenshot = await this.browserViewManager.captureScreenshot({
+        browserViewId,
+        codeTargetId: access.codeTargetId,
+      });
+      const pageTitle = screenshot.snapshot.pageTitle.trim();
+      const attachmentName =
+        requestedName ??
+        (pageTitle.length > 0 ? `${pageTitle} screenshot.png` : 'browser-screenshot.png');
+      const [attachment] = await persistCodexImageBufferAttachments([
+        {
+          type: 'image',
+          name: attachmentName,
+          mimeType: SCREENSHOT_MIME_TYPE,
+          sizeBytes: screenshot.pngBytes.byteLength,
+          bytes: screenshot.pngBytes,
+        },
+      ]);
+
+      if (!attachment?.previewUrl) {
+        throw new Error('Browser screenshot did not produce a preview URL.');
+      }
+
+      const absolutePath = resolveCodexAttachmentPath(attachment.previewUrl);
+
+      if (absolutePath === null) {
+        throw new Error('Browser screenshot path could not be resolved.');
+      }
+
+      writeJson(response, 200, {
+        ...attachment,
+        path: absolutePath,
+        markdown: `![${attachment.name}](${attachment.previewUrl})`,
+        snapshot: screenshot.snapshot,
+      });
       return;
     }
 
