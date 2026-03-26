@@ -79,26 +79,26 @@ function LandingPage() {
 					transition={{ duration: 2, ease: [0.16, 1, 0.3, 1] }}
 				>
 					<div className="relative">
-						<img src={heroLogoSrc} loading="lazy" width={90} className="absolute right-full -top-2" />
 						<h1 className="font-bold tracking-tight text-white text-5xl sm:text-7xl">
 							Devland
 						</h1>
+
+						<p className="text-2xl text-slate-100 mt-2">
+							Extensible project workspaces
+						</p>
+						<p className="text-xs text-slate-400 mt-2">
+							100% free, open-source, and local to your machine
+						</p>
 					</div>
-					<p className="mt-3 text-xl sm:text-2xl text-slate-100">
-						Builders' homeland
-					</p>
-					<p className="mt-0 text-xs text-slate-300">
-						100% free, open-source, and local to your machine
-					</p>
 				</motion.div>
-				<motion.div
+			{/* <motion.div
 					initial={{ opacity: 0, y: 10 }}
 					animate={{ opacity: 1, y: 0 }}
 					transition={{ duration: 2, ease: [0.16, 1, 0.3, 1] }}
 				>
 					<div className="text-slate-200 mt-10 flex flex-col items-center">
 						<p className="flex items-center gap-2">
-							<Badge>Vision</Badge> A community-driven productivity platform for devs.
+							A community-driven productivity platform for devs.
 						</p>
 						<Dialog>
 							<DialogTrigger asChild>
@@ -129,7 +129,7 @@ function LandingPage() {
 							</DialogContent>
 						</Dialog>
 					</div>
-				</motion.div>
+				</motion.div> */}
 			</section>
 
 			{/* Interactive product tour */}

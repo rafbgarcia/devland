@@ -222,7 +222,7 @@ const flowDefinition: ScreenshotFlowDefinition = {
           description: (
             <>
               <div className="max-w-2xl">
-                <p>This is an idea for OSS contributions: git-backed per-commit AI session snapshots.</p>
+                <p>A work in progress idea: git-backed per-commit AI session snapshots.</p>
                 <p className="mt-2">How it works:</p>
                 <p>- On commit, Devland snapshots the current Codex thread delta and writes it onto that commit with <Kbd>{'git notes --ref=devland-prompt-requests'}</Kbd> under <Kbd>{'refs/notes/devland-prompt-requests'}</Kbd>.</p>
                 <p>- The note stores thread metadata plus the checkpointed transcript slice, so the session history travels with Git history instead of a separate database.</p>
