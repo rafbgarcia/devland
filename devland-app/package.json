@@ -1,7 +1,7 @@
 {
   "name": "devland",
   "productName": "Devland",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Builders' homeland <3",
   "main": ".vite/build/main.js",
   "private": true,
