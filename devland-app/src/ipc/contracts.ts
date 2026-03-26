@@ -43,7 +43,7 @@ export const GET_GIT_WORKING_TREE_DIFF_CHANNEL = 'app:get-git-working-tree-diff'
 export const CHECKOUT_GIT_BRANCH_CHANNEL = 'app:checkout-git-branch';
 export const GET_GIT_FILE_DIFF_CHANNEL = 'app:get-git-file-diff';
 export const CREATE_GIT_WORKTREE_CHANNEL = 'app:create-git-worktree';
-export const SUGGEST_GIT_WORKTREE_BRANCH_NAME_CHANNEL = 'app:suggest-git-worktree-branch-name';
+export const SUGGEST_CODEX_SESSION_NAMING_CHANNEL = 'app:suggest-codex-session-naming';
 export const CREATE_GIT_BRANCH_CHANNEL = 'app:create-git-branch';
 export const CHECK_GIT_WORKTREE_REMOVAL_CHANNEL = 'app:check-git-worktree-removal';
 export const REMOVE_GIT_WORKTREE_CHANNEL = 'app:remove-git-worktree';
@@ -51,6 +51,7 @@ export const COMMIT_WORKING_TREE_SELECTION_CHANNEL = 'app:commit-working-tree-se
 export const GET_CODEX_PROMPT_REQUEST_CHECKPOINT_CHANNEL = 'app:get-codex-prompt-request-checkpoint';
 export const WRITE_GIT_PROMPT_REQUEST_NOTE_CHANNEL = 'app:write-git-prompt-request-note';
 export const SEND_CODEX_SESSION_PROMPT_CHANNEL = 'app:send-codex-session-prompt';
+export const SET_CODEX_SESSION_THREAD_NAME_CHANNEL = 'app:set-codex-session-thread-name';
 export const PERSIST_CODEX_ATTACHMENTS_CHANNEL = 'app:persist-codex-attachments';
 export const LIST_CODEX_THREADS_CHANNEL = 'app:list-codex-threads';
 export const RESUME_CODEX_THREAD_CHANNEL = 'app:resume-codex-thread';
@@ -234,6 +235,7 @@ export type CodexResumedThreadMessage = z.infer<typeof CodexResumedThreadMessage
 
 export const CodexResumedThreadSchema = z.object({
   threadId: z.string().min(1),
+  threadName: z.string().min(1).nullable().optional(),
   messages: z.array(CodexResumedThreadMessageSchema),
 });
 export type CodexResumedThread = z.infer<typeof CodexResumedThreadSchema>;
@@ -403,10 +405,11 @@ export const CreateGitWorktreeResultSchema = z.object({
 });
 export type CreateGitWorktreeResult = z.infer<typeof CreateGitWorktreeResultSchema>;
 
-export const SuggestGitWorktreeBranchNameResultSchema = z.object({
-  branch: z.string().min(1),
+export const SuggestCodexSessionNamingResultSchema = z.object({
+  threadName: z.string().min(1),
+  branchName: z.string().min(1),
 });
-export type SuggestGitWorktreeBranchNameResult = z.infer<typeof SuggestGitWorktreeBranchNameResultSchema>;
+export type SuggestCodexSessionNamingResult = z.infer<typeof SuggestCodexSessionNamingResultSchema>;
 
 export const RemoveGitWorktreeReasonSchema = z.enum([
   'dirty',
@@ -530,6 +533,7 @@ export const CodexSessionEventSchema = z.discriminatedUnion('type', [
     sessionId: z.string().min(1),
     status: CodexSessionStatusSchema,
     threadId: z.string().min(1).nullable().optional(),
+    threadName: z.string().min(1).nullable().optional(),
     turnId: z.string().min(1).nullable().optional(),
     message: z.string().min(1).nullable().optional(),
   }),
@@ -918,10 +922,10 @@ export interface ElectronApi {
   checkoutGitBranch: (repoPath: string, branchName: string) => Promise<void>;
   getGitFileDiff: (repoPath: string, filePath: string) => Promise<string>;
   createGitWorktree: (repoPath: string) => Promise<CreateGitWorktreeResult>;
-  suggestGitWorktreeBranchName: (
+  suggestCodexSessionNaming: (
     repoPath: string,
     prompt: string,
-  ) => Promise<SuggestGitWorktreeBranchNameResult>;
+  ) => Promise<SuggestCodexSessionNamingResult>;
   createGitBranch: (repoPath: string, branchName: string) => Promise<void>;
   checkGitWorktreeRemoval: (
     repoPath: string,
@@ -991,7 +995,12 @@ export interface ElectronApi {
     attachments: CodexPromptAttachment[];
     persistedAttachments?: CodexChatImageAttachment[];
     resumeThreadId?: string | null;
+    threadName?: string | null;
     transcriptBootstrap?: string | null;
+  }) => Promise<void>;
+  setCodexSessionThreadName: (input: {
+    sessionId: string;
+    threadName: string;
   }) => Promise<void>;
   listCodexThreads: (input: ListCodexThreadsInput) => Promise<CodexThreadSummary[]>;
   resumeCodexThread: (input: {

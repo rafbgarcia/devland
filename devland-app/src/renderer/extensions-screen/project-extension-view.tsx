@@ -14,8 +14,14 @@ import {
 } from 'lucide-react';
 
 import { useCodeTargets } from '@/renderer/code-screen/use-code-targets';
-import { useCodexSessionActions } from '@/renderer/code-screen/use-codex-sessions';
-import { DETACHED_WORKTREE_TARGET_TITLE } from '@/renderer/code-screen/worktree-session';
+import {
+  getCodexSessionStateSnapshot,
+  useCodexSessionActions,
+} from '@/renderer/code-screen/use-codex-sessions';
+import {
+  DETACHED_WORKTREE_TARGET_TITLE,
+  getSessionNamingPromptText,
+} from '@/renderer/code-screen/worktree-session';
 import { useProjectExtensions } from '@/renderer/extensions-screen/use-project-extensions';
 import { useProjectRepoDetailsState } from '@/renderer/projects-shell/use-project-repo';
 import { useWorkspaceSession } from '@/renderer/projects-shell/use-workspace-session';
@@ -93,7 +99,7 @@ export function ProjectExtensionView({
   const [actionError, setActionError] = useState<string | null>(null);
   const repoDetails = useProjectRepoDetailsState();
   const { updateSession } = useWorkspaceSession();
-  const { sendPrompt } = useCodexSessionActions();
+  const { sendPrompt, setThreadName } = useCodexSessionActions();
   const { preferences } = useAppPreferences();
   const extensions = useProjectExtensions(
     repoDetails.status === 'ready' ? repoDetails.data.path : null,
@@ -146,34 +152,57 @@ export function ProjectExtensionView({
         });
     }
 
-    await sendPrompt(
+    const submission = {
+      prompt: trimmedPrompt,
+      settings: preferences.codexComposerSettings,
+      attachments: [],
+    } satisfies Parameters<typeof sendPrompt>[2];
+
+    const promptPromise = sendPrompt(
       target.id,
       target.cwd,
-      {
-        prompt: trimmedPrompt,
-        settings: preferences.codexComposerSettings,
-        attachments: [],
-      },
-      {
-        background: true,
-        beforeSend: async () => {
-          if (target.title !== DETACHED_WORKTREE_TARGET_TITLE) {
-            return;
-          }
-
-          const suggestion = await window.electronAPI.suggestGitWorktreeBranchName(
-            target.cwd,
-            trimmedPrompt,
-          );
-
-          await window.electronAPI.createGitBranch(target.cwd, suggestion.branch);
-          updateTarget(target.id, (currentTarget) => ({
-            ...currentTarget,
-            title: suggestion.branch,
-          }));
-        },
-      },
+      submission,
     );
+
+    void promptPromise.then(async () => {
+      try {
+        const suggestion = await window.electronAPI.suggestCodexSessionNaming(
+          target.cwd,
+          getSessionNamingPromptText(submission),
+        );
+        const currentSessionState = getCodexSessionStateSnapshot(target.id);
+
+        if (currentSessionState.threadId === null) {
+          return;
+        }
+
+        if (!currentSessionState.threadName) {
+          try {
+            await setThreadName(target.id, suggestion.threadName);
+          } catch (error) {
+            console.error('Failed to set Codex thread name:', error);
+          }
+        }
+
+        if (target.title !== DETACHED_WORKTREE_TARGET_TITLE) {
+          return;
+        }
+
+        await window.electronAPI.createGitBranch(target.cwd, suggestion.branchName);
+        updateTarget(target.id, (currentTarget) =>
+          currentTarget.title === DETACHED_WORKTREE_TARGET_TITLE
+            ? {
+                ...currentTarget,
+                title: suggestion.branchName,
+              }
+            : currentTarget,
+        );
+      } catch (error) {
+        console.error('Failed to bootstrap Codex session naming:', error);
+      }
+    });
+
+    await promptPromise;
 
     updateSession((currentSession) =>
       rememberCodeTarget(
@@ -193,7 +222,7 @@ export function ProjectExtensionView({
       targetId: target.id,
       cwd: target.cwd,
     };
-  }, [addWorktreeTarget, repoDetails, router, sendPrompt, updateSession, updateTarget]);
+  }, [addWorktreeTarget, preferences.codexComposerSettings, repoDetails, router, sendPrompt, setThreadName, updateSession, updateTarget]);
 
   useEffect(() => {
     const handleWindowMessage = (event: MessageEvent) => {

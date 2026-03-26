@@ -35,7 +35,7 @@ import {
   CHECKOUT_GIT_BRANCH_CHANNEL,
   GET_GIT_FILE_DIFF_CHANNEL,
   CREATE_GIT_WORKTREE_CHANNEL,
-  SUGGEST_GIT_WORKTREE_BRANCH_NAME_CHANNEL,
+  SUGGEST_CODEX_SESSION_NAMING_CHANNEL,
   CREATE_GIT_BRANCH_CHANNEL,
   CHECK_GIT_WORKTREE_REMOVAL_CHANNEL,
   REMOVE_GIT_WORKTREE_CHANNEL,
@@ -65,6 +65,7 @@ import {
   RESPOND_TO_CODEX_APPROVAL_CHANNEL,
   RESPOND_TO_CODEX_USER_INPUT_CHANNEL,
   SEND_CODEX_SESSION_PROMPT_CHANNEL,
+  SET_CODEX_SESSION_THREAD_NAME_CHANNEL,
   STOP_CODEX_SESSION_CHANNEL,
   OPEN_TERMINAL_SESSION_CHANNEL,
   EXEC_TERMINAL_SESSION_COMMAND_CHANNEL,
@@ -98,7 +99,7 @@ import {
 } from './codex-prompt-request-checkpoint-store';
 import { searchCodexPaths } from './codex-path-search';
 import { codexExecutable } from './codex-cli';
-import { suggestGitWorktreeBranchName } from './codex-use-cases/worktree-branch-name';
+import { suggestCodexSessionNaming } from './codex-use-cases/session-naming';
 import { ghExecutable } from './gh-cli';
 import { readRemoteGitHubRepoReadme, readGithubRepoOverview } from './github-repo-files';
 import { getRepoExtensions, installRepoExtension, installRepoExtensionVersion, listExtensionVersions } from './extensions/repo-extensions';
@@ -325,13 +326,13 @@ export const registerAppIpcHandlers = (
     },
   );
   ipcMain.handle(
-    SUGGEST_GIT_WORKTREE_BRANCH_NAME_CHANNEL,
+    SUGGEST_CODEX_SESSION_NAMING_CHANNEL,
     (_event, repoPath: string, prompt: string) => {
       if (codexExecutable === null) {
         throw new Error('Codex CLI is not installed.');
       }
 
-      return suggestGitWorktreeBranchName(codexExecutable, repoPath, prompt);
+      return suggestCodexSessionNaming(codexExecutable, repoPath, prompt);
     },
   );
   ipcMain.handle(
@@ -454,6 +455,7 @@ export const registerAppIpcHandlers = (
         attachments: CodexPromptAttachment[];
         persistedAttachments?: CodexChatImageAttachment[];
         resumeThreadId?: string | null;
+        threadName?: string | null;
         transcriptBootstrap?: string | null;
       },
     ) =>
@@ -465,8 +467,17 @@ export const registerAppIpcHandlers = (
         input.attachments,
         input.persistedAttachments ?? [],
         input.resumeThreadId ?? null,
+        input.threadName ?? null,
         input.transcriptBootstrap ?? null,
         input.browserControlEnabled ?? false,
+      ),
+  );
+  ipcMain.handle(
+    SET_CODEX_SESSION_THREAD_NAME_CHANNEL,
+    (_event, input: { sessionId: string; threadName: string }) =>
+      codexAppServerManager.setThreadName(
+        input.sessionId,
+        input.threadName,
       ),
   );
   ipcMain.handle(

@@ -82,6 +82,7 @@ export type ProposedCodexPlan = {
 export type CodexSessionState = {
   status: CodexSessionStatus;
   threadId: string | null;
+  threadName: string | null;
   turnId: string | null;
   currentTurnStartedAt: string | null;
   tokenUsage: CodexThreadTokenUsage | null;
@@ -97,6 +98,7 @@ export type CodexSessionState = {
 
 export type CodexSessionSnapshot = {
   threadId: string | null;
+  threadName?: string | null;
   tokenUsage?: CodexThreadTokenUsage | null;
   activePlan?: ActiveCodexPlan | null;
   latestProposedPlan?: ProposedCodexPlan | null;
@@ -108,6 +110,7 @@ export type CodexSessionSnapshot = {
 export const DEFAULT_SESSION_STATE: CodexSessionState = {
   status: 'closed',
   threadId: null,
+  threadName: null,
   turnId: null,
   currentTurnStartedAt: null,
   tokenUsage: null,
@@ -517,6 +520,7 @@ export function hydrateResumedCodexThreadState(thread: CodexResumedThread): Code
     ...DEFAULT_SESSION_STATE,
     status: 'ready',
     threadId: thread.threadId,
+    threadName: thread.threadName ?? null,
     latestProposedPlan: findLatestProposedPlan(transcriptEntries),
     transcriptEntries,
     messages,
@@ -533,6 +537,8 @@ export function applyCodexSessionEvent(
         ...previous,
         status: event.status,
         threadId: event.threadId ?? previous.threadId,
+        threadName:
+          event.threadName !== undefined ? event.threadName : previous.threadName,
         turnId: event.turnId ?? previous.turnId,
         currentTurnStartedAt:
           event.status === 'running'
@@ -707,6 +713,7 @@ export function toCodexSessionSnapshot(state: CodexSessionState): CodexSessionSn
 
   return {
     threadId: state.threadId,
+    threadName: state.threadName,
     tokenUsage: state.tokenUsage,
     activePlan: state.activePlan,
     latestProposedPlan: state.latestProposedPlan,
@@ -730,6 +737,7 @@ export function hydrateCodexSessionState(snapshot: CodexSessionSnapshot | null):
   return {
     ...DEFAULT_SESSION_STATE,
     threadId: snapshot.threadId,
+    threadName: snapshot.threadName ?? null,
     tokenUsage: snapshot.tokenUsage ?? null,
     activePlan: snapshot.activePlan ?? null,
     latestProposedPlan: snapshot.latestProposedPlan ?? findLatestProposedPlan(transcriptEntries),

@@ -284,6 +284,21 @@ describe('applyCodexSessionEvent', () => {
     assert.equal(state.activePlan, null);
   });
 
+  it('tracks thread names from state updates', () => {
+    const state = applyCodexSessionEvent(DEFAULT_SESSION_STATE, {
+      type: 'state',
+      sessionId: 'session-1',
+      status: 'ready',
+      threadId: 'thread-1',
+      threadName: 'Investigate naming flow',
+      turnId: null,
+      message: null,
+    });
+
+    assert.equal(state.threadId, 'thread-1');
+    assert.equal(state.threadName, 'Investigate naming flow');
+  });
+
   it('keeps the last plan after turn completion for post-run collapsed display', () => {
     const startingState = {
       ...DEFAULT_SESSION_STATE,
@@ -312,6 +327,7 @@ describe('Codex session snapshot persistence', () => {
   it('preserves attachments when hydrating a resumed thread', () => {
     const state = hydrateResumedCodexThreadState({
       threadId: 'thread-1',
+      threadName: 'Investigate naming flow',
       messages: [
         {
           id: 'user-1',
@@ -334,6 +350,7 @@ describe('Codex session snapshot persistence', () => {
       ],
     });
 
+    assert.equal(state.threadName, 'Investigate naming flow');
     assert.equal(state.messages[0]?.attachments[0]?.previewUrl, 'devland-codex-attachment://asset/ab/cd.png');
   });
 
@@ -341,6 +358,7 @@ describe('Codex session snapshot persistence', () => {
     const state = {
       ...DEFAULT_SESSION_STATE,
       threadId: 'thread-1',
+      threadName: 'Investigate naming flow',
       status: 'ready' as const,
       messages: [
         {
@@ -428,6 +446,7 @@ describe('Codex session snapshot persistence', () => {
     const state = {
       ...DEFAULT_SESSION_STATE,
       threadId: 'thread-1',
+      threadName: 'Investigate naming flow',
       status: 'ready' as const,
       tokenUsage: {
         last: {
@@ -499,6 +518,7 @@ describe('Codex session snapshot persistence', () => {
     assert.deepEqual(hydratedState.tokenUsage, state.tokenUsage);
     assert.deepEqual(hydratedState.activePlan, state.activePlan);
     assert.equal(hydratedState.threadId, 'thread-1');
+    assert.equal(hydratedState.threadName, 'Investigate naming flow');
     assert.equal(hydratedState.messages[0]?.text, 'Plan is ready.');
   });
 

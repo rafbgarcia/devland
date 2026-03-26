@@ -264,6 +264,34 @@ export function useCodexSessionState(sessionId: string): CodexSessionState {
   return useAtomValue(getSessionStateAtom(sessionId));
 }
 
+export function getCodexSessionStateSnapshot(sessionId: string): CodexSessionState {
+  ensureSessionSubscription();
+
+  return appJotaiStore.get(getSessionStateAtom(sessionId));
+}
+
+export function useCodexSessionMetadataMap(
+  sessionIds: readonly string[],
+): Record<string, Pick<CodexSessionState, 'threadId' | 'threadName'>> {
+  ensureSessionSubscription();
+
+  const source = useAtomValue(sessionStateSourceAtom);
+
+  return Object.fromEntries(
+    sessionIds.map((sessionId) => {
+      const state = readSessionState(source.liveStates, source.persistedSnapshots, sessionId);
+
+      return [
+        sessionId,
+        {
+          threadId: state.threadId,
+          threadName: state.threadName,
+        },
+      ];
+    }),
+  );
+}
+
 export function useCodexSessionActions() {
   ensureSessionSubscription();
 
@@ -281,6 +309,7 @@ export function useCodexSessionActions() {
       beforeSend?: () => Promise<void>;
       background?: boolean;
       browserControlEnabled?: boolean;
+      threadName?: string | null;
     },
   ) => {
     const previous = appJotaiStore.get(getSessionStateAtom(sessionId));
@@ -305,18 +334,17 @@ export function useCodexSessionActions() {
           )
         : null;
 
-    registerUserPrompt({
-      sessionId,
-      prompt: submission.prompt,
-      attachments: persistedAttachments,
-    });
-
     const previousChain = pendingPromptChains.get(sessionId) ?? Promise.resolve();
     const nextChain = previousChain
       .catch(() => {})
       .then(async () => {
         try {
           await options?.beforeSend?.();
+          registerUserPrompt({
+            sessionId,
+            prompt: submission.prompt,
+            attachments: persistedAttachments,
+          });
           await window.electronAPI.sendCodexSessionPrompt({
             sessionId,
             cwd,
@@ -326,6 +354,7 @@ export function useCodexSessionActions() {
             attachments: submission.attachments,
             persistedAttachments,
             resumeThreadId: previous.threadId,
+            threadName: options?.threadName ?? null,
             transcriptBootstrap,
           });
         } catch (error) {
@@ -351,6 +380,13 @@ export function useCodexSessionActions() {
     }
 
     await nextChain;
+  };
+
+  const setThreadName = async (sessionId: string, threadName: string) => {
+    await window.electronAPI.setCodexSessionThreadName({
+      sessionId,
+      threadName,
+    });
   };
 
   const interruptSession = async (sessionId: string) => {
@@ -416,6 +452,7 @@ export function useCodexSessionActions() {
 
   return {
     sendPrompt,
+    setThreadName,
     interruptSession,
     stopSession,
     resetSession,

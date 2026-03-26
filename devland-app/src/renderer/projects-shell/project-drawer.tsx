@@ -109,7 +109,7 @@ export function ProjectDrawer({
               </div>
 
               {/* Project list */}
-              <nav className="flex-1 overflow-y-auto py-1">
+              <nav className="flex-1 overflow-y-auto space-y-4 py-1">
                 {repos.map((repo) => {
                   const isActiveRepo = repo.id === activeRepoId;
                   const tabs = getTabsForRepo(repo.id);
@@ -159,7 +159,7 @@ export function ProjectDrawer({
                             <button
                               key={tab.key}
                               className={cn(
-                                'group/tab flex w-full items-center gap-2 py-1.5 pl-7 pr-2 text-left text-xs transition-colors',
+                                'group/tab flex w-full items-center gap-2 py-1.5 pl-4 pr-2 text-left text-xs transition-colors',
                                 isActiveTab
                                   ? 'bg-primary/10 text-primary font-medium'
                                   : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',

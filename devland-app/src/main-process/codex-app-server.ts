@@ -98,6 +98,7 @@ type SessionContext = {
   pendingUserInputs: Map<string, PendingUserInputRequest>;
   status: CodexSessionStatus;
   threadId: string | null;
+  threadName: string | null;
   activeTurnId: string | null;
   activeTurnStartSnapshot: string | null;
   browserScreenshotLogPath: string | null;
@@ -367,6 +368,16 @@ const coalesceStrings = (...values: Array<string | null | undefined>): string | 
   }
 
   return null;
+};
+
+const getThreadName = (value: unknown): string | null => {
+  const record = asObject(value);
+  return coalesceStrings(
+    asString(record?.thread_name),
+    asString(record?.threadName),
+    asString(asObject(record?.thread)?.name),
+    asString(record?.name),
+  );
 };
 
 function parseTokenUsageBreakdown(value: unknown) {
@@ -826,6 +837,7 @@ export function parseCodexResumedThread(result: unknown): CodexResumedThread {
 
   return {
     threadId,
+    threadName: getThreadName(thread),
     messages,
   };
 }
@@ -894,6 +906,7 @@ export class CodexAppServerManager extends EventEmitter<{
     attachments: readonly CodexPromptAttachment[],
     persistedAttachments: readonly CodexChatImageAttachment[] = [],
     resumeThreadId: string | null = null,
+    threadName: string | null = null,
     transcriptBootstrap: string | null = null,
     browserControlEnabled = false,
   ): Promise<void> {
@@ -933,6 +946,12 @@ export class CodexAppServerManager extends EventEmitter<{
         throw new Error('Codex session is missing a thread id.');
       }
 
+      try {
+        await this.applyThreadName(context, threadName);
+      } catch {
+        // Preserve prompt execution even if setting the optional thread name fails.
+      }
+
       const hydratedAttachments = await hydrateCodexAttachments(attachments);
       const screenshotRecords = await readBrowserScreenshotRecords(
         context.browserScreenshotLogPath,
@@ -968,12 +987,23 @@ export class CodexAppServerManager extends EventEmitter<{
         sessionId,
         status: 'error',
         threadId: null,
+        threadName: null,
         turnId: null,
         message:
           error instanceof Error ? error.message : 'Failed to start Codex turn.',
       });
       throw error;
     }
+  }
+
+  async setThreadName(sessionId: string, threadName: string): Promise<void> {
+    const context = this.sessions.get(sessionId);
+
+    if (!context) {
+      return;
+    }
+
+    await this.applyThreadName(context, threadName);
   }
 
   async interruptSession(sessionId: string): Promise<void> {
@@ -1138,6 +1168,7 @@ export class CodexAppServerManager extends EventEmitter<{
       pendingUserInputs: new Map(),
       status: 'connecting',
       threadId: null,
+      threadName: null,
       activeTurnId: null,
       activeTurnStartSnapshot: null,
       browserScreenshotLogPath: browserControlAccess?.screenshotLogPath ?? null,
@@ -1183,6 +1214,7 @@ export class CodexAppServerManager extends EventEmitter<{
       }
 
       context.threadId = threadId;
+      context.threadName = getThreadName(threadResponse);
       context.status = 'ready';
       this.emitState(context, 'ready', null, 'Ready');
 
@@ -1197,6 +1229,7 @@ export class CodexAppServerManager extends EventEmitter<{
         sessionId,
         status: 'error',
         threadId: context.threadId,
+        threadName: context.threadName,
         turnId: context.activeTurnId,
         message:
           error instanceof Error ? error.message : 'Failed to initialize Codex app-server.',
@@ -1483,6 +1516,13 @@ export class CodexAppServerManager extends EventEmitter<{
         if (threadId) {
           context.threadId = threadId;
         }
+        context.threadName = getThreadName(params) ?? context.threadName;
+        this.emitState(context, context.status, context.activeTurnId, null);
+        return;
+      }
+      case 'thread/name/updated': {
+        context.threadName = getThreadName(params);
+        this.emitState(context, context.status, context.activeTurnId, null);
         return;
       }
       case 'turn/started': {
@@ -1786,9 +1826,28 @@ export class CodexAppServerManager extends EventEmitter<{
       sessionId: context.sessionId,
       status,
       threadId: context.threadId,
+      threadName: context.threadName,
       turnId,
       message,
     });
+  }
+
+  private async applyThreadName(
+    context: SessionContext,
+    threadName: string | null,
+  ): Promise<void> {
+    const desiredThreadName = coalesceStrings(threadName);
+
+    if (!desiredThreadName || !context.threadId || desiredThreadName === context.threadName) {
+      return;
+    }
+
+    await this.sendRequest(context, 'thread/name/set', {
+      threadId: context.threadId,
+      name: desiredThreadName,
+    });
+    context.threadName = desiredThreadName;
+    this.emitState(context, context.status, context.activeTurnId, null);
   }
 
   private parseUserInputQuestions(payload: Record<string, unknown> | undefined): CodexUserInputQuestion[] {

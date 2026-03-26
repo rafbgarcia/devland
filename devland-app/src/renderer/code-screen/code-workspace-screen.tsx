@@ -45,6 +45,7 @@ import {
   type ChatComposerHandle,
 } from '@/renderer/code-screen/chat-composer';
 import { formatAnchoredDiffCommentPrompt } from '@/renderer/code-screen/chat-composer-prompt';
+import { formatCodeTargetLabel } from '@/renderer/code-screen/code-target-label';
 import { CodexTabMenu } from '@/renderer/code-screen/codex-tab-menu';
 import { LayerToggle } from '@/renderer/code-screen/layer-toggle';
 import { LivePlanDock } from '@/renderer/code-screen/live-plan-dock';
@@ -67,7 +68,9 @@ import {
   useRepoTerminalTabs,
 } from '@/renderer/code-screen/use-terminal-tabs';
 import {
+  getCodexSessionStateSnapshot,
   useCodexSessionActions,
+  useCodexSessionMetadataMap,
   useCodexSessionState,
 } from '@/renderer/code-screen/use-codex-sessions';
 import {
@@ -76,9 +79,10 @@ import {
 } from '@/renderer/code-screen/use-git';
 import {
   DETACHED_WORKTREE_TARGET_TITLE,
-  getWorktreeTargetTitle,
-  getWorktreePromptText,
   shouldBootstrapDetachedWorktreeBranch,
+  shouldBootstrapSessionNaming,
+  getWorktreeTargetTitle,
+  getSessionNamingPromptText,
 } from '@/renderer/code-screen/worktree-session';
 import {
   getGitStatusRefreshRequestForCodexEvent,
@@ -116,8 +120,6 @@ import {
 } from '@/shadcn/components/ui/dialog';
 import { Tabs } from '@/shadcn/components/ui/tabs';
 import { cn } from '@/shadcn/lib/utils';
-
-const SESSION_TARGET_TITLE_PATTERN = /^Session\s+(\d+)$/;
 const SIDEBAR_MIN_WIDTH = 200;
 const SIDEBAR_MAX_WIDTH = 500;
 const SIDEBAR_DEFAULT_WIDTH = 280;
@@ -131,22 +133,6 @@ type PendingWorktreeRemoval = {
 type PendingDraftTargetClose = {
   target: CodeTarget;
 };
-
-function formatCodeTargetLabel(target: CodeTarget, rootBranch: string) {
-  if (target.kind === 'root') {
-    return rootBranch;
-  }
-
-  if (target.kind === 'session') {
-    const match = SESSION_TARGET_TITLE_PATTERN.exec(target.title);
-
-    if (match !== null) {
-      return `${rootBranch}.${Number(match[1]) + 1}`;
-    }
-  }
-
-  return target.title;
-}
 
 function ResizableHandle({
   onResize,
@@ -253,9 +239,11 @@ export function CodeWorkspaceScreen({
     restoreTarget,
     updateTarget,
   } = useCodeTargets(repoId, repoPath, rememberedTargetId);
+  const sessionMetadataByTargetId = useCodexSessionMetadataMap(targets.map((target) => target.id));
   const sessionState = useCodexSessionState(activeTarget.id);
   const {
     sendPrompt,
+    setThreadName,
     interruptSession,
     stopSession,
     resetSession,
@@ -300,6 +288,7 @@ export function CodeWorkspaceScreen({
   const activeBrowserTabId = activeBrowserTabsState.activeTabId;
   const activeTerminalTabsState = getTerminalTabsState(activeTarget.id);
   const activeTerminalTabId = activeTerminalTabsState.activeTabId;
+  const pendingSessionNamingJobsRef = useRef(new Map<string, number>());
 
   const rememberActiveTarget = useCallback(
     (targetId: string | null) => {
@@ -429,9 +418,16 @@ export function CodeWorkspaceScreen({
   const targetLabels = useMemo(
     () =>
       Object.fromEntries(
-        targets.map((target) => [target.id, formatCodeTargetLabel(target, rootBranch)]),
+        targets.map((target) => [
+          target.id,
+          formatCodeTargetLabel({
+            target,
+            rootBranch,
+            threadName: sessionMetadataByTargetId[target.id]?.threadName ?? null,
+          }),
+        ]),
       ),
-    [rootBranch, targets],
+    [rootBranch, sessionMetadataByTargetId, targets],
   );
 
   const composerSettings = repoCodexSettings.composerSettings;
@@ -440,58 +436,115 @@ export function CodeWorkspaceScreen({
     setRepoCodexComposerSettings(settings);
   }, [setRepoCodexComposerSettings]);
 
-  const bootstrapDetachedWorktreeBranch = useCallback(async (submission: CodexPromptSubmission) => {
-    if (activeTarget.kind !== 'worktree') {
-      return;
+  const bootstrapSessionNamingInBackground = useEffectEvent(async ({
+    targetId,
+    cwd,
+    submission,
+    shouldCreateWorktreeBranch,
+  }: {
+    targetId: string;
+    cwd: string;
+    submission: CodexPromptSubmission;
+    shouldCreateWorktreeBranch: boolean;
+  }) => {
+    const nextJobId = (pendingSessionNamingJobsRef.current.get(targetId) ?? 0) + 1;
+    pendingSessionNamingJobsRef.current.set(targetId, nextJobId);
+
+    try {
+      const suggestion = await window.electronAPI.suggestCodexSessionNaming(
+        cwd,
+        getSessionNamingPromptText(submission),
+      );
+
+      if (pendingSessionNamingJobsRef.current.get(targetId) !== nextJobId) {
+        return;
+      }
+
+      const currentSessionState = getCodexSessionStateSnapshot(targetId);
+
+      if (currentSessionState.threadId === null) {
+        return;
+      }
+
+      if (!currentSessionState.threadName) {
+        try {
+          await setThreadName(targetId, suggestion.threadName);
+        } catch (error) {
+          console.error('Failed to set Codex thread name:', error);
+        }
+      }
+
+      if (!shouldCreateWorktreeBranch) {
+        return;
+      }
+
+      const currentTarget = targets.find((target) => target.id === targetId);
+
+      if (
+        !currentTarget ||
+        !shouldBootstrapDetachedWorktreeBranch(currentTarget)
+      ) {
+        return;
+      }
+
+      await window.electronAPI.createGitBranch(currentTarget.cwd, suggestion.branchName);
+
+      if (pendingSessionNamingJobsRef.current.get(targetId) !== nextJobId) {
+        return;
+      }
+
+      updateTarget(targetId, (target) =>
+        shouldBootstrapDetachedWorktreeBranch(target)
+          ? {
+              ...target,
+              title: suggestion.branchName,
+            }
+          : target,
+      );
+      requestGitStatusRefresh({
+        repoPath: currentTarget.cwd,
+        reason: 'git-operation',
+      });
+    } catch (error) {
+      console.error('Failed to bootstrap Codex session naming:', error);
+    } finally {
+      if (pendingSessionNamingJobsRef.current.get(targetId) === nextJobId) {
+        pendingSessionNamingJobsRef.current.delete(targetId);
+      }
     }
-
-    const suggestion = await window.electronAPI.suggestGitWorktreeBranchName(
-      activeTarget.cwd,
-      getWorktreePromptText(submission),
-    );
-
-    await window.electronAPI.createGitBranch(activeTarget.cwd, suggestion.branch);
-    updateTarget(activeTarget.id, (target) => ({
-      ...target,
-      title: suggestion.branch,
-    }));
-    await Promise.all([
-      statusState.refetch(),
-      defaultBranchState.refetch(),
-    ]);
-  }, [
-    activeTarget,
-    defaultBranchState,
-    statusState,
-    updateTarget,
-  ]);
+  });
 
   const handleSendPrompt = useCallback(async (submission: CodexPromptSubmission) => {
-    const shouldBootstrapBranch = shouldBootstrapDetachedWorktreeBranch(
-      activeTarget,
-      sessionState.messages.length,
-    );
+    const shouldNameSession = shouldBootstrapSessionNaming(sessionState.threadId);
+    const shouldCreateWorktreeBranch =
+      shouldNameSession && shouldBootstrapDetachedWorktreeBranch(activeTarget);
 
-    await sendPrompt(
+    const promptPromise = sendPrompt(
       activeTarget.id,
       activeTarget.cwd,
       submission,
       {
         browserControlEnabled: repoCodexSettings.browserControlEnabled,
-        ...(shouldBootstrapBranch
-          ? {
-              background: true,
-              beforeSend: () => bootstrapDetachedWorktreeBranch(submission),
-            }
-          : {}),
       },
     );
+
+    if (shouldNameSession) {
+      void promptPromise.then(() =>
+        bootstrapSessionNamingInBackground({
+          targetId: activeTarget.id,
+          cwd: activeTarget.cwd,
+          submission,
+          shouldCreateWorktreeBranch,
+        }));
+    }
+
+    await promptPromise;
   }, [
     activeTarget,
-    bootstrapDetachedWorktreeBranch,
+    bootstrapSessionNamingInBackground,
     repoCodexSettings.browserControlEnabled,
     sendPrompt,
-    sessionState.messages.length,
+    sessionState.threadId,
   ]);
 
   const handleImplementPlan = useCallback((planMarkdown: string) => {

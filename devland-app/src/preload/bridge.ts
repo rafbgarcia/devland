@@ -29,7 +29,7 @@ import {
   CHECKOUT_GIT_BRANCH_CHANNEL,
   GET_GIT_FILE_DIFF_CHANNEL,
   CREATE_GIT_WORKTREE_CHANNEL,
-  SUGGEST_GIT_WORKTREE_BRANCH_NAME_CHANNEL,
+  SUGGEST_CODEX_SESSION_NAMING_CHANNEL,
   CREATE_GIT_BRANCH_CHANNEL,
   CHECK_GIT_WORKTREE_REMOVAL_CHANNEL,
   REMOVE_GIT_WORKTREE_CHANNEL,
@@ -59,6 +59,7 @@ import {
   RESPOND_TO_CODEX_APPROVAL_CHANNEL,
   RESPOND_TO_CODEX_USER_INPUT_CHANNEL,
   SEND_CODEX_SESSION_PROMPT_CHANNEL,
+  SET_CODEX_SESSION_THREAD_NAME_CHANNEL,
   SEARCH_CODEX_PATHS_CHANNEL,
   STOP_CODEX_SESSION_CHANNEL,
   OPEN_TERMINAL_SESSION_CHANNEL,
@@ -183,8 +184,8 @@ export const electronApi: ElectronApi = {
     ipcRenderer.invoke(GET_GIT_FILE_DIFF_CHANNEL, repoPath, filePath),
   createGitWorktree: (repoPath) =>
     ipcRenderer.invoke(CREATE_GIT_WORKTREE_CHANNEL, repoPath),
-  suggestGitWorktreeBranchName: (repoPath, prompt) =>
-    ipcRenderer.invoke(SUGGEST_GIT_WORKTREE_BRANCH_NAME_CHANNEL, repoPath, prompt),
+  suggestCodexSessionNaming: (repoPath, prompt) =>
+    ipcRenderer.invoke(SUGGEST_CODEX_SESSION_NAMING_CHANNEL, repoPath, prompt),
   createGitBranch: (repoPath, branchName) =>
     ipcRenderer.invoke(CREATE_GIT_BRANCH_CHANNEL, repoPath, branchName),
   checkGitWorktreeRemoval: (repoPath, worktreePath) =>
@@ -229,6 +230,8 @@ export const electronApi: ElectronApi = {
     ipcRenderer.invoke(PERSIST_CODEX_ATTACHMENTS_CHANNEL, input),
   sendCodexSessionPrompt: (input) =>
     ipcRenderer.invoke(SEND_CODEX_SESSION_PROMPT_CHANNEL, input),
+  setCodexSessionThreadName: (input) =>
+    ipcRenderer.invoke(SET_CODEX_SESSION_THREAD_NAME_CHANNEL, input),
   listCodexThreads: (input) =>
     ipcRenderer.invoke(LIST_CODEX_THREADS_CHANNEL, input),
   resumeCodexThread: (input) =>

@@ -494,6 +494,7 @@ describe('parseCodexResumedThread', () => {
       }),
       {
         threadId: 'thread-1',
+        threadName: null,
         messages: [
           {
             id: 'user-1',
@@ -583,6 +584,7 @@ describe('parseCodexResumedThread', () => {
       }),
       {
         threadId: 'thread-1',
+        threadName: null,
         messages: [
           {
             id: '689a3c40-8985-4135-904f-f1e0cccdec33:root:user:4',
@@ -625,6 +627,25 @@ describe('parseCodexResumedThread', () => {
             itemId: '689a3c40-8985-4135-904f-f1e0cccdec33:root:assistant:7',
           },
         ],
+      },
+    );
+  });
+
+  it('captures the resumed thread name when Codex provides one', () => {
+    assert.deepEqual(
+      parseCodexResumedThread({
+        thread: {
+          id: 'thread-9',
+          name: 'Investigate naming flow',
+          createdAt: 1710000000,
+          updatedAt: 1710000300,
+          turns: [],
+        },
+      }),
+      {
+        threadId: 'thread-9',
+        threadName: 'Investigate naming flow',
+        messages: [],
       },
     );
   });
@@ -779,6 +800,117 @@ describe('CodexAppServerManager turn completion events', () => {
         },
         modelContextWindow: 256000,
       },
+    });
+  });
+
+  it('emits state updates when the Codex thread name changes', async () => {
+    const manager = new CodexAppServerManager();
+    const events: Array<Record<string, unknown>> = [];
+
+    manager.on('event', (event) => {
+      events.push(event);
+    });
+
+    await (
+      manager as unknown as {
+        handleNotification: (context: Record<string, unknown>, notification: Record<string, unknown>) => Promise<void>;
+      }
+    ).handleNotification(
+      {
+        sessionId: 'session-1',
+        cwd: '/repo',
+        threadId: 'thread-1',
+        threadName: null,
+        status: 'ready',
+        activeTurnId: null,
+        activeTurnStartSnapshot: null,
+        child: { stderr: new EventEmitter() },
+        output: null,
+        pending: new Map(),
+        pendingApprovals: new Map(),
+        pendingUserInputs: new Map(),
+        stopped: false,
+      },
+      {
+        method: 'thread/name/updated',
+        params: {
+          thread_id: 'thread-1',
+          thread_name: 'Investigate naming flow',
+        },
+      },
+    );
+
+    assert.deepEqual(events[0], {
+      type: 'state',
+      sessionId: 'session-1',
+      status: 'ready',
+      threadId: 'thread-1',
+      threadName: 'Investigate naming flow',
+      turnId: null,
+      message: null,
+    });
+  });
+
+  it('sets the Codex thread name after the session has started', async () => {
+    const manager = new CodexAppServerManager();
+    const events: Array<Record<string, unknown>> = [];
+    const requests: Array<{ method: string; params: Record<string, unknown> }> = [];
+
+    manager.on('event', (event) => {
+      events.push(event);
+    });
+
+    (
+      manager as unknown as {
+        sendRequest: (
+          context: Record<string, unknown>,
+          method: string,
+          params: Record<string, unknown>,
+        ) => Promise<Record<string, unknown>>;
+        sessions: Map<string, Record<string, unknown>>;
+      }
+    ).sendRequest = async (_context, method, params) => {
+      requests.push({ method, params });
+      return {};
+    };
+
+    (
+      manager as unknown as {
+        sessions: Map<string, Record<string, unknown>>;
+      }
+    ).sessions.set('session-1', {
+      sessionId: 'session-1',
+      cwd: '/repo',
+      threadId: 'thread-1',
+      threadName: null,
+      status: 'ready',
+      activeTurnId: null,
+      activeTurnStartSnapshot: null,
+      child: { stderr: new EventEmitter() },
+      output: null,
+      pending: new Map(),
+      pendingApprovals: new Map(),
+      pendingUserInputs: new Map(),
+      stopped: false,
+    });
+
+    await manager.setThreadName('session-1', 'Investigate naming flow');
+
+    assert.deepEqual(requests, [{
+      method: 'thread/name/set',
+      params: {
+        threadId: 'thread-1',
+        name: 'Investigate naming flow',
+      },
+    }]);
+    assert.deepEqual(events[0], {
+      type: 'state',
+      sessionId: 'session-1',
+      status: 'ready',
+      threadId: 'thread-1',
+      threadName: 'Investigate naming flow',
+      turnId: null,
+      message: null,
     });
   });
 });

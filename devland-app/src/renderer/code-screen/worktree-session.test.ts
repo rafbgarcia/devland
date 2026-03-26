@@ -6,9 +6,9 @@ import type { CodexPromptSubmission } from '@/lib/codex-chat';
 
 import {
   DETACHED_WORKTREE_TARGET_TITLE,
-  getWorktreePromptText,
+  getSessionNamingPromptText,
   getWorktreeTargetTitle,
-  sendPromptWithDetachedWorktreeBootstrap,
+  shouldBootstrapSessionNaming,
   shouldBootstrapDetachedWorktreeBranch,
 } from './worktree-session';
 
@@ -40,7 +40,7 @@ const createSubmission = (
 describe('worktree session helpers', () => {
   it('derives prompt text from attachments when the prompt is empty', () => {
     assert.equal(
-      getWorktreePromptText(createSubmission({
+      getSessionNamingPromptText(createSubmission({
         prompt: '',
         attachments: [
           {
@@ -55,7 +55,7 @@ describe('worktree session helpers', () => {
       })),
       'error.png',
     );
-    assert.equal(getWorktreePromptText(createSubmission({ prompt: '' })), 'update');
+    assert.equal(getSessionNamingPromptText(createSubmission({ prompt: '' })), 'update');
   });
 
   it('maps detached HEAD to the detached worktree title', () => {
@@ -63,54 +63,19 @@ describe('worktree session helpers', () => {
     assert.equal(getWorktreeTargetTitle('feature/onboarding'), 'feature/onboarding');
   });
 
-  it('only bootstraps branch creation for the first detached worktree prompt', () => {
+  it('only bootstraps branch creation for detached worktrees without a branch name', () => {
     assert.equal(
-      shouldBootstrapDetachedWorktreeBranch(createTarget(), 0),
+      shouldBootstrapDetachedWorktreeBranch(createTarget()),
       true,
     );
     assert.equal(
-      shouldBootstrapDetachedWorktreeBranch(createTarget({ title: 'feature/onboarding' }), 0),
-      false,
-    );
-    assert.equal(
-      shouldBootstrapDetachedWorktreeBranch(createTarget(), 1),
+      shouldBootstrapDetachedWorktreeBranch(createTarget({ title: 'feature/onboarding' })),
       false,
     );
   });
 
-  it('bootstraps the detached worktree branch before sending the prompt', async () => {
-    const events: string[] = [];
-
-    await sendPromptWithDetachedWorktreeBootstrap({
-      target: createTarget(),
-      sessionMessageCount: 0,
-      submission: createSubmission(),
-      bootstrapDetachedWorktreeBranch: async () => {
-        events.push('bootstrap');
-      },
-      sendPrompt: async () => {
-        events.push('send');
-      },
-    });
-
-    assert.deepEqual(events, ['bootstrap', 'send']);
-  });
-
-  it('skips branch bootstrap once the worktree already has a branch name', async () => {
-    const events: string[] = [];
-
-    await sendPromptWithDetachedWorktreeBootstrap({
-      target: createTarget({ title: 'feature/onboarding' }),
-      sessionMessageCount: 0,
-      submission: createSubmission(),
-      bootstrapDetachedWorktreeBranch: async () => {
-        events.push('bootstrap');
-      },
-      sendPrompt: async () => {
-        events.push('send');
-      },
-    });
-
-    assert.deepEqual(events, ['send']);
+  it('bootstraps thread naming only before the first thread exists', () => {
+    assert.equal(shouldBootstrapSessionNaming(null), true);
+    assert.equal(shouldBootstrapSessionNaming('thread-1'), false);
   });
 });
