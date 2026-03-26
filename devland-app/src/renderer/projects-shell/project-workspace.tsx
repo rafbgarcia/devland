@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react';
 import { getRouteApi, useRouter, useRouterState } from '@tanstack/react-router';
 import { CodeIcon, FolderOpenIcon, PlusIcon } from 'lucide-react';
 
@@ -66,6 +66,18 @@ import { Spinner } from '@/shadcn/components/ui/spinner';
 import { cn } from '@/shadcn/lib/utils';
 
 const rootRouteApi = getRouteApi('__root__');
+
+const AddProjectContext = createContext<(() => void) | null>(null);
+
+export function useOpenAddProject() {
+  const fn = useContext(AddProjectContext);
+
+  if (fn === null) {
+    throw new Error('useOpenAddProject must be used within ProjectWorkspace');
+  }
+
+  return fn;
+}
 
 const VIEW_TABS = [
   { value: 'code' as const, label: 'Code', icon: CodeIcon },
@@ -428,16 +440,18 @@ export function ProjectWorkspace({
         onAddProject={() => setIsAddDialogOpen(true)}
       />
 
-      <div className="flex min-h-0 flex-1 flex-col bg-card">
-        <div
-          className={cn(
-            'flex-1',
-            !isProjectViewTab(activeTabId) ? 'min-h-0 overflow-hidden' : 'overflow-y-auto',
-          )}
-        >
-          {children}
+      <AddProjectContext.Provider value={() => setIsAddDialogOpen(true)}>
+        <div className="flex min-h-0 flex-1 flex-col bg-card">
+          <div
+            className={cn(
+              'flex-1',
+              !isProjectViewTab(activeTabId) ? 'min-h-0 overflow-hidden' : 'overflow-y-auto',
+            )}
+          >
+            {children}
+          </div>
         </div>
-      </div>
+      </AddProjectContext.Provider>
 
       <div className="fixed top-2 right-3 z-30">
         <DesktopUpdateButton state={desktopUpdateState} />

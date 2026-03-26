@@ -1,9 +1,9 @@
 import { Navigate, createFileRoute, getRouteApi } from '@tanstack/react-router';
-import { AlertTriangleIcon } from 'lucide-react';
+import { AlertTriangleIcon, FolderPlusIcon } from 'lucide-react';
 
 import { MissingGhCli } from '@/renderer/shared/ui/missing-gh-cli';
 
-import { ProjectWorkspace } from '@/renderer/projects-shell/project-workspace';
+import { ProjectWorkspace, useOpenAddProject } from '@/renderer/projects-shell/project-workspace';
 import { useRepos } from '@/renderer/projects-shell/use-repos';
 import { useWorkspaceSession } from '@/renderer/projects-shell/use-workspace-session';
 import {
@@ -12,6 +12,7 @@ import {
 } from '@/renderer/shared/lib/projects';
 import { getRememberedProjectTabId } from '@/renderer/shared/lib/workspace-view-state';
 import { Alert, AlertDescription, AlertTitle } from '@/shadcn/components/ui/alert';
+import { Button } from '@/shadcn/components/ui/button';
 import { Kbd } from '@/shadcn/components/ui/kbd';
 
 const rootRouteApi = getRouteApi('__root__');
@@ -47,67 +48,46 @@ function ProjectsIndexRoute() {
   return <Navigate replace {...getProjectTabRoute(repoId, tabId)} />;
 }
 
-function CurvedArrowUp() {
-  return (
-    <svg
-      width="48"
-      height="64"
-      viewBox="0 0 48 64"
-      fill="none"
-      className="text-muted-foreground"
-    >
-      <path
-        d="M24 60 C24 28, 12 16, 4 4"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        fill="none"
-      />
-      <path
-        d="M2 16 L4 4 L14 8"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-    </svg>
-  );
-}
-
 function ProjectsEmptyState() {
   const { ghCliAvailable } = rootRouteApi.useLoaderData();
+  const openAddProject = useOpenAddProject();
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-start gap-2 pl-4 pt-4">
-        <CurvedArrowUp />
-        <div className='mt-6 flex flex-col gap-4 text-sm leading-relaxed text-muted-foreground'>
-          <p>
-            Click the plus icon to add a repo.
-          </p>
-          <p>
-            {!ghCliAvailable && <MissingGhCli tooltip={<>Install it <a href="https://cli.github.com/">https://cli.github.com/</a></>} />}{' '}
-            Input <Kbd className="text-xs">owner/repo</Kbd> directly to view Github repos without cloning them.
-          </p>
-
-          {!ghCliAvailable && (
-            <Alert variant="warning">
-              <AlertTriangleIcon />
-              <AlertTitle>GitHub CLI not found</AlertTitle>
-              <AlertDescription>
-                Some features require the <Kbd>gh</Kbd> CLI.
-                <br/>
-                Install and authenticate using <Kbd>gh auth login</Kbd>, then refresh/restart Devland.
-                <br/>
-                <br/>
-                See official instructions at <a href="https://cli.github.com/">https://cli.github.com/</a>
-              </AlertDescription>
-            </Alert>
-          )}
+    <div className="flex h-full items-center justify-center">
+      <div className="flex max-w-sm flex-col items-center gap-6 text-center">
+        <div className="rounded-xl border border-dashed border-muted-foreground/25 bg-muted/30 p-4">
+          <FolderPlusIcon className="size-8 text-muted-foreground/60" />
         </div>
-      </div>
 
+        <div className="flex flex-col gap-2">
+          <h2 className="text-base font-medium text-foreground">No projects yet</h2>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Add a local repository or use{' '}
+            {!ghCliAvailable && <MissingGhCli tooltip="Github owner/repo requires the gh CLI" />}
+            <Kbd className="text-xs">owner/repo</Kbd> to browse a Github repo directly.
+          </p>
+        </div>
+
+        <Button onClick={openAddProject} size="lg">
+          <FolderPlusIcon data-icon="inline-start" />
+          Add your first project
+        </Button>
+
+        {!ghCliAvailable && (
+          <Alert variant="warning" className="text-left">
+            <AlertTriangleIcon />
+            <AlertTitle>GitHub CLI not found</AlertTitle>
+            <AlertDescription>
+              Some features require the <Kbd>gh</Kbd> CLI.
+              <br />
+              Install and authenticate using <Kbd>gh auth login</Kbd>, then refresh/restart Devland.
+              <br />
+              <br />
+              See official instructions at <a href="https://cli.github.com/">https://cli.github.com/</a>
+            </AlertDescription>
+          </Alert>
+        )}
+      </div>
     </div>
   );
 }
