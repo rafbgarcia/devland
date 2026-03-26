@@ -4,15 +4,19 @@ import { CodeIcon, FolderOpenIcon, PlusIcon } from 'lucide-react';
 
 import { CodeTabMenu } from '@/renderer/code-screen/code-tab-menu';
 import { ExternalEditorDialog } from '@/renderer/code-screen/external-editor-dialog';
+import { useCodeTargets } from '@/renderer/code-screen/use-code-targets';
+import { useGitStatus } from '@/renderer/code-screen/use-git';
+import { DETACHED_WORKTREE_TARGET_TITLE } from '@/renderer/code-screen/worktree-session';
 import { ExtensionTabMenu } from '@/renderer/extensions-screen/extension-tab-menu';
 import { MissingGhCli } from '@/renderer/shared/ui/missing-gh-cli';
 
-import type { AppShortcutCommand, ProjectViewTab, Repo } from '@/ipc/contracts';
+import type { AppShortcutCommand, Repo } from '@/ipc/contracts';
 import {
   getAdjacentProjectTabRepoId,
   getProjectTabIdFromRouteMatch,
   getProjectTabRoute,
   getProjectTabRepoIdByShortcutSlot,
+  isAbsoluteProjectPath,
   isProjectViewTab,
   toProjectExtensionTabId,
   type ProjectTabId,
@@ -37,6 +41,7 @@ import { ShortcutHintsOverlay } from '@/renderer/shared/ui/shortcut-hints-overla
 import { DesktopUpdateButton } from '@/renderer/shared/ui/desktop-update-button';
 import { useAppPreferences } from '@/renderer/shared/use-app-preferences';
 import { useDesktopUpdate } from '@/renderer/shared/use-desktop-update';
+import { buildProjectWindowTitle } from './window-title';
 import { useRepoActions, useRepos } from './use-repos';
 import { useProjectRepo } from './use-project-repo';
 import { useWorkspaceSession } from './use-workspace-session';
@@ -232,6 +237,27 @@ export function ProjectWorkspace({
   const repoViewByIdRef = useRef(session.repoViewById);
   const showShortcutHints = useShortcutHintsOpen();
   const desktopUpdateState = useDesktopUpdate();
+  const { homeDirectory } = rootRouteApi.useLoaderData();
+  const activeRepoPath = activeRepo?.path ?? null;
+  const rememberedCodeTargetId = activeRepo === null
+    ? null
+    : getRememberedCodeTargetId(session, activeRepo.id);
+  const { activeTarget } = useCodeTargets(
+    activeRepo?.id ?? '__pending__',
+    activeRepoPath ?? '/',
+    rememberedCodeTargetId,
+  );
+  const localActiveTargetPath = activeRepo !== null && isAbsoluteProjectPath(activeTarget.cwd)
+    ? activeTarget.cwd
+    : null;
+  const activeTargetGitStatus = useGitStatus(
+    localActiveTargetPath,
+  );
+  const activeBranchName = activeTargetGitStatus.status === 'ready'
+    ? activeTargetGitStatus.data.branch
+    : activeTarget.kind === 'worktree' && activeTarget.title !== DETACHED_WORKTREE_TARGET_TITLE
+      ? activeTarget.title
+      : null;
 
   const getTabsForRepo = useCallback(
     (repoId: string) => {
@@ -295,6 +321,14 @@ export function ProjectWorkspace({
       commitRememberedTab(activeRepoId, activeTabId);
     }
   }, [activeRepoId, activeTabId]);
+
+  useEffect(() => {
+    document.title = buildProjectWindowTitle({
+      projectPath: activeRepoPath === null ? null : activeTarget.cwd,
+      branchName: activeBranchName,
+      homeDirectory,
+    });
+  }, [activeBranchName, activeRepoPath, activeTarget.cwd, homeDirectory]);
 
   const navigateToTab = (repoId: string, tabId: ProjectTabId) => {
     commitRememberedTab(repoId, tabId);

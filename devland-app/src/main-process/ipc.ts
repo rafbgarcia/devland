@@ -1,4 +1,5 @@
 import { BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent, type OpenDialogOptions } from 'electron';
+import { homedir } from 'node:os';
 
 import type {
   CodexChatImageAttachment,
@@ -143,7 +144,10 @@ import {
 import { desktopUpdater } from './desktop-updater';
 
 const getAppBootstrap = (): AppBootstrap => {
-  return { ghCliAvailable: ghExecutable !== null };
+  return {
+    ghCliAvailable: ghExecutable !== null,
+    homeDirectory: homedir(),
+  };
 };
 
 const pickRepoDirectory = async (

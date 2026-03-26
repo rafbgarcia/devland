@@ -312,6 +312,7 @@ export type OpenFileInExternalEditorInput = z.infer<
 
 export const AppBootstrapSchema = z.object({
   ghCliAvailable: z.boolean(),
+  homeDirectory: z.string().min(1),
 });
 export type AppBootstrap = z.infer<typeof AppBootstrapSchema>;
 

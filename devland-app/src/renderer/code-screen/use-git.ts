@@ -3,6 +3,7 @@ import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } fro
 import type { GitBranch, GitStatus } from '@/ipc/contracts';
 import { createCoalescedTaskRunner } from '@/renderer/shared/lib/coalesced-request';
 import { incrementDevPerformanceCounter } from '@/renderer/shared/lib/dev-performance';
+import { subscribeToGitStatusRefresh } from '@/renderer/shared/lib/git-status-refresh';
 import { getFromLruCache, setLruCacheValue } from '@/renderer/shared/lib/lru';
 
 type AsyncState<T> =
@@ -33,6 +34,14 @@ const gitStatusCache = new Map<string, GitAsyncCacheValue<GitStatus>>();
 
 const createLoadingGitAsyncState = <T>(repoPath: string): ScopedAsyncState<T> => ({
   repoPath,
+  status: 'loading',
+  data: null,
+  error: null,
+  refreshVersion: 0,
+});
+
+const createIdleGitAsyncState = <T>(): ScopedAsyncState<T> => ({
+  repoPath: '',
   status: 'loading',
   data: null,
   error: null,
@@ -87,19 +96,24 @@ function useCoalescedGitAsyncState<T>({
   metricsKey,
   cache,
 }: {
-  repoPath: string;
+  repoPath: string | null;
   load: (repoPath: string) => Promise<T>;
   errorMessage: string;
   metricsKey: GitAsyncMetricKey;
   cache: Map<string, GitAsyncCacheValue<T>>;
 }) {
   const [state, setState] = useState<ScopedAsyncState<T>>(
-    () => getCachedGitAsyncState(repoPath, cache),
+    () => (repoPath === null ? createIdleGitAsyncState<T>() : getCachedGitAsyncState(repoPath, cache)),
   );
   const fetchIdRef = useRef(0);
-  const runner = useMemo(() => createCoalescedTaskRunner(), [repoPath]);
+  const runner = useMemo(() => createCoalescedTaskRunner(), [repoPath ?? '__idle__']);
 
   const fetchValue = useCallback(async () => {
+    if (repoPath === null) {
+      setState(createIdleGitAsyncState<T>());
+      return;
+    }
+
     return runner.run(async () => {
       const currentRepoPath = repoPath;
       const fetchId = ++fetchIdRef.current;
@@ -172,9 +186,21 @@ function useCoalescedGitAsyncState<T>({
   }, [errorMessage, load, metricsKey, repoPath, runner]);
 
   useEffect(() => {
+    if (repoPath === null) {
+      setState(createIdleGitAsyncState<T>());
+      return;
+    }
+
     setState(getCachedGitAsyncState(repoPath, cache));
     void fetchValue();
   }, [cache, fetchValue, repoPath]);
+
+  if (repoPath === null) {
+    return {
+      ...createIdleGitAsyncState<T>(),
+      refetch: fetchValue,
+    };
+  }
 
   return {
     ...getVisibleGitAsyncState(
@@ -216,7 +242,7 @@ export function useGitDefaultBranch(repoPath: string) {
   });
 }
 
-export function useGitStatus(repoPath: string) {
+export function useGitStatus(repoPath: string | null) {
   const loadStatus = useCallback(
     (currentRepoPath: string) => window.electronAPI.getGitStatus(currentRepoPath),
     [],
@@ -229,6 +255,33 @@ export function useGitStatus(repoPath: string) {
     metricsKey: 'gitStatusFetch',
     cache: gitStatusCache,
   });
+}
+
+export function useGitStatusAutoRefresh(
+  repoPath: string | null,
+  refetch: () => Promise<unknown>,
+) {
+  const handleGitStatusRefresh = useEffectEvent((changedRepoPath: string) => {
+    if (repoPath === null || changedRepoPath !== repoPath) {
+      return;
+    }
+
+    void refetch().catch((error) => {
+      console.error('Failed to refresh Git status:', error);
+    });
+  });
+
+  useEffect(() => {
+    if (repoPath === null) {
+      return;
+    }
+
+    return subscribeToGitStatusRefresh((request) => {
+      handleGitStatusRefresh(request.repoPath);
+    });
+  }, [handleGitStatusRefresh, repoPath]);
+
+  useGitStateWatch(repoPath === null ? [] : [repoPath], handleGitStatusRefresh);
 }
 
 export function useGitStateWatch(
