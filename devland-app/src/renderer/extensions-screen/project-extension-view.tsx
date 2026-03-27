@@ -96,6 +96,7 @@ export function ProjectExtensionView({
   const router = useRouter();
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [isInstalling, setIsInstalling] = useState(false);
+  const [isFrameReady, setIsFrameReady] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const repoDetails = useProjectRepoDetailsState();
   const { updateSession } = useWorkspaceSession();
@@ -122,6 +123,10 @@ export function ProjectExtensionView({
         : null,
     [repoDetails],
   );
+
+  useEffect(() => {
+    setIsFrameReady(false);
+  }, [extension?.entryUrl, extensionId]);
 
   const createNewCodesSession = useCallback(async (
     prompt: string,
@@ -246,6 +251,7 @@ export function ProjectExtensionView({
       const request = parsedRequest.data;
 
       if (request.type === 'devland:ready') {
+        setIsFrameReady(true);
         return;
       }
 
@@ -372,6 +378,7 @@ export function ProjectExtensionView({
       extension === null
       || extensionContext === null
       || extensionMessaging === null
+      || !isFrameReady
       || (extension.status !== 'ready' && extension.status !== 'update-available')
     ) {
       return;
@@ -381,7 +388,7 @@ export function ProjectExtensionView({
       type: 'devland:context-changed',
       context: extensionContext,
     });
-  }, [extension, extensionContext, extensionMessaging]);
+  }, [extension, extensionContext, extensionMessaging, isFrameReady]);
 
   const handleInstall = async () => {
     if (repoDetails.status !== 'ready' || extension === null) {
@@ -581,6 +588,7 @@ export function ProjectExtensionView({
             key={`${extension.id}:${extension.version ?? 'unknown'}:${extension.requestedVersion ?? 'none'}`}
             ref={iframeRef}
             className="h-full w-full border-0 bg-background"
+            onLoad={() => setIsFrameReady(false)}
             sandbox="allow-forms allow-popups allow-same-origin allow-scripts"
             src={extension.entryUrl ?? undefined}
             title={extension.tabName}

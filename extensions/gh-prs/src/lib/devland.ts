@@ -7,13 +7,16 @@ import {
 import { z } from 'zod';
 
 const devland = createDevlandClient();
+const devlandWithOptionalContextSubscription = devland as typeof devland & {
+  subscribeToContext?: (listener: (context: DevlandHostContext) => void) => () => void;
+};
 
 export const getExtensionContext = async (): Promise<DevlandHostContext> =>
   await devland.getContext();
 
 export const subscribeToExtensionContext = (
   listener: (context: DevlandHostContext) => void,
-): (() => void) => devland.subscribeToContext(listener);
+): (() => void) => devlandWithOptionalContextSubscription.subscribeToContext?.(listener) ?? (() => {});
 
 export const getPromptRequestAsset = async (input: {
   ref: string;

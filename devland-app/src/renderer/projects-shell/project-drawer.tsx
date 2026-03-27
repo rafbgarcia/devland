@@ -113,41 +113,45 @@ export function ProjectDrawer({
                 {repos.map((repo) => {
                   const isActiveRepo = repo.id === activeRepoId;
                   const tabs = getTabsForRepo(repo.id);
+                  const projectLabel = getProjectLabel(repo.path);
                   const showGithubIcon = !isAbsoluteProjectPath(repo.path);
 
                   return (
                     <div key={repo.id}>
                       {/* Project row */}
-                      <button
+                      <div
                         className={cn(
-                          'group flex w-full items-center gap-1 px-2 py-1.5 text-left text-xs font-medium transition-colors',
+                          'group flex w-full items-center gap-1 px-2 py-1.5 text-xs font-medium transition-colors',
                           isActiveRepo
                             ? 'bg-muted/60 text-foreground'
                             : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground',
                         )}
-                        onClick={() => {
-                          if (tabs[0]) {
-                            onNavigate(repo.id, tabs[0].tabId);
-                          }
-                        }}
-                        type="button"
                       >
-                        {showGithubIcon && <GithubIcon className="size-3 shrink-0" />}
-                        <span className="min-w-0 flex-1 truncate">{getProjectLabel(repo.path)}</span>
-                        <span
+                        <button
+                          className="flex min-w-0 flex-1 items-center gap-1 text-left"
+                          onClick={() => {
+                            if (tabs[0]) {
+                              onNavigate(repo.id, tabs[0].tabId);
+                            }
+                          }}
+                          type="button"
+                        >
+                          {showGithubIcon && <GithubIcon className="size-3 shrink-0" />}
+                          <span className="min-w-0 flex-1 truncate">{projectLabel}</span>
+                        </button>
+                        <button
                           className={cn(
                             'flex size-4 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-all group-hover:opacity-100 hover:bg-muted hover:text-foreground',
                           )}
-                          onClick={(e) => {
-                            e.stopPropagation();
+                          onClick={() => {
                             onRemoveRepo(repo.id);
                           }}
-                          role="button"
-                          aria-label={`Remove ${getProjectLabel(repo.path)}`}
+                          aria-label={`Remove ${projectLabel}`}
+                          type="button"
                         >
                           <XIcon className="size-2.5" />
-                        </span>
-                      </button>
+                        </button>
+                      </div>
 
                       {/* Sub-tabs — always visible */}
                       <div>
@@ -156,35 +160,38 @@ export function ProjectDrawer({
                             isActiveRepo && tab.tabId === activeTabId;
 
                           return (
-                            <button
+                            <div
                               key={tab.key}
                               className={cn(
-                                'group/tab flex w-full items-center gap-2 py-1.5 pl-4 pr-2 text-left text-xs transition-colors',
+                                'group/tab flex w-full items-center gap-1 py-1.5 pl-4 pr-2 text-xs transition-colors',
                                 isActiveTab
                                   ? 'bg-primary/10 text-primary font-medium'
                                   : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
                                 tab.disabled && 'cursor-not-allowed opacity-40',
                               )}
-                              disabled={tab.disabled}
-                              onClick={() => {
-                                if (!tab.disabled) {
-                                  onNavigate(repo.id, tab.tabId);
-                                }
-                              }}
-                              title={tab.disabledReason ?? undefined}
-                              type="button"
                             >
-                              {tab.icon}
-                              <span className="min-w-0 flex-1 truncate">{tab.label}</span>
+                              <button
+                                className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                                disabled={tab.disabled}
+                                onClick={() => {
+                                  if (!tab.disabled) {
+                                    onNavigate(repo.id, tab.tabId);
+                                  }
+                                }}
+                                title={tab.disabledReason ?? undefined}
+                                type="button"
+                              >
+                                {tab.icon}
+                                <span className="min-w-0 flex-1 truncate">{tab.label}</span>
+                              </button>
                               {tab.menu && (
-                                <span
+                                <div
                                   className="shrink-0 opacity-0 transition-opacity group-hover/tab:opacity-100"
-                                  onClick={(e) => e.stopPropagation()}
                                 >
                                   {tab.menu}
-                                </span>
+                                </div>
                               )}
-                            </button>
+                            </div>
                           );
                         })}
                       </div>

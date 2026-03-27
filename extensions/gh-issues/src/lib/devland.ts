@@ -7,6 +7,9 @@ import {
 import { z } from 'zod';
 
 const devland = createDevlandClient();
+const devlandWithOptionalContextSubscription = devland as typeof devland & {
+  subscribeToContext?: (listener: (context: DevlandHostContext) => void) => () => void;
+};
 
 export const newCodesSession = async (prompt: string): Promise<DevlandNewCodesSessionResult> =>
   await devland.newCodesSession(prompt);
@@ -16,7 +19,7 @@ export const getExtensionContext = async (): Promise<DevlandHostContext> =>
 
 export const subscribeToExtensionContext = (
   listener: (context: DevlandHostContext) => void,
-): (() => void) => devland.subscribeToContext(listener);
+): (() => void) => devlandWithOptionalContextSubscription.subscribeToContext?.(listener) ?? (() => {});
 
 const getCommandErrorMessage = (
   command: string,
