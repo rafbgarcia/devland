@@ -27,6 +27,7 @@ type ManagedBrowserView = {
   browserViewId: string;
   codeTargetId: string;
   view: WebContentsView;
+  isAttached: boolean;
   snapshot: BrowserViewSnapshot;
 };
 
@@ -339,7 +340,12 @@ export class BrowserViewManager extends EventEmitter<{
     const mainWindow = this.requireMainWindow();
 
     this.hideOthers(input.browserViewId);
-    mainWindow.contentView.addChildView(browserView.view);
+
+    if (!browserView.isAttached) {
+      mainWindow.contentView.addChildView(browserView.view);
+      browserView.isAttached = true;
+    }
+
     browserView.view.setBounds(toRectangle(input.bounds));
     browserView.view.setVisible(true);
     browserView.snapshot = readSnapshot(browserView);
@@ -632,15 +638,25 @@ export class BrowserViewManager extends EventEmitter<{
     codeTargetId: string;
   }): Promise<BrowserPageScreenshot> {
     const browserView = this.ensureBrowserView(input.browserViewId, input.codeTargetId);
-    const image = await browserView.view.webContents.capturePage();
+    const restore = await this.prepareForScreenshotCapture(browserView);
 
-    browserView.snapshot = readSnapshot(browserView);
-    this.emitSnapshot(browserView);
+    try {
+      const image = await browserView.view.webContents.capturePage();
+      const pngBytes = image.toPNG();
 
-    return {
-      snapshot: browserView.snapshot,
-      pngBytes: image.toPNG(),
-    };
+      if (pngBytes.byteLength < 1) {
+        throw new Error('Browser screenshot capture returned an empty PNG buffer.');
+      }
+
+      return {
+        snapshot: readSnapshot(browserView),
+        pngBytes,
+      };
+    } finally {
+      await restore();
+      browserView.snapshot = readSnapshot(browserView);
+      this.emitSnapshot(browserView);
+    }
   }
 
   setActiveBrowserView(input: {
@@ -669,7 +685,11 @@ export class BrowserViewManager extends EventEmitter<{
 
     const mainWindow = this.getMainWindow();
 
-    mainWindow?.contentView.removeChildView(browserView.view);
+    if (browserView.isAttached) {
+      mainWindow?.contentView.removeChildView(browserView.view);
+      browserView.isAttached = false;
+    }
+
     browserView.view.setVisible(false);
 
     if (!browserView.view.webContents.isDestroyed()) {
@@ -740,6 +760,7 @@ export class BrowserViewManager extends EventEmitter<{
     const browserView: ManagedBrowserView = {
       browserViewId,
       codeTargetId,
+      isAttached: false,
       view,
       snapshot: createSnapshot(browserViewId, codeTargetId),
     };
@@ -881,6 +902,60 @@ export class BrowserViewManager extends EventEmitter<{
     }
 
     return mainWindow;
+  }
+
+  private async prepareForScreenshotCapture(
+    browserView: ManagedBrowserView,
+  ): Promise<() => Promise<void>> {
+    if (browserView.snapshot.isVisible) {
+      return async () => undefined;
+    }
+
+    const mainWindow = this.requireMainWindow();
+    const previousBounds = browserView.view.getBounds();
+    const contentBounds = mainWindow.getContentBounds();
+    const captureBounds =
+      previousBounds.width > 0 && previousBounds.height > 0
+        ? previousBounds
+        : {
+            x: 0,
+            y: 0,
+            width: Math.max(1, contentBounds.width),
+            height: Math.max(1, contentBounds.height),
+          };
+    const shouldRestoreBounds =
+      captureBounds.x !== previousBounds.x ||
+      captureBounds.y !== previousBounds.y ||
+      captureBounds.width !== previousBounds.width ||
+      captureBounds.height !== previousBounds.height;
+    const wasAttached = browserView.isAttached;
+
+    if (!wasAttached) {
+      mainWindow.contentView.addChildView(browserView.view);
+      browserView.isAttached = true;
+    }
+
+    if (shouldRestoreBounds) {
+      browserView.view.setBounds(captureBounds);
+    }
+
+    browserView.view.setVisible(true);
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, INTERACTION_SETTLE_DELAY_MS);
+    });
+
+    return async () => {
+      browserView.view.setVisible(false);
+
+      if (shouldRestoreBounds) {
+        browserView.view.setBounds(previousBounds);
+      }
+
+      if (!wasAttached && browserView.isAttached) {
+        mainWindow.contentView.removeChildView(browserView.view);
+        browserView.isAttached = false;
+      }
+    };
   }
 
   private async executePageScript<T>(

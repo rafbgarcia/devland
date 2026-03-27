@@ -232,6 +232,15 @@ function parseJson(value) {
   }
 }
 
+function readFileSize(filePath) {
+  if (!filePath) return null;
+  try {
+    return fs.statSync(filePath).size;
+  } catch {
+    return null;
+  }
+}
+
 function runBrowserCommand(browserCli, args) {
   const result = spawnSync(browserCli, args, {
     env: process.env,
@@ -315,6 +324,7 @@ rl.on('line', (line) => {
         statusText: status.json?.element?.text ?? null,
         screenshotMarkdown: screenshot.json?.markdown ?? null,
         screenshotPath: screenshot.json?.path ?? null,
+        screenshotSizeBytes: readFileSize(screenshot.json?.path ?? null),
       });
 
       if (typeof screenshot.json?.markdown === 'string' && screenshot.json.markdown.length > 0) {
@@ -437,6 +447,7 @@ test.describe('Codex browser control smoke', () => {
       expect(interactionLog?.screenshotMarkdown).toMatch(
         /^!\[Browser smoke screenshot\]\(devland-codex-attachment:\/\/asset\//,
       );
+      expect(interactionLog?.screenshotSizeBytes).toBeGreaterThan(0);
       await expect(page.getByAltText('Browser smoke screenshot')).toBeVisible({
         timeout: 20_000,
       });

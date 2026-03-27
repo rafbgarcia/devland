@@ -366,6 +366,11 @@ export class BrowserControlBridge {
         browserViewId,
         codeTargetId: access.codeTargetId,
       });
+
+      if (screenshot.pngBytes.byteLength < 1) {
+        throw new Error('Browser screenshot capture returned an empty PNG buffer.');
+      }
+
       const pageTitle = screenshot.snapshot.pageTitle.trim();
       const attachmentName =
         requestedName ??

@@ -381,6 +381,74 @@ describe('BrowserControlBridge', () => {
     }
   });
 
+  it('rejects empty screenshot buffers', async () => {
+    const bridge = new BrowserControlBridge({
+      getActiveBrowserViewId: () => 'active-tab-1',
+      getSnapshot: async () => ({
+        browserViewId: 'active-tab-1',
+        codeTargetId: 'target-1',
+        currentUrl: 'about:blank',
+        pageTitle: '',
+        canGoBack: false,
+        canGoForward: false,
+        isLoading: false,
+        isVisible: false,
+        lastLoadError: null,
+      }),
+      navigate: async () => {
+        throw new Error('should not be reached');
+      },
+      inspect: async () => {
+        throw new Error('should not be reached');
+      },
+      click: async () => {
+        throw new Error('should not be reached');
+      },
+      typeIntoElement: async () => {
+        throw new Error('should not be reached');
+      },
+      captureScreenshot: async () => ({
+        snapshot: {
+          browserViewId: 'active-tab-1',
+          codeTargetId: 'target-1',
+          currentUrl: 'about:blank',
+          pageTitle: 'Smoke page',
+          canGoBack: false,
+          canGoForward: false,
+          isLoading: false,
+          isVisible: false,
+          lastLoadError: null,
+        },
+        pngBytes: Buffer.alloc(0),
+      }),
+    } as never);
+    const helperRootDir = await mkdtemp(path.join(tmpdir(), 'devland-browser-bridge-'));
+
+    try {
+      await bridge.start(helperRootDir);
+      const access = bridge.issueSessionAccess({
+        sessionId: 'session-1',
+        codeTargetId: 'target-1',
+      });
+
+      const response = await fetch(`${access.baseUrl}/screenshot`, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.token}`,
+          'content-type': 'application/x-www-form-urlencoded; charset=utf-8',
+        },
+      });
+
+      assert.equal(response.status, 500);
+      assert.deepEqual(await response.json(), {
+        error: 'Browser screenshot capture returned an empty PNG buffer.',
+      });
+    } finally {
+      bridge.dispose();
+      await rm(helperRootDir, { recursive: true, force: true });
+    }
+  });
+
   it('rejects unauthorized requests', async () => {
     const bridge = new BrowserControlBridge({
       getActiveBrowserViewId: () => null,
