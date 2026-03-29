@@ -432,9 +432,7 @@ export type CheckGitWorktreeRemovalResult = z.infer<typeof CheckGitWorktreeRemov
 export const CommitWorkingTreeSelectionFileSchema = z.object({
   path: z.string().min(1),
   paths: z.array(z.string().min(1)).min(1),
-  kind: z.enum(['full', 'partial']),
-  patch: z.string().min(1).nullable().optional(),
-});
+}).strict();
 export type CommitWorkingTreeSelectionFile = z.infer<typeof CommitWorkingTreeSelectionFileSchema>;
 
 export const CommitWorkingTreeSelectionInputSchema = z.object({

@@ -1,6 +1,6 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import type { DiffFileStatus } from '@devlandapp/diff-viewer';
 
-import type { DiffFileStatus, DiffSelectionType } from '@/lib/diff';
 import { cn } from '@/shadcn/lib/utils';
 
 import { TruncatedFilePath } from './truncated-file-path';
@@ -43,21 +43,16 @@ const FILE_STATUS_CONFIG: Record<
 };
 
 function FileSelectionToggle({
-  selectionType,
+  checked,
   onClick,
 }: {
-  selectionType: DiffSelectionType;
+  checked: boolean;
   onClick: () => void;
 }) {
   return (
     <input
       type="checkbox"
-      checked={selectionType === 'all'}
-      ref={(el) => {
-        if (el) {
-          el.indeterminate = selectionType === 'partial';
-        }
-      }}
+      checked={checked}
       onChange={(event) => {
         event.stopPropagation();
         onClick();
@@ -77,7 +72,7 @@ export function FilesChangedList({
   topContent,
   bottomContent,
   emptyMessage = 'No changed files.',
-  getFileSelectionType,
+  isFileSelected,
   onToggleFileSelection,
   onOpenFile,
 }: {
@@ -89,7 +84,7 @@ export function FilesChangedList({
   topContent?: ReactNode;
   bottomContent?: ReactNode;
   emptyMessage?: ReactNode;
-  getFileSelectionType?: ((path: string) => DiffSelectionType) | undefined;
+  isFileSelected?: ((path: string) => boolean) | undefined;
   onToggleFileSelection?: ((path: string) => void) | undefined;
   onOpenFile?: ((path: string) => void) | undefined;
 }) {
@@ -204,7 +199,7 @@ export function FilesChangedList({
             {emptyMessage}
           </div>
         ) : files.map((file, index) => {
-          const config = FILE_STATUS_CONFIG[file.status];
+          const config = FILE_STATUS_CONFIG[file.status]!;
           const isSelected = visibleFiles.has(file.path);
 
           return (
@@ -221,9 +216,9 @@ export function FilesChangedList({
                   : 'text-foreground/90 hover:bg-accent',
               )}
             >
-              {getFileSelectionType && onToggleFileSelection ? (
+              {isFileSelected && onToggleFileSelection ? (
                 <FileSelectionToggle
-                  selectionType={getFileSelectionType(file.path)}
+                  checked={isFileSelected(file.path)}
                   onClick={() => onToggleFileSelection(file.path)}
                 />
               ) : null}

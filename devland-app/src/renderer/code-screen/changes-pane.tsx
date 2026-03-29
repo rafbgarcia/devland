@@ -1,4 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  parsePatchDocument,
+  type DiffCommentAnchor,
+  type DiffFile,
+} from '@devlandapp/diff-viewer';
+import { DiffFileView } from '@devlandapp/diff-viewer/react';
 
 import { CircleCheckIcon } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -9,11 +15,6 @@ import type {
   PrCommit,
 } from '@/ipc/contracts';
 import type { CodexComposerSettings } from '@/lib/codex-chat';
-import {
-  getDiffChangeGroupSelectableLineNumbers,
-  type DiffCommentAnchor,
-  type DiffSelectionSide,
-} from '@/lib/diff';
 import { ChangesSidebar } from '@/renderer/code-screen/changes-sidebar';
 import {
   useGitBranchHistory,
@@ -22,29 +23,7 @@ import {
 } from '@/renderer/code-screen/use-git-code-changes';
 import { useWorkingTreeCommitSelection } from '@/renderer/code-screen/use-working-tree-commit-selection';
 import type { CodexSessionState } from '@/renderer/code-screen/codex-session-state';
-import { getParsedDiffFiles } from '@/renderer/shared/ui/diff/parsed-diff-files';
-import { SingleFileDiffView } from '@/renderer/shared/ui/diff/single-file-diff-view';
-import { getExpandedDiffHighlightLineFilters } from '@/renderer/shared/ui/diff/diff-expansion';
-import { useDiffExpansionState } from '@/renderer/shared/ui/diff/use-diff-expansion-state';
-import { useDiffRenderFiles } from '@/renderer/shared/ui/diff/use-diff-render-files';
 import { openRepoFileInExternalEditor } from '@/renderer/shared/lib/open-file-in-external-editor';
-
-function lineFiltersEqual(left: readonly number[], right: readonly number[]) {
-  if (left.length !== right.length) {
-    return false;
-  }
-
-  return left.every((value, index) => value === right[index]);
-}
-
-function expandedHighlightFiltersEqual(
-  left: { oldLineFilter: readonly number[]; newLineFilter: readonly number[] } | undefined,
-  right: { oldLineFilter: readonly number[]; newLineFilter: readonly number[] },
-) {
-  return left !== undefined &&
-    lineFiltersEqual(left.oldLineFilter, right.oldLineFilter) &&
-    lineFiltersEqual(left.newLineFilter, right.newLineFilter);
-}
 
 type CodeChangesSelection =
   | { type: 'working-tree' }
@@ -70,111 +49,52 @@ function toWorkingTreeSidebarFiles(
 
 function ActiveDiffViewport({
   rawDiff,
-  renderContext,
   selectedFilePath,
   emptyMessage,
-  isWorkingTreeSelection,
-  getRowSelectionType,
-  getHunkSelectionType,
-  onToggleRowSelection,
-  onToggleHunkSelection,
   onSubmitComment,
 }: {
   rawDiff: ReturnType<typeof useGitWorkingTreeDiff>['rawDiff'] | ReturnType<typeof useGitCommitDiff>['rawDiff'];
-  renderContext:
-    | { kind: 'working-tree'; repoPath: string }
-    | { kind: 'commit'; repoPath: string; commitRevision: string; parentRevision: string | null }
-    | null;
   selectedFilePath: string | null;
   emptyMessage: ReactNode;
-  isWorkingTreeSelection: boolean;
-  getRowSelectionType: ReturnType<typeof useWorkingTreeCommitSelection>['getRowSelectionType'];
-  getHunkSelectionType: (path: string, hunkStartLineNumber: number) => 'none' | 'all' | 'partial';
-  onToggleRowSelection: (
-    path: string,
-    row: Parameters<ReturnType<typeof useWorkingTreeCommitSelection>['toggleRowSelection']>[1],
-    side?: DiffSelectionSide,
-  ) => void;
-  onToggleHunkSelection: (path: string, hunkStartLineNumber: number) => void;
   onSubmitComment?: ((anchor: DiffCommentAnchor, body: string) => Promise<void>) | undefined;
 }) {
-  const highlightPaths = useMemo(
-    () => selectedFilePath === null ? [] : [selectedFilePath],
-    [selectedFilePath],
+  const parsedDiff = useMemo(
+    () => rawDiff.status === 'ready' ? parsePatchDocument(rawDiff.data) : null,
+    [rawDiff],
   );
-  const { getFileExpansionState, expandFileGap } = useDiffExpansionState(rawDiff);
-  const [highlightLineNumbersByPath, setHighlightLineNumbersByPath] = useState<
-    Record<string, { oldLineFilter: number[]; newLineFilter: number[] }>
-  >({});
-  const renderFiles = useDiffRenderFiles({
-    rawDiff,
-    context: renderContext,
-    highlightPaths,
-    highlightLineNumbersByPath,
-  });
   const selectedFile = useMemo(
     () =>
       selectedFilePath === null
         ? null
-        : (renderFiles.find((file) => file.path === selectedFilePath) ?? null),
-    [renderFiles, selectedFilePath],
+        : (parsedDiff?.files.find((file) => file.displayPath === selectedFilePath) ?? null),
+    [parsedDiff, selectedFilePath],
   );
-  const selectedFileExpansionState = useMemo(
-    () => selectedFilePath === null ? undefined : getFileExpansionState(selectedFilePath),
-    [getFileExpansionState, selectedFilePath],
-  );
-
-  useEffect(() => {
-    if (selectedFile === null) {
-      setHighlightLineNumbersByPath((current) => Object.keys(current).length === 0 ? current : {});
-      return;
-    }
-
-    const nextHighlightFilters = getExpandedDiffHighlightLineFilters({
-      file: selectedFile.diff,
-      rows: selectedFile.rows,
-      contents: selectedFile.contents,
-      expansionState: selectedFileExpansionState,
-    });
-    const hasVisibleExpandedContext =
-      nextHighlightFilters.oldLineFilter.length > 0 || nextHighlightFilters.newLineFilter.length > 0;
-
-    setHighlightLineNumbersByPath((current) => {
-      if (!hasVisibleExpandedContext) {
-        return Object.keys(current).length === 0 ? current : {};
-      }
-
-      const currentSelection = current[selectedFile.path];
-      if (
-        Object.keys(current).length === 1 &&
-        expandedHighlightFiltersEqual(currentSelection, nextHighlightFilters)
-      ) {
-        return current;
-      }
-
-      return {
-        [selectedFile.path]: nextHighlightFilters,
-      };
-    });
-  }, [selectedFile, selectedFileExpansionState]);
 
   return (
-    <SingleFileDiffView
-      rawDiff={rawDiff}
-      selectedFile={selectedFile}
-      emptyMessage={emptyMessage}
-      getRowSelectionType={isWorkingTreeSelection ? getRowSelectionType : undefined}
-      getHunkSelectionType={isWorkingTreeSelection ? getHunkSelectionType : undefined}
-      onToggleRowSelection={isWorkingTreeSelection ? onToggleRowSelection : undefined}
-      onToggleHunkSelection={isWorkingTreeSelection ? onToggleHunkSelection : undefined}
-      onSubmitComment={onSubmitComment}
-      expansionState={selectedFileExpansionState}
-      onExpandGap={
-        selectedFile
-          ? (gap, action) => expandFileGap(selectedFile.path, gap, action)
-          : undefined
-      }
-    />
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+      {rawDiff.status === 'error' ? (
+        <div className="flex flex-1 items-center justify-center">
+          <p className="text-sm text-destructive">{rawDiff.error}</p>
+        </div>
+      ) : null}
+
+      {rawDiff.status === 'ready' && selectedFile === null ? (
+        <div className="flex flex-1 items-center justify-center">
+          {emptyMessage}
+        </div>
+      ) : null}
+
+      {rawDiff.status === 'ready' && selectedFile !== null ? (
+        <div className="flex-1 overflow-auto">
+          <div className="min-h-full p-3">
+            <DiffFileView
+              file={selectedFile}
+              onSubmitComment={onSubmitComment}
+            />
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -282,24 +202,8 @@ export function ChangesPane({
     ? historyState.error
     : null;
 
-  const renderContext = useMemo(() => {
-    if (selection.type === 'working-tree') {
-      return { kind: 'working-tree', repoPath } as const;
-    }
-
-    if (selectedCommit === null) {
-      return null;
-    }
-
-    return {
-      kind: 'commit',
-      repoPath,
-      commitRevision: selectedCommit.sha,
-      parentRevision: commitDiffState.parentRevision,
-    } as const;
-  }, [commitDiffState.parentRevision, repoPath, selectedCommit, selection.type]);
   const activeDiffFiles = useMemo(
-    () => (activeDiffState.status === 'ready' ? getParsedDiffFiles(activeDiffState.data) : []),
+    () => (activeDiffState.status === 'ready' ? parsePatchDocument(activeDiffState.data).files : []),
     [activeDiffState],
   );
   const workingTreeSidebarFiles = useMemo(
@@ -342,63 +246,12 @@ export function ChangesPane({
   });
   const isWorkingTreeSelection = selection.type === 'working-tree';
 
-  const getWorkingTreeHunkSelectionType = (path: string, hunkStartLineNumber: number) => {
-    const file = activeDiffFiles.find((candidate) => candidate.displayPath === path);
-
-    if (!file) {
-      return 'none' as const;
-    }
-
-    const hunkSelection = workingTreeCommitSelection.selectionByPath[path];
-
-    if (!hunkSelection || hunkSelection.kind !== 'lines') {
-      return workingTreeCommitSelection.getFileSelectionType(path);
-    }
-
-    const selectableLines = getDiffChangeGroupSelectableLineNumbers(file, hunkStartLineNumber);
-    const selectedCount = selectableLines.filter((lineNumber) =>
-      hunkSelection.selection.isSelected(lineNumber),
-    ).length;
-
-    if (selectedCount === 0) {
-      return 'none' as const;
-    }
-
-    if (selectedCount === selectableLines.length) {
-      return 'all' as const;
-    }
-
-    return 'partial' as const;
-  };
-
   const toggleWorkingTreeFileSelection = useCallback((path: string) => {
     workingTreeCommitSelection.toggleFileSelection(
       path,
-      workingTreeCommitSelection.getFileSelectionType(path) === 'none',
+      !workingTreeCommitSelection.isFileSelected(path),
     );
   }, [workingTreeCommitSelection]);
-  const handleToggleRowSelection = useCallback((
-    path: string,
-    row: Parameters<typeof workingTreeCommitSelection.toggleRowSelection>[1],
-    side: DiffSelectionSide = 'all',
-  ) => {
-    workingTreeCommitSelection.toggleRowSelection(
-      path,
-      row,
-      workingTreeCommitSelection.getRowSelectionType(path, row, side) === 'none',
-      side,
-    );
-  }, [workingTreeCommitSelection]);
-  const handleToggleHunkSelection = useCallback((
-    path: string,
-    hunkStartLineNumber: number,
-  ) => {
-    workingTreeCommitSelection.toggleHunkSelection(
-      path,
-      hunkStartLineNumber,
-      getWorkingTreeHunkSelectionType(path, hunkStartLineNumber) === 'none',
-    );
-  }, [getWorkingTreeHunkSelectionType, workingTreeCommitSelection]);
 
   const handleRestoreWorkingTree = useCallback(() => {
     setSelection({ type: 'working-tree' });
@@ -462,7 +315,7 @@ export function ChangesPane({
                     ? 'Wait for the active Codex turn to finish before attaching context.'
                     : null,
             },
-            getFileSelectionType: workingTreeCommitSelection.getFileSelectionType,
+            isFileSelected: workingTreeCommitSelection.isFileSelected,
             onToggleFileSelection: toggleWorkingTreeFileSelection,
             onCommit: handleCommitSelection,
           }
@@ -475,7 +328,7 @@ export function ChangesPane({
       toggleWorkingTreeFileSelection,
       workingTreeSidebarFiles.length,
       workingTreeCommitSelection.error,
-      workingTreeCommitSelection.getFileSelectionType,
+      workingTreeCommitSelection.isFileSelected,
       workingTreeCommitSelection.isSubmitting,
       workingTreeCommitSelection.selectedFileCount,
     ],
@@ -509,14 +362,8 @@ export function ChangesPane({
   const viewport = isViewportActive ? (
     <ActiveDiffViewport
       rawDiff={activeDiffState}
-      renderContext={renderContext}
       selectedFilePath={selectedFilePath}
       emptyMessage={viewportEmptyMessage}
-      isWorkingTreeSelection={isWorkingTreeSelection}
-      getRowSelectionType={workingTreeCommitSelection.getRowSelectionType}
-      getHunkSelectionType={getWorkingTreeHunkSelectionType}
-      onToggleRowSelection={handleToggleRowSelection}
-      onToggleHunkSelection={handleToggleHunkSelection}
       onSubmitComment={onSubmitDiffComment}
     />
   ) : null;

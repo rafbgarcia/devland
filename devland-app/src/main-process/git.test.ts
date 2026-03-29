@@ -1,17 +1,12 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { promisify } from 'node:util';
 
-import {
-  DiffSelection,
-  formatPatchFromSelection,
-  getSelectableDiffLineNumbers,
-  parseUnifiedDiffDocument,
-} from '@/lib/diff';
+import { parsePatchDocument } from '@devlandapp/diff-viewer';
 import {
   checkGitWorktreeRemoval,
   commitWorkingTreeSelection,
@@ -49,7 +44,7 @@ async function createCommittedRepo() {
 }
 
 describe('commitWorkingTreeSelection', () => {
-  it('creates a partial commit while leaving unselected changes in the working tree', async () => {
+  it('rejects partial commit payloads', async () => {
     const repoPath = mkdtempSync(path.join(tmpdir(), 'devland-git-test-'));
 
     try {
@@ -66,61 +61,24 @@ describe('commitWorkingTreeSelection', () => {
       writeFileSync(filePath, 'const a = 1;\nconst b = 20;\nconst c = 30;\n', 'utf8');
 
       const diff = await getGitWorkingTreeDiff(repoPath);
-      const file = parseUnifiedDiffDocument(diff).files[0]!;
-      const selectableLines = getSelectableDiffLineNumbers(file);
-      const patch = formatPatchFromSelection(
-        file,
-        DiffSelection.all(selectableLines).withLineSelection(4, false).withLineSelection(6, false),
+      const file = parsePatchDocument(diff).files[0]!;
+
+      await assert.rejects(
+        commitWorkingTreeSelection({
+          repoPath,
+          summary: 'Commit selected changes',
+          description: '',
+          files: [
+            {
+              path: file.displayPath,
+              paths: [file.displayPath],
+              kind: 'partial',
+              patch: file.rawPatch,
+            },
+          ],
+        } as unknown as Parameters<typeof commitWorkingTreeSelection>[0]),
+        /Unrecognized keys/,
       );
-
-      assert.ok(patch);
-
-      const result = await commitWorkingTreeSelection({
-        repoPath,
-        summary: 'Commit selected changes',
-        description: '',
-        files: [
-          {
-            path: file.displayPath,
-            paths: [file.displayPath],
-            kind: 'partial',
-            patch,
-          },
-        ],
-      });
-
-      assert.match(result.commitSha, /^[0-9a-f]{40}$/);
-
-      const headFile = (await execGit(repoPath, ['show', 'HEAD:example.ts'])).stdout;
-      assert.equal(headFile, 'const a = 1;\nconst b = 20;\nconst c = 3;\n');
-      assert.equal(
-        readFileSync(filePath, 'utf8'),
-        'const a = 1;\nconst b = 20;\nconst c = 30;\n',
-      );
-
-      const status = await getGitStatus(repoPath);
-      assert.equal(status.hasStagedChanges, false);
-      assert.match(status.headRevision ?? '', /^[0-9a-f]{40}$/);
-      assert.deepEqual(
-        status.files.map((fileStatus) => ({
-          path: fileStatus.path,
-          status: fileStatus.status,
-          hasStagedChanges: fileStatus.hasStagedChanges,
-          hasUnstagedChanges: fileStatus.hasUnstagedChanges,
-        })),
-        [
-          {
-            path: 'example.ts',
-            status: 'modified',
-            hasStagedChanges: false,
-            hasUnstagedChanges: true,
-          },
-        ],
-      );
-
-      const remainingDiff = await getGitWorkingTreeDiff(repoPath);
-      assert.match(remainingDiff, /const c = 3;/);
-      assert.match(remainingDiff, /const c = 30;/);
     } finally {
       rmSync(repoPath, { recursive: true, force: true });
     }
@@ -144,7 +102,7 @@ describe('commitWorkingTreeSelection', () => {
       writeFileSync(filePath, 'const value = 2;\n', 'utf8');
 
       const diff = await getGitWorkingTreeDiff(repoPath);
-      const file = parseUnifiedDiffDocument(diff).files[0]!;
+      const file = parsePatchDocument(diff).files[0]!;
       const paths = [...new Set([file.oldPath, file.newPath].filter((value): value is string => value !== null))];
 
       assert.deepEqual(paths, ['example.ts']);
@@ -157,7 +115,6 @@ describe('commitWorkingTreeSelection', () => {
           {
             path: file.displayPath,
             paths,
-            kind: 'full',
           },
         ],
       });
@@ -195,7 +152,7 @@ describe('commitWorkingTreeSelection', () => {
       writeFileSync(path.join(repoPath, 'b.txt'), 'b2\n', 'utf8');
 
       const diff = await getGitWorkingTreeDiff(repoPath);
-      const file = parseUnifiedDiffDocument(diff).files.find((candidate) => candidate.displayPath === 'b.txt');
+      const file = parsePatchDocument(diff).files.find((candidate) => candidate.displayPath === 'b.txt');
 
       assert.ok(file);
 
@@ -207,7 +164,6 @@ describe('commitWorkingTreeSelection', () => {
           {
             path: file.displayPath,
             paths: [file.displayPath],
-            kind: 'full',
           },
         ],
       });
@@ -317,7 +273,7 @@ describe('getGitStatus', () => {
       );
 
       const diff = await getGitWorkingTreeDiff(repoPath);
-      const diffPaths = parseUnifiedDiffDocument(diff).files.map((file) => file.displayPath).sort();
+      const diffPaths = parsePatchDocument(diff).files.map((file) => file.displayPath).sort();
 
       assert.deepEqual(diffPaths, ['dist/assets/bundle.js', 'dist/index.html']);
     } finally {

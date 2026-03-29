@@ -1,17 +1,4 @@
-import type { DiffFile, DiffRow } from '@/lib/diff/types';
-
-export type DiffCommentSide = 'old' | 'new';
-
-export type DiffCommentAnchor = {
-  path: string;
-  oldPath: string | null;
-  newPath: string | null;
-  side: DiffCommentSide;
-  line: number;
-  startLine: number;
-  endLine: number;
-  excerpt: string[];
-};
+import type { DiffCommentAnchor, DiffCommentSide, DiffFile, DiffRow } from './types.js';
 
 export function getCommentableLineNumber(
   row: DiffRow,
@@ -48,7 +35,7 @@ function getRowContent(row: DiffRow, side: DiffCommentSide) {
 
 export function buildDiffCommentAnchor(
   file: DiffFile,
-  rows: DiffRow[],
+  rows: readonly DiffRow[],
   side: DiffCommentSide,
 ): DiffCommentAnchor | null {
   const lineNumbers = rows

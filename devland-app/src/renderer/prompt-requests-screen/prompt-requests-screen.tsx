@@ -6,6 +6,7 @@ import {
   MessageSquareIcon,
   WrenchIcon,
 } from 'lucide-react';
+import { getPatchFileSummaries } from '@devlandapp/diff-viewer';
 import ReactMarkdown from 'react-markdown';
 
 import { dayjs } from '@/lib/dayjs';
@@ -16,7 +17,6 @@ import type {
 } from '@/ipc/contracts';
 import { useGitCommitDiff } from '@/renderer/code-screen/use-git-code-changes';
 import { useGitDefaultBranch, useGitStatus } from '@/renderer/code-screen/use-git';
-import { getParsedDiffFiles } from '@/renderer/shared/ui/diff/parsed-diff-files';
 import { Badge } from '@/shadcn/components/ui/badge';
 import {
   Dialog,
@@ -127,7 +127,7 @@ function CommitDiffSection({
 }) {
   const { rawDiff } = useGitCommitDiff({ repoPath, commitSha });
   const parsedFiles = useMemo(
-    () => (rawDiff.status === 'ready' ? getParsedDiffFiles(rawDiff.data) : []),
+    () => (rawDiff.status === 'ready' ? getPatchFileSummaries(rawDiff.data) : []),
     [rawDiff],
   );
 
@@ -153,10 +153,10 @@ function CommitDiffSection({
       <div className="flex flex-wrap gap-2">
         {parsedFiles.map((file) => (
           <div
-            key={`${file.status}:${file.displayPath}`}
+            key={`${file.status}:${file.path}`}
             className="rounded-xl border border-border bg-card/60 px-3 py-2 text-xs"
           >
-            <p className="font-medium text-foreground">{file.displayPath}</p>
+            <p className="font-medium text-foreground">{file.path}</p>
             <p className="text-muted-foreground">
               {file.status} · +{file.additions} / -{file.deletions}
             </p>

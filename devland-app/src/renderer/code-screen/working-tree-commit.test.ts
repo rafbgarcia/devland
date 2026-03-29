@@ -16,7 +16,6 @@ const commitInput: CommitWorkingTreeSelectionInput = {
     {
       path: 'src/example.ts',
       paths: ['src/example.ts'],
-      kind: 'full',
     },
   ],
 };

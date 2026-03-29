@@ -30,8 +30,8 @@ import {
   type RemoveGitWorktreeReason,
   type RepoDetails,
 } from '../ipc/contracts';
+import { parsePatchDocument } from '@devlandapp/diff-viewer';
 import { resolveCodexAttachmentPath } from './codex-attachments';
-import { parseUnifiedDiffDocument } from '../lib/diff';
 
 const execFileAsync = promisify(execFile);
 
@@ -670,7 +670,7 @@ export const getGitWorkingTreeDiff = async (repoPath: string): Promise<string> =
     .filter((output) => output.trim().length > 0)
     .join('\n');
   const diffPaths = new Set(
-    parseUnifiedDiffDocument(combinedDiff).files.map((file) => file.displayPath),
+    parsePatchDocument(combinedDiff).files.map((file) => file.displayPath),
   );
   const missingDiffs = await Promise.all(
     status.files
@@ -780,7 +780,7 @@ export const getGitSnapshotDiff = async (
     return null;
   }
 
-  const parsed = parseUnifiedDiffDocument(patch);
+  const parsed = parsePatchDocument(patch);
 
   return {
     patch,
@@ -1002,21 +1002,6 @@ export const commitWorkingTreeSelection = async (
     await unstageAllFiles(parsedInput.repoPath);
 
     for (const file of parsedInput.files) {
-      if (file.kind === 'partial') {
-        if (!file.patch) {
-          throw new Error(`Missing partial patch for ${file.path}.`);
-        }
-
-        await applyPatchToIndex(
-          parsedInput.repoPath,
-          undefined,
-          file.patch,
-          scratchDir,
-          file.path,
-        );
-        continue;
-      }
-
       await stageWholeFileInIndex(parsedInput.repoPath, undefined, file.paths);
     }
 

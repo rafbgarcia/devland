@@ -7,7 +7,6 @@ import {
 } from 'lucide-react';
 
 import type { PrCommit } from '@/ipc/contracts';
-import type { DiffSelectionType } from '@/lib/diff';
 import {
   FilesChangedList,
   type DiffListFile,
@@ -98,7 +97,7 @@ export const ChangesSidebar = memo(function ChangesSidebar({
       enabled: boolean;
       reason: string | null;
     };
-    getFileSelectionType: (path: string) => DiffSelectionType;
+    isFileSelected: (path: string) => boolean;
     onToggleFileSelection: (path: string) => void;
     onCommit: (draft: {
       summary: string;
@@ -127,7 +126,7 @@ export const ChangesSidebar = memo(function ChangesSidebar({
       visibleFiles={selectedFiles}
       onSelectFile={onSelectFile}
       onOpenFile={onOpenFile}
-      getFileSelectionType={workingTreeCommitState?.getFileSelectionType}
+      isFileSelected={workingTreeCommitState?.isFileSelected}
       onToggleFileSelection={workingTreeCommitState?.onToggleFileSelection}
       emptyMessage={emptyMessage}
       topContent={
